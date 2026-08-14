@@ -118,7 +118,14 @@ def _load_target_fixtures(engine: Engine, season: str, target_gameweek: int) -> 
 def _rolling_features(history: pd.DataFrame) -> pd.DataFrame:
     """Mean of each player's last N completed gameweeks, as-of their latest row."""
     if history.empty:
-        return pd.DataFrame(columns=["player_id"] + [spec[1] for spec in _ROLLING_SPECS])
+        # Must match the non-empty branch's out_cols below (value/selected
+        # included, all numeric dtype) -- otherwise build_features's
+        # price_current/ownership_log assignment crashes (KeyError on 'value'
+        # if the columns are missing, or a np.log1p TypeError if they're left
+        # as default object dtype) whenever a season has no completed
+        # gameweeks yet (e.g. predicting for GW1 itself).
+        cols = ["player_id"] + [spec[1] for spec in _ROLLING_SPECS] + ["value", "selected"]
+        return pd.DataFrame(columns=cols, dtype="float64")
 
     grouped = history.groupby("player_id")
     for src_col, out_col, window in _ROLLING_SPECS:
@@ -153,6 +160,12 @@ def build_features(engine: Engine, season: str, target_gameweek: int) -> pd.Data
     order, ready for model.predict(df[feature_cols]). Read-only.
     """
     players = _load_players(engine, season)
+    if players.empty:
+        raise ValueError(
+            f"No player data found for season {season} -- check the season string "
+            "is correct and data has been ingested"
+        )
+
     history = _load_history(engine, season, target_gameweek)
     fixtures = _load_target_fixtures(engine, season, target_gameweek)
 

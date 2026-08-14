@@ -1,11 +1,11 @@
 """
-db_utils.py — shared database helper for Context_assembler.
+db_utils.py — shared database helper for Worker.
 
 get_engine() reads DATABASE_URL from the project .env and returns a
 SQLAlchemy Engine. Mirrors Data_ingestion/utils/db_utils.py,
-Feature_engineering/db_utils.py, and Predict/db_utils.py so every stage
-points at the same Postgres instance without a cross-folder import
-dependency.
+Feature_engineering/db_utils.py, Predict/db_utils.py, and
+Context_assembler/db_utils.py so every stage points at the same Postgres
+instance without a cross-folder import dependency.
 """
 
 import os

@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FPL /chat playground</title>
+</head>
+<body style="font-family: monospace; max-width: 700px; margin: 2em auto; padding: 0 1em;">
+
+<h2>/chat playground (dev tool only)</h2>
+<p>POSTs directly to <code>http://127.0.0.1:8000/chat</code>. Not part of the real app.</p>
+
+<form id="form">
+  <div style="margin-bottom: 10px;">
+    <label>user_id: <input type="number" id="user_id" value="1" style="width: 100px;"></label>
+  </div>
+  <div style="margin-bottom: 10px;">
+    <label>season: <input type="text" id="season" value="2025-26" style="width: 100px;"></label>
+  </div>
+  <div style="margin-bottom: 10px;">
+    <label>gameweek: <input type="number" id="gameweek" value="4" style="width: 100px;"></label>
+  </div>
+  <div style="margin-bottom: 10px;">
+    <label>message:<br>
+      <textarea id="message" rows="3" style="width: 100%;">Should I captain Salah instead of Haaland this week?</textarea>
+    </label>
+  </div>
+  <button type="submit">Send</button>
+</form>
+
+<div id="result" style="margin-top: 20px; display: none;">
+  <hr>
+  <p><b>Status:</b> <span id="status"></span></p>
+  <p><b>Response time:</b> <span id="time"></span></p>
+  <p><b>Response text:</b></p>
+  <pre id="response_text" style="white-space: pre-wrap; background: #f0f0f0; padding: 10px; border: 1px solid #ccc;"></pre>
+
+  <details>
+    <summary>Raw request/response JSON</summary>
+    <p><b>Request body:</b></p>
+    <pre id="raw_request" style="white-space: pre-wrap; background: #f8f8f8; padding: 10px; border: 1px solid #ddd;"></pre>
+    <p><b>Response body:</b></p>
+    <pre id="raw_response" style="white-space: pre-wrap; background: #f8f8f8; padding: 10px; border: 1px solid #ddd;"></pre>
+  </details>
+</div>
+
+<script>
+document.getElementById('form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+
+  const body = {
+    user_id: Number(document.getElementById('user_id').value),
+    season: document.getElementById('season').value,
+    gameweek: Number(document.getElementById('gameweek').value),
+    message: document.getElementById('message').value,
+  };
+
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('status').textContent = 'sending...';
+  document.getElementById('time').textContent = '';
+  document.getElementById('response_text').textContent = '';
+  document.getElementById('raw_request').textContent = JSON.stringify(body, null, 2);
+  document.getElementById('raw_response').textContent = '';
+
+  const start = performance.now();
+  try {
+    const res = await fetch('http://127.0.0.1:8000/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const elapsed = (performance.now() - start).toFixed(0);
+    const data = await res.json();
+
+    document.getElementById('status').textContent = res.status + ' ' + res.statusText;
+    document.getElementById('time').textContent = elapsed + ' ms';
+    document.getElementById('response_text').textContent = data.response || data.detail || '(no response/detail field)';
+    document.getElementById('raw_response').textContent = JSON.stringify(data, null, 2);
+  } catch (err) {
+    const elapsed = (performance.now() - start).toFixed(0);
+    document.getElementById('status').textContent = 'ERROR (see console -- likely CORS or server not running)';
+    document.getElementById('time').textContent = elapsed + ' ms';
+    document.getElementById('response_text').textContent = String(err);
+  }
+});
+</script>
+
+</body>
+</html>
