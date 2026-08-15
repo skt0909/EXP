@@ -5,22 +5,24 @@ Premier League points and tiers the results before they reach a user or LLM.
 
 ## Pipeline
 
-1. **`Data_ingestion/`** — loads FPL API data into a 7-table Postgres schema
+All backend code lives under `backend/`.
+
+1. **`backend/Data_ingestion/`** — loads FPL API data into a 7-table Postgres schema
    (`ml.players`, `ml.teams`, `ml.fixtures`, `ml.player_gw_stats`,
    `ml.season_stats`, `ml.player_gw_features`, `ml.ml_predictions`) via
    `fpl_ingest.py`. Also holds the trained model: `model.json` (the
    canonical, portable xgboost booster dump) and `model_metadata.json`
-   (feature list, validation metrics, feature importances). `FPL_Model_1
+   (feature list, validation metrics, feature importances). `backend/FPL_Model_1
    (1).ipynb` is the original Colab training notebook.
 
-2. **`Feature_engineering/`** — `feature_builder.py`'s
+2. **`backend/Feature_engineering/`** — `feature_builder.py`'s
    `build_features(engine, season, target_gameweek)` computes the 21 model
    features per player directly from raw `ml.player_gw_stats`/`players`/
    `fixtures` rows, leaving genuine `NaN` where a player has no rolling
    history or where FBref-sourced stats aren't ingested (the model was
    trained with `missing=nan`, so this is intentional, not a bug).
 
-3. **`Predict/`** — `predict_gameweek.ipynb` (generated + executed by
+3. **`backend/Predict/`** — `predict_gameweek.ipynb` (generated + executed by
    `build_notebook.py`) runs `build_features` output through `model.json`,
    compares predictions against real results, and finishes with
    `tier_builder.py`'s `build_tiers(...)`, which turns raw

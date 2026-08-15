@@ -17,8 +17,8 @@ _ROOT = Path(__file__).resolve().parent.parent
 # Explicitly on sys.path (not left to incidental cwd insertion from
 # `python -m pytest`) because Game_logic.db_utils/squad_selection/
 # starting_xi are now imported by absolute dotted path (e.g.
-# `from Game_logic.db_utils import get_engine`), which needs the repo
-# root itself findable, not just each module's own directory.
+# `from Game_logic.db_utils import get_engine`), which needs the backend
+# directory itself findable, not just each module's own directory.
 sys.path.insert(0, str(_ROOT))
 for _sub in ("Feature_engineering", "Predict", "Context_assembler", "Worker", "Game_logic"):
     sys.path.insert(0, str(_ROOT / _sub))
@@ -27,7 +27,16 @@ import pytest
 from dotenv import load_dotenv
 from sqlalchemy import create_engine, text
 
-load_dotenv(_ROOT / ".env")
+# .env lives at the true project root, above backend/ -- same unbounded
+# walk-up pattern every db_utils.py in this project uses, so this stays
+# correct regardless of how deep this file is nested.
+for _d in [Path(__file__).resolve().parent] + list(Path(__file__).resolve().parents):
+    _candidate = _d / ".env"
+    if _candidate.is_file():
+        load_dotenv(_candidate)
+        break
+else:
+    load_dotenv()
 
 TEST_SEASON = "9999-00"
 
