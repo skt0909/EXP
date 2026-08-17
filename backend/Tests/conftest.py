@@ -20,7 +20,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 # `from Game_logic.db_utils import get_engine`), which needs the backend
 # directory itself findable, not just each module's own directory.
 sys.path.insert(0, str(_ROOT))
-for _sub in ("Feature_engineering", "Predict", "Context_assembler", "Worker", "Game_logic"):
+for _sub in ("Feature_engineering", "Predict", "Context_assembler", "Worker", "Game_logic", "Data_ingestion"):
     sys.path.insert(0, str(_ROOT / _sub))
 
 import pytest
@@ -112,14 +112,29 @@ def make_player(engine):
 
 @pytest.fixture
 def make_fixture(engine):
-    def _make(fpl_id: int, gameweek: int, home_team_id: int, away_team_id: int) -> int:
+    def _make(
+        fpl_id: int,
+        gameweek: int,
+        home_team_id: int,
+        away_team_id: int,
+        kickoff_time=None,
+        finished: bool = False,
+    ) -> int:
         with engine.begin() as conn:
             return conn.execute(
                 text(
-                    "INSERT INTO ml.fixtures (fpl_id, season, gameweek, home_team_id, away_team_id) "
-                    "VALUES (:fpl_id, :season, :gw, :home, :away) RETURNING id"
+                    "INSERT INTO ml.fixtures (fpl_id, season, gameweek, home_team_id, away_team_id, kickoff_time, finished) "
+                    "VALUES (:fpl_id, :season, :gw, :home, :away, :kickoff_time, :finished) RETURNING id"
                 ),
-                {"fpl_id": fpl_id, "season": TEST_SEASON, "gw": gameweek, "home": home_team_id, "away": away_team_id},
+                {
+                    "fpl_id": fpl_id,
+                    "season": TEST_SEASON,
+                    "gw": gameweek,
+                    "home": home_team_id,
+                    "away": away_team_id,
+                    "kickoff_time": kickoff_time,
+                    "finished": finished,
+                },
             ).scalar()
 
     return _make

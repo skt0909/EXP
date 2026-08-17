@@ -52,6 +52,7 @@ from Game_logic.squad_selection import router as squad_router
 from Game_logic.starting_xi import router as starting_xi_router
 from Game_logic.transfers import router as transfers_router
 from Game_logic.leagues import router as leagues_router
+from Game_logic.dream11 import router as dream11_router
 from groq_client import call_groq, GroqError
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -96,9 +97,9 @@ asked directly -- you were not given one and do not have one."""
 
 app = FastAPI(title="FPL Context Assembler")
 
-# playground.html is opened directly as a file:// page, not served by
+# The frontend/ dev server runs on its own Vite port, not served by
 # FastAPI, so without this the browser blocks the fetch() call. Dev-only
-# tool, so wide open is fine -- don't carry allow_origins=["*"] into
+# setup, so wide open is fine -- don't carry allow_origins=["*"] into
 # anything that touches real user auth.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
@@ -106,6 +107,7 @@ app.include_router(squad_router)
 app.include_router(starting_xi_router)
 app.include_router(transfers_router)
 app.include_router(leagues_router)
+app.include_router(dream11_router)
 
 
 STARTING_XI_QUERY = text(
