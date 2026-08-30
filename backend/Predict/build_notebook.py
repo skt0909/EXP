@@ -1,4 +1,17 @@
-"""One-off script to assemble and execute predict_gameweek.ipynb. Not part of the pipeline."""
+"""Assembles and executes predict_gameweek.ipynb. Not part of the pipeline.
+
+The notebook it writes is BUILD OUTPUT and is gitignored -- a fresh clone
+will not have it. Run this from backend/Predict/ (paths below resolve
+against the working directory) with the database reachable, since every
+cell is executed against real data before the file is written.
+
+It was previously checked in beside this script and drifted: the
+db_utils consolidation changed an import the notebook depended on, this
+generator was updated, the generated file was not, and nothing in CI
+executes it -- so it stayed broken until it was opened by hand. Treat
+the notebook as disposable and regenerate it after any change here, to
+feature_builder.py, or to model.json.
+"""
 import nbformat as nbf
 from nbclient import NotebookClient
 
@@ -20,6 +33,9 @@ cells.append(nbf.v4.new_code_cell(
 """import sys
 from pathlib import Path
 
+# Run from Predict/, so cwd().parent is backend/ -- needed for Shared.db_utils,
+# which replaced the five per-package db_utils.py copies.
+sys.path.insert(0, str(Path.cwd().parent))
 sys.path.insert(0, str(Path.cwd().parent / "Feature_engineering"))
 
 import json
@@ -28,7 +44,7 @@ import pandas as pd
 import xgboost as xgb
 from sqlalchemy import text
 
-from db_utils import get_engine
+from Shared.db_utils import get_engine
 from feature_builder import build_features, FEATURE_COLS
 
 pd.set_option("display.width", 220)

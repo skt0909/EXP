@@ -1,6 +1,16 @@
 .env
+.env.test
 venv/
 __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .pytest_cache/
+
+# Build output of backend/Predict/build_notebook.py, not a source file.
+# Deliberately untracked: it was checked in beside its generator, nothing
+# in CI executes it, and it silently went stale for weeks after the
+# db_utils consolidation changed an import it depended on. Regenerate on
+# demand instead -- see backend/Predict/build_notebook.py.
+# (backend/FPL_Model_1 (1).ipynb is NOT this: that one is the original
+# Colab training notebook, a genuine source artifact, and stays tracked.)
+backend/Predict/predict_gameweek.ipynb
