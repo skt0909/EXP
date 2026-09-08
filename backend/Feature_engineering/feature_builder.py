@@ -3,7 +3,7 @@ feature_builder.py — build the 21 model features for a (season, target_gamewee
 
 Reads raw data from ml.player_gw_stats, ml.players, ml.fixtures and computes
 the exact feature set used to train xgboost_v1 (see
-backend/Data_ingestion/model_metadata.json -> feature_cols). Read-only: no writes to
+backend/Data/model_metadata.json -> feature_cols). Read-only: no writes to
 the database.
 
 Rolling features (*_rolling_3gw / *_rolling_5gw) are the mean of a player's

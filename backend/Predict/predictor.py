@@ -15,7 +15,7 @@ import xgboost as xgb
 
 from feature_builder import FEATURE_COLS
 
-MODEL_JSON = Path(__file__).resolve().parent.parent / "Data_ingestion" / "model.json"
+MODEL_JSON = Path(__file__).resolve().parent.parent / "Data" / "model.json"
 
 _booster: xgb.Booster | None = None
 

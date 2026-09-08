@@ -3,7 +3,14 @@
     "allow": [
       "Bash(./venv/Scripts/python.exe -c ' *)",
       "Bash(netstat -ano)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(../../venv/Scripts/python.exe -c ' *)",
+      "WebSearch",
+      "Bash(cd /d/Exp/backend/Tests && echo \"=== test_fixtures.py _get_fixtures helper ===\" && sed -n '/def _get_fixtures/,/^$/p' test_fixtures.py *)",
+      "Bash(echo \"=== tests proving bench ORDER drives autosub priority ===\" && grep -rn \"def test_\" Tests/test_scoring.py | grep -iE \"autosub|bench|sub\" *)"
+    ],
+    "additionalDirectories": [
+      "D:\\Exp\\backend\\Tests"
     ]
   }
 }

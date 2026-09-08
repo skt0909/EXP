@@ -1,5 +1,5 @@
 """
-test_scoring.py — tests for Game_logic/scoring.py's score_gameweek():
+test_scoring.py — tests for Results/scoring.py's score_gameweek():
 raw/final point summation, GK autosub, outfield autosub with formation
 legality (including the "first bench candidate would break formation,
 second candidate works" case), captain/vice-captain multiplier
@@ -18,7 +18,7 @@ from sqlalchemy import text
 import pytest
 
 from conftest import TEST_SEASON
-from scoring import score_gameweek
+from Results.scoring import score_gameweek
 
 GAMEWEEK = 1
 

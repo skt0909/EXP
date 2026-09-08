@@ -1,0 +1,22 @@
+.chat-log {
+  flex: 1;
+  overflow-y: auto;
+  margin-top: var(--header-height);
+  margin-bottom: var(--footer-height);
+  width: 100%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: var(--space-lg) var(--space-md);
+  scrollbar-width: none;
+}
+
+.chat-log::-webkit-scrollbar {
+  display: none;
+}
+
+.chat-log__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}

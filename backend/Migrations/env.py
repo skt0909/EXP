@@ -18,14 +18,14 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # No SQLAlchemy ORM models exist anywhere in this project -- every module
-# uses raw SQL / SQLAlchemy Core (see Game_logic/db_utils.py and friends).
+# uses raw SQL / SQLAlchemy Core (see Shared/db_utils.py).
 # Autogenerate has no target to diff against, so it isn't used here; every
 # migration (including the baseline) is hand-authored. See Migrations/README.md.
 target_metadata = None
 
 
 def _database_url() -> str:
-    """Same .env-discovery pattern as every db_utils.py in this project:
+    """Same .env-discovery pattern as Shared/db_utils.py:
     walk up from this file looking for a .env, then read DATABASE_URL.
     DATABASE_URL in the environment (if already set) takes precedence,
     so a temporary override for a verification/test database just works.

@@ -1,6 +1,6 @@
 """
 test_squad_selection.py — FastAPI TestClient tests for
-Game_logic/squad_selection.py: formation/budget/club-cap validation
+Gameplay/squad_selection.py: formation/budget/club-cap validation
 (individually and combined), player-id resolution against ml.players,
 the resubmission upsert path, and the deliberate non-check of
 ml.players.status (injured/unavailable players are still selectable --
@@ -15,9 +15,9 @@ from sqlalchemy import text
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import TEST_SEASON
+from conftest import TEST_SEASON, bearer_headers
 from main import app  # shared FastAPI app -- squad_selection's router is mounted on it
-from squad_selection import BUDGET_CAP, MAX_PER_CLUB
+from Shared.rules import BUDGET_CAP, MAX_PER_CLUB
 
 client = TestClient(app)
 
@@ -94,7 +94,7 @@ def test_valid_squad_succeeds_and_persists_all_rows(engine, make_team, make_play
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 200
@@ -128,7 +128,7 @@ def test_wrong_formation_count_reported_for_each_position(
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 422
@@ -143,7 +143,7 @@ def test_budget_exactly_at_cap_succeeds(make_team, make_player, test_user):
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 200
@@ -157,7 +157,7 @@ def test_budget_one_over_cap_fails(make_team, make_player, test_user):
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 422
@@ -173,7 +173,7 @@ def test_four_players_from_one_club_fails(make_team, make_player, test_user):
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 422
@@ -187,7 +187,7 @@ def test_duplicate_player_id_fails(make_team, make_player, test_user):
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids_with_dup},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids_with_dup}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 422
@@ -201,7 +201,7 @@ def test_unknown_fpl_id_fails(make_team, make_player, test_user):
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 422
@@ -220,7 +220,7 @@ def test_injured_or_unavailable_player_is_still_accepted(make_team, make_player,
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 200
@@ -231,7 +231,7 @@ def test_resubmission_replaces_roster_not_appends(engine, make_team, make_player
     first_ids = _build_roster(make_team, make_player, costs=60, id_offset=9000)
     resp1 = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": first_ids},
+        json={"season": TEST_SEASON, "player_ids": first_ids}, headers=bearer_headers(test_user)
     )
     assert resp1.status_code == 200
     squad_id_1 = resp1.json()["squad_id"]
@@ -241,7 +241,7 @@ def test_resubmission_replaces_roster_not_appends(engine, make_team, make_player
 
     resp2 = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": second_ids},
+        json={"season": TEST_SEASON, "player_ids": second_ids}, headers=bearer_headers(test_user)
     )
     assert resp2.status_code == 200
     squad_id_2 = resp2.json()["squad_id"]
@@ -265,7 +265,7 @@ def test_multiple_simultaneous_violations_all_reported_together(make_team, make_
 
     resp = client.post(
         "/squad/select",
-        json={"user_id": test_user, "season": TEST_SEASON, "player_ids": fpl_ids_with_dup},
+        json={"season": TEST_SEASON, "player_ids": fpl_ids_with_dup}, headers=bearer_headers(test_user)
     )
 
     assert resp.status_code == 422
@@ -274,3 +274,42 @@ def test_multiple_simultaneous_violations_all_reported_together(make_team, make_
     assert any("exceeds budget cap" in e for e in errors)
     assert any("expected 2 GK" in e for e in errors)
     assert len(errors) >= 3
+
+
+def test_get_squad_returns_current_roster_with_decimal_prices(make_team, make_player, test_user):
+    fpl_ids = _build_roster(make_team, make_player, costs=65)  # 15 * 65 = 975
+    client.post("/squad/select", json={"season": TEST_SEASON, "player_ids": fpl_ids}, headers=bearer_headers(test_user))
+
+    resp = client.get("/squad", params={"season": TEST_SEASON}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["budget_remaining"] == (BUDGET_CAP - 975) / 10
+    assert len(body["players"]) == 15
+    assert {p["player_id"] for p in body["players"]} == set(fpl_ids)
+    assert all(p["price"] == 6.5 for p in body["players"])
+    assert all({"name", "position", "club"} <= p.keys() for p in body["players"])
+
+
+def test_get_squad_no_squad_yet_returns_empty_not_error(test_user):
+    resp = client.get("/squad", params={"season": TEST_SEASON}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["players"] == []
+    assert body["budget_remaining"] == 0.0
+
+
+def test_get_squad_reflects_resubmission_not_stale_roster(make_team, make_player, test_user):
+    original_ids = _build_roster(make_team, make_player, costs=60, id_offset=9000)
+    client.post("/squad/select", json={"season": TEST_SEASON, "player_ids": original_ids}, headers=bearer_headers(test_user))
+
+    replacement_ids = _build_roster(make_team, make_player, costs=60, id_offset=9100)
+    client.post("/squad/select", json={"season": TEST_SEASON, "player_ids": replacement_ids}, headers=bearer_headers(test_user))
+
+    resp = client.get("/squad", params={"season": TEST_SEASON}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    ids = {p["player_id"] for p in resp.json()["players"]}
+    assert ids == set(replacement_ids)
+    assert ids.isdisjoint(original_ids)

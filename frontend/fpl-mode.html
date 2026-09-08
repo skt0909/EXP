@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PitchSide AI - FPL Mode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --background: #faf8ff;
+        --surface: #ffffff;
+        --surface-low: #f2f3ff;
+        --surface-mid: #e2e7ff;
+        --surface-high: #dae2fd;
+        --primary: #040004;
+        --primary-container: #38003c;
+        --on-primary: #ffffff;
+        --secondary: #006d35;
+        --secondary-container: #00fa82;
+        --text: #131b2e;
+        --muted: #4f434c;
+        --outline: #d2c2cd;
+        --error: #ba1a1a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: linear-gradient(180deg, var(--background), var(--surface-low));
+        color: var(--text);
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      button {
+        border: 0;
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .material-symbols-outlined {
+        font-family: "Material Symbols Outlined";
+        font-weight: normal;
+        font-style: normal;
+        font-size: 22px;
+        line-height: 1;
+        letter-spacing: 0;
+        text-transform: none;
+        display: inline-block;
+        white-space: nowrap;
+      }
+
+      .app {
+        width: min(100%, 600px);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding-bottom: 92px;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: rgba(250, 248, 255, 0.96);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid var(--outline);
+      }
+
+      .topbar-inner {
+        min-height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 12px 16px;
+      }
+
+      .team-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .avatar,
+      .icon-disc {
+        width: 36px;
+        height: 36px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        background: var(--surface-high);
+        color: var(--primary);
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 20px;
+        line-height: 1.15;
+        font-weight: 800;
+        color: var(--primary);
+      }
+
+      main {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        padding: 14px 16px 24px;
+      }
+
+      .mode-toggle {
+        width: min(100%, 280px);
+        margin: 0 auto;
+        padding: 4px;
+        display: flex;
+        border-radius: 999px;
+        background: var(--surface-mid);
+      }
+
+      .mode-toggle button {
+        flex: 1;
+        min-height: 34px;
+        border-radius: 999px;
+        color: var(--muted);
+        background: transparent;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .mode-toggle .active {
+        background: var(--primary);
+        color: var(--on-primary);
+        box-shadow: 0 2px 6px rgba(4, 0, 4, 0.16);
+      }
+
+      .gameweek {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        text-align: center;
+      }
+
+      .gameweek-heading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .gameweek h2 {
+        font-size: 18px;
+        line-height: 1.2;
+      }
+
+      .badge {
+        border-radius: 4px;
+        padding: 3px 8px;
+        background: var(--surface-mid);
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+
+      .deadline {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        border-radius: 999px;
+        padding: 6px 10px;
+        background: var(--surface-mid);
+        color: var(--error);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .stats-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+      }
+
+      .card,
+      .action,
+      .fixture,
+      .pitch-card {
+        background: var(--surface);
+        border: 1px solid var(--outline);
+        border-radius: 8px;
+        box-shadow: 0 1px 4px rgba(19, 27, 46, 0.08);
+      }
+
+      .score-card {
+        min-height: 142px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .label {
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 1.25;
+        text-transform: uppercase;
+      }
+
+      .score {
+        margin-top: 4px;
+        color: var(--primary);
+        font-size: 44px;
+        line-height: 1;
+        font-weight: 800;
+      }
+
+      .trend {
+        margin-top: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--secondary);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .side-stats {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .stat-tile {
+        min-height: 66px;
+        padding: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .stat-value {
+        margin-top: 3px;
+        color: var(--text);
+        font-size: 17px;
+        font-weight: 800;
+      }
+
+      .money-strip {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: center;
+        gap: 14px;
+        border-radius: 8px;
+        padding: 16px;
+        background: var(--primary-container);
+        color: var(--on-primary);
+      }
+
+      .money-strip .label {
+        color: #f7aff2;
+      }
+
+      .money-value {
+        margin-top: 4px;
+        font-size: 18px;
+        font-weight: 800;
+      }
+
+      .divider {
+        width: 1px;
+        height: 38px;
+        background: rgba(255, 255, 255, 0.28);
+      }
+
+      .pitch-card {
+        overflow: hidden;
+      }
+
+      .pitch {
+        min-height: 460px;
+        padding: 22px 12px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        background:
+          linear-gradient(180deg, rgba(0, 0, 0, 0.18), rgba(0, 0, 0, 0.02) 45%, rgba(0, 0, 0, 0.2)),
+          repeating-linear-gradient(0deg, #006d35 0, #006d35 58px, #078f49 58px, #078f49 116px);
+      }
+
+      .row {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-around;
+        gap: 8px;
+      }
+
+      .player {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        min-width: 54px;
+      }
+
+      .shirt {
+        position: relative;
+        width: 44px;
+        height: 48px;
+        border-radius: 12px 12px 6px 6px;
+        background: linear-gradient(135deg, #e9f2ff, #7ca9ff);
+        border: 2px solid rgba(255, 255, 255, 0.78);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+      }
+
+      .shirt.dark {
+        background: linear-gradient(135deg, #202538, #5d6da8);
+      }
+
+      .shirt.red {
+        background: linear-gradient(135deg, #fff5f5, #d92540);
+      }
+
+      .shirt.gold {
+        background: linear-gradient(135deg, #fff7d1, #d9a51b);
+      }
+
+      .armband {
+        position: absolute;
+        top: -8px;
+        right: -8px;
+        min-width: 18px;
+        height: 18px;
+        display: grid;
+        place-items: center;
+        border-radius: 999px;
+        background: var(--secondary-container);
+        color: var(--secondary);
+        font-size: 10px;
+        font-weight: 800;
+      }
+
+      .points {
+        min-width: 58px;
+        border-radius: 4px;
+        padding: 3px 6px;
+        background: var(--surface);
+        color: var(--secondary);
+        font-size: 11px;
+        font-weight: 800;
+        text-align: center;
+        box-shadow: 0 1px 4px rgba(19, 27, 46, 0.14);
+      }
+
+      .bench {
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .breakdown {
+        padding: 16px;
+      }
+
+      .breakdown h3 {
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--outline);
+        font-size: 15px;
+      }
+
+      .line {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding-top: 10px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .line strong {
+        color: var(--text);
+      }
+
+      .line.total {
+        margin-top: 8px;
+        border-top: 1px solid var(--outline);
+        color: var(--text);
+        font-weight: 800;
+      }
+
+      .actions {
+        display: grid;
+        gap: 10px;
+      }
+
+      .action {
+        min-height: 64px;
+        padding: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        background: var(--surface);
+        color: var(--text);
+      }
+
+      .action-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+        font-weight: 800;
+      }
+
+      .fixtures {
+        display: grid;
+        gap: 10px;
+      }
+
+      .section-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 14px;
+      }
+
+      .fixture {
+        padding: 12px;
+      }
+
+      .teams {
+        display: grid;
+        grid-template-columns: 1fr 72px 1fr;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .team {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .team.away {
+        justify-content: flex-end;
+        text-align: right;
+      }
+
+      .crest {
+        width: 34px;
+        height: 34px;
+        border-radius: 999px;
+        display: grid;
+        place-items: center;
+        flex: 0 0 auto;
+        background: var(--surface-low);
+        border: 1px solid var(--outline);
+        color: var(--primary);
+        font-size: 10px;
+        font-weight: 800;
+      }
+
+      .team-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 14px;
+        font-weight: 800;
+      }
+
+      .venue {
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 700;
+      }
+
+      .versus {
+        text-align: center;
+        color: var(--primary);
+        font-size: 15px;
+        font-weight: 800;
+      }
+
+      .fixture-meta {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 1px solid var(--outline);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .nav {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        z-index: 20;
+        border-top: 1px solid var(--outline);
+        background: rgba(250, 248, 255, 0.97);
+        backdrop-filter: blur(12px);
+      }
+
+      .nav-inner {
+        width: min(100%, 600px);
+        margin: 0 auto;
+        padding: 8px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 4px;
+      }
+
+      .nav a {
+        min-width: 0;
+        min-height: 58px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        color: var(--muted);
+        text-decoration: none;
+        font-size: 10px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .nav a.active {
+        background: var(--secondary-container);
+        color: var(--secondary);
+      }
+
+      @media (max-width: 430px) {
+        main {
+          padding-right: 12px;
+          padding-left: 12px;
+        }
+
+        .stats-grid {
+          gap: 8px;
+        }
+
+        .pitch {
+          min-height: 430px;
+        }
+
+        .shirt {
+          width: 39px;
+          height: 43px;
+        }
+
+        .player {
+          min-width: 48px;
+        }
+
+        .points {
+          min-width: 50px;
+          font-size: 10px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <header class="topbar">
+        <div class="topbar-inner">
+          <div class="team-title">
+            <div class="avatar">
+              <span class="material-symbols-outlined">person</span>
+            </div>
+            <h1>PitchSide AI</h1>
+          </div>
+          <button class="avatar" type="button" aria-label="Notifications">
+            <span class="material-symbols-outlined">notifications</span>
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <div class="mode-toggle" role="tablist" aria-label="Game mode">
+          <button class="active" type="button" role="tab" aria-selected="true">FPL</button>
+          <button type="button" role="tab" aria-selected="false">Contests</button>
+        </div>
+
+        <section class="gameweek" aria-label="Gameweek status">
+          <div class="gameweek-heading">
+            <h2>Gameweek 1</h2>
+            <span class="badge">Upcoming</span>
+          </div>
+          <div class="deadline">
+            <span class="material-symbols-outlined">timer</span>
+            <span>Deadline in 2d 4h</span>
+          </div>
+        </section>
+
+        <section class="stats-grid" aria-label="FPL summary">
+          <div class="card score-card">
+            <span class="label">GW Points</span>
+            <strong class="score">64</strong>
+            <span class="trend">
+              <span class="material-symbols-outlined">trending_up</span>
+              Avg: 47
+            </span>
+          </div>
+
+          <div class="side-stats">
+            <div class="card stat-tile">
+              <div>
+                <span class="label">Season Total</span>
+                <div class="stat-value">318</div>
+              </div>
+              <span class="material-symbols-outlined">emoji_events</span>
+            </div>
+            <div class="card stat-tile">
+              <div>
+                <span class="label">Overall Rank</span>
+                <div class="stat-value">72k / 9.1m</div>
+              </div>
+              <span class="material-symbols-outlined">arrow_upward</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="money-strip" aria-label="Team finances">
+          <div>
+            <span class="label">Team Value</span>
+            <div class="money-value">£100.8m</div>
+          </div>
+          <div class="divider" aria-hidden="true"></div>
+          <div style="text-align: right">
+            <span class="label">In the Bank</span>
+            <div class="money-value">£1.2m</div>
+          </div>
+        </section>
+
+        <section class="pitch-card" aria-label="Starting XI">
+          <div class="pitch">
+            <div class="row">
+              <div class="player">
+                <div class="shirt gold"><span class="armband">C</span></div>
+                <div class="points">12 x2</div>
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="player"><div class="shirt red"></div><div class="points">6</div></div>
+              <div class="player"><div class="shirt dark"></div><div class="points">2</div></div>
+              <div class="player"><div class="shirt"></div><div class="points">7</div></div>
+              <div class="player"><div class="shirt red"></div><div class="points">5</div></div>
+            </div>
+
+            <div class="row">
+              <div class="player"><div class="shirt dark"><span class="armband">VC</span></div><div class="points">8</div></div>
+              <div class="player"><div class="shirt"></div><div class="points">3</div></div>
+              <div class="player"><div class="shirt red"></div><div class="points">10</div></div>
+              <div class="player"><div class="shirt dark"></div><div class="points">1</div></div>
+            </div>
+
+            <div class="row">
+              <div class="player"><div class="shirt red"></div><div class="points">9</div></div>
+              <div class="player"><div class="shirt"></div><div class="points">4</div></div>
+            </div>
+          </div>
+          <div class="bench">
+            <span>Bench: RAY (2), BOT (1), SEM (0), MIL (0)</span>
+            <span class="material-symbols-outlined">chair</span>
+          </div>
+        </section>
+
+        <section class="card breakdown" aria-label="Points breakdown">
+          <h3>Points Breakdown</h3>
+          <div class="line"><span>Raw Points</span><strong>52</strong></div>
+          <div class="line"><span>Captain Bonus</span><strong style="color: var(--secondary)">+12</strong></div>
+          <div class="line"><span>Transfer Hits</span><strong style="color: var(--error)">0</strong></div>
+          <div class="line total"><span>Final Total</span><strong>64</strong></div>
+        </section>
+
+        <section class="actions" aria-label="FPL actions">
+          <button class="action" type="button">
+            <span class="action-left">
+              <span class="icon-disc"><span class="material-symbols-outlined">groups</span></span>
+              My Squad
+            </span>
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+          <button class="action" type="button">
+            <span class="action-left">
+              <span class="icon-disc"><span class="material-symbols-outlined">swap_horiz</span></span>
+              Make Transfers
+            </span>
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+          <button class="action" type="button">
+            <span class="action-left">
+              <span class="icon-disc"><span class="material-symbols-outlined">group_add</span></span>
+              Set Starting XI
+            </span>
+            <span class="material-symbols-outlined">chevron_right</span>
+          </button>
+        </section>
+
+        <section class="fixtures" aria-label="Upcoming fixtures">
+          <div class="card section-header">
+            <span class="action-left">
+              <span class="icon-disc"><span class="material-symbols-outlined">calendar_month</span></span>
+              Fixtures
+            </span>
+            <span class="label">Upcoming</span>
+          </div>
+
+          <article class="fixture">
+            <div class="teams">
+              <div class="team">
+                <span class="crest">ARS</span>
+                <div>
+                  <div class="team-name">Arsenal</div>
+                  <div class="venue">Home</div>
+                </div>
+              </div>
+              <div class="versus">vs</div>
+              <div class="team away">
+                <div>
+                  <div class="team-name">Chelsea</div>
+                  <div class="venue">Away</div>
+                </div>
+                <span class="crest">CHE</span>
+              </div>
+            </div>
+            <div class="fixture-meta">
+              <span>Sat, 12 Sep, 15:00</span>
+              <span>GW1</span>
+            </div>
+          </article>
+
+          <article class="fixture">
+            <div class="teams">
+              <div class="team">
+                <span class="crest">LIV</span>
+                <div>
+                  <div class="team-name">Liverpool</div>
+                  <div class="venue">Home</div>
+                </div>
+              </div>
+              <div class="versus">vs</div>
+              <div class="team away">
+                <div>
+                  <div class="team-name">Man City</div>
+                  <div class="venue">Away</div>
+                </div>
+                <span class="crest">MCI</span>
+              </div>
+            </div>
+            <div class="fixture-meta">
+              <span>Sun, 13 Sep, 16:30</span>
+              <span>GW1</span>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <nav class="nav" aria-label="FPL navigation">
+      <div class="nav-inner">
+        <a href="#" class="active">
+          <span class="material-symbols-outlined">house</span>
+          Home
+        </a>
+        <a href="#">
+          <span class="material-symbols-outlined">groups</span>
+          Starting XI
+        </a>
+        <a href="#">
+          <span class="material-symbols-outlined">swap_horiz</span>
+          Transfers
+        </a>
+        <a href="#">
+          <span class="material-symbols-outlined">emoji_events</span>
+          Leagues
+        </a>
+        <a href="#">
+          <span class="material-symbols-outlined">chat</span>
+          Chats
+        </a>
+      </div>
+    </nav>
+  </body>
+</html>

@@ -1,6 +1,6 @@
 """
 test_starting_xi.py — FastAPI TestClient tests for
-Game_logic/starting_xi.py: formation-boundary validation (GK/DEF/MID/FWD,
+Gameplay/starting_xi.py: formation-boundary validation (GK/DEF/MID/FWD,
 tested right at their limits, not just "clearly wrong"), bench_order
 validation (count/duplicates/overlap-with-XI/exact-GK-count), the
 combined player_ids+bench_order == active-15-man-squad check,
@@ -21,7 +21,7 @@ from sqlalchemy import text
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import TEST_SEASON
+from conftest import TEST_SEASON, bearer_headers
 from main import app  # shared FastAPI app -- starting_xi's router is mounted on it
 
 client = TestClient(app)
@@ -97,7 +97,6 @@ def _chip_rows(engine, user_id, season, chip_type):
 
 def _base_payload(user_id, xi_ids, bench_ids, gameweek=1, chip_used=None):
     return {
-        "user_id": user_id,
         "season": TEST_SEASON,
         "gameweek": gameweek,
         "player_ids": xi_ids,
@@ -113,7 +112,7 @@ def test_valid_selection_succeeds_and_persists(engine, make_team, make_player, t
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
     )
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
 
     assert resp.status_code == 200
     body = resp.json()
@@ -187,7 +186,7 @@ def test_formation_boundary_violations_rejected(engine, make_team, make_player, 
         engine, make_team, make_player, test_user, TEST_SEASON, positions, DEFAULT_BENCH_POSITIONS
     )
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -199,7 +198,7 @@ def test_bench_order_wrong_count_rejected(engine, make_team, make_player, test_u
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
     )
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids[:3]))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids[:3]), headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -212,7 +211,7 @@ def test_bench_order_duplicate_rejected(engine, make_team, make_player, test_use
     )
     dup_bench = [bench_ids[0], bench_ids[0], bench_ids[2], bench_ids[3]]  # bench_ids[1] dropped, [0] repeated
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, dup_bench))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, dup_bench), headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -225,7 +224,7 @@ def test_bench_order_overlap_with_starting_xi_rejected(engine, make_team, make_p
     )
     overlapping_bench = [xi_ids[0], bench_ids[1], bench_ids[2], bench_ids[3]]  # bench_ids[0] dropped
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, overlapping_bench))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, overlapping_bench), headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -241,7 +240,7 @@ def test_bench_order_missing_gk_rejected(engine, make_team, make_player, test_us
         engine, make_team, make_player, test_user, TEST_SEASON, xi_positions, bench_positions
     )
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -257,7 +256,7 @@ def test_bench_order_two_gks_rejected(engine, make_team, make_player, test_user)
         engine, make_team, make_player, test_user, TEST_SEASON, xi_positions, bench_positions
     )
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids))
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -271,7 +270,7 @@ def test_captain_and_vice_captain_same_player_rejected(engine, make_team, make_p
     payload = _base_payload(test_user, xi_ids, bench_ids)
     payload["vice_captain_id"] = xi_ids[0]
 
-    resp = client.post("/gw_selection", json=payload)
+    resp = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -286,7 +285,7 @@ def test_captain_not_in_submitted_xi_rejected(engine, make_team, make_player, te
     payload = _base_payload(test_user, xi_ids, bench_ids)
     payload["captain_id"] = bogus_captain
 
-    resp = client.post("/gw_selection", json=payload)
+    resp = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -301,7 +300,7 @@ def test_vice_captain_not_in_submitted_xi_rejected(engine, make_team, make_playe
     payload = _base_payload(test_user, xi_ids, bench_ids)
     payload["vice_captain_id"] = bogus_vice
 
-    resp = client.post("/gw_selection", json=payload)
+    resp = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
@@ -314,7 +313,7 @@ def test_locked_gameweek_resubmission_returns_clean_422_not_500(engine, make_tea
     )
     payload = _base_payload(test_user, xi_ids, bench_ids)
 
-    resp1 = client.post("/gw_selection", json=payload)
+    resp1 = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
     assert resp1.status_code == 200
 
     with engine.begin() as conn:
@@ -324,11 +323,107 @@ def test_locked_gameweek_resubmission_returns_clean_422_not_500(engine, make_tea
         )
 
     resp2 = client.post(
-        "/gw_selection", json={**payload, "captain_id": xi_ids[1], "vice_captain_id": xi_ids[0]}
+        "/gw_selection", json={**payload, "captain_id": xi_ids[1], "vice_captain_id": xi_ids[0]},
+        headers=bearer_headers(test_user),
     )
 
     assert resp2.status_code == 422
     assert resp2.json()["detail"] == "This gameweek's selection is locked and can no longer be changed"
+
+
+def test_passed_deadline_rejects_first_ever_submission(engine, make_team, make_player, make_fixture, test_user):
+    """enforce_selection_lock is BEFORE UPDATE on OLD.is_locked, so it
+    cannot fire for a gameweek with no row yet -- this INSERT used to
+    succeed after kickoff, letting a manager pick an XI with the results
+    already known. Seeds NO prior selection, only a past-dated fixture.
+    """
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+    home = make_team(fpl_id=96001, name="XiDeadlineHome", short_name="XH")
+    away = make_team(fpl_id=96002, name="XiDeadlineAway", short_name="XA")
+    make_fixture(fpl_id=96010, gameweek=1, home_team_id=home, away_team_id=away,
+                 kickoff_time="2000-01-01T12:00:00+00:00")
+
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
+
+    assert resp.status_code == 422
+    assert resp.json()["detail"] == "This gameweek's selection is locked and can no longer be changed"
+
+    with engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM gw_selections WHERE user_id = :u AND season = :s AND gameweek = 1"),
+            {"u": test_user, "s": TEST_SEASON},
+        ).scalar()
+    assert count == 0
+
+
+def test_future_deadline_still_allows_submission(engine, make_team, make_player, make_fixture, test_user):
+    """The fix's other direction -- an upcoming kickoff must stay open."""
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+    home = make_team(fpl_id=96101, name="XiFutureHome", short_name="YH")
+    away = make_team(fpl_id=96102, name="XiFutureAway", short_name="YA")
+    make_fixture(fpl_id=96110, gameweek=1, home_team_id=home, away_team_id=away,
+                 kickoff_time="2999-01-01T12:00:00+00:00")
+
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
+    assert resp.status_code == 200
+
+
+def _free_hit_snapshot(engine, user_id, gameweek=1):
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT player_id, purchase_price, budget_remaining, reverted_at FROM free_hit_squads "
+                 "WHERE user_id = :u AND season = :s AND gameweek = :gw ORDER BY player_id"),
+            {"u": user_id, "s": TEST_SEASON, "gw": gameweek},
+        ).all()
+
+
+def test_activating_free_hit_snapshots_the_current_squad(engine, make_team, make_player, test_user):
+    """Without this snapshot the Free Hit has nothing to revert to, and
+    Gameplay/transfers.py's uncapped free transfers make it a
+    permanent second Wildcard."""
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+
+    resp = client.post(
+        "/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, chip_used="free_hit"), headers=bearer_headers(test_user)
+    )
+    assert resp.status_code == 200
+
+    snapshot = _free_hit_snapshot(engine, test_user)
+    assert [r.player_id for r in snapshot] == sorted(xi_ids + bench_ids)
+    assert all(r.reverted_at is None for r in snapshot)
+
+
+def test_switching_away_from_free_hit_drops_the_snapshot(engine, make_team, make_player, test_user):
+    """An unplayed chip must leave no trace -- otherwise the revert task
+    would later restore a squad for a Free Hit that was never used."""
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+
+    client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, chip_used="free_hit"), headers=bearer_headers(test_user))
+    assert len(_free_hit_snapshot(engine, test_user)) == 15
+
+    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, chip_used=None), headers=bearer_headers(test_user))
+    assert resp.status_code == 200
+    assert _free_hit_snapshot(engine, test_user) == []
+
+
+def test_non_free_hit_chip_takes_no_snapshot(engine, make_team, make_player, test_user):
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+
+    resp = client.post(
+        "/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, chip_used="bench_boost"), headers=bearer_headers(test_user)
+    )
+    assert resp.status_code == 200
+    assert _free_hit_snapshot(engine, test_user) == []
 
 
 def test_resubmitting_same_wildcard_does_not_consume_second_use(engine, make_team, make_player, test_user):
@@ -337,13 +432,14 @@ def test_resubmitting_same_wildcard_does_not_consume_second_use(engine, make_tea
     )
     payload = _base_payload(test_user, xi_ids, bench_ids, chip_used="wildcard")
 
-    resp1 = client.post("/gw_selection", json=payload)
+    resp1 = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
     assert resp1.status_code == 200
 
     # Resubmit the *same* gameweek with the *same* chip -- captain/vice swapped
     # so it's a real resubmission, not a byte-identical duplicate request.
     resp2 = client.post(
-        "/gw_selection", json={**payload, "captain_id": xi_ids[1], "vice_captain_id": xi_ids[0]}
+        "/gw_selection", json={**payload, "captain_id": xi_ids[1], "vice_captain_id": xi_ids[0]},
+        headers=bearer_headers(test_user),
     )
     assert resp2.status_code == 200
 
@@ -352,7 +448,7 @@ def test_resubmitting_same_wildcard_does_not_consume_second_use(engine, make_tea
     assert rows[0].gameweek_used == 1
 
 
-def test_third_wildcard_attempt_rejected(engine, make_team, make_player, test_user):
+def test_second_wildcard_in_same_half_rejected_but_second_half_allowed(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
     )
@@ -360,16 +456,17 @@ def test_third_wildcard_attempt_rejected(engine, make_team, make_player, test_us
     def _payload(gw):
         return _base_payload(test_user, xi_ids, bench_ids, gameweek=gw, chip_used="wildcard")
 
-    assert client.post("/gw_selection", json=_payload(1)).status_code == 200
-    assert client.post("/gw_selection", json=_payload(2)).status_code == 200
+    assert client.post("/gw_selection", json=_payload(1), headers=bearer_headers(test_user)).status_code == 200
 
-    resp3 = client.post("/gw_selection", json=_payload(3))
-    assert resp3.status_code == 422
-    errors = resp3.json()["detail"]
-    assert "wildcard has already been used twice this season" in errors
+    same_half = client.post("/gw_selection", json=_payload(2), headers=bearer_headers(test_user))
+    assert same_half.status_code == 422
+    errors = same_half.json()["detail"]
+    assert "chip 'wildcard' has already been used in the first half of this season" in errors
+
+    assert client.post("/gw_selection", json=_payload(20), headers=bearer_headers(test_user)).status_code == 200
 
     rows = _chip_rows(engine, test_user, TEST_SEASON, "wildcard")
-    assert len(rows) == 2  # the rejected 3rd attempt must not have been persisted
+    assert sorted(r.gameweek_used for r in rows) == [1, 20]
 
 
 def test_switching_chip_from_bench_boost_to_null_frees_the_row(engine, make_team, make_player, test_user):
@@ -378,20 +475,41 @@ def test_switching_chip_from_bench_boost_to_null_frees_the_row(engine, make_team
     )
     payload = _base_payload(test_user, xi_ids, bench_ids, chip_used="bench_boost")
 
-    resp1 = client.post("/gw_selection", json=payload)
+    resp1 = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
     assert resp1.status_code == 200
     assert len(_chip_rows(engine, test_user, TEST_SEASON, "bench_boost")) == 1
 
-    resp2 = client.post("/gw_selection", json={**payload, "chip_used": None})
+    resp2 = client.post("/gw_selection", json={**payload, "chip_used": None}, headers=bearer_headers(test_user))
     assert resp2.status_code == 200
     assert len(_chip_rows(engine, test_user, TEST_SEASON, "bench_boost")) == 0  # row freed, not just orphaned
 
     # Prove it's truly freed (not silently blocked) by using bench_boost again
     # on a different gameweek -- would 422 as "already used" if the delete
     # hadn't actually happened.
-    resp3 = client.post("/gw_selection", json={**payload, "gameweek": 2, "chip_used": "bench_boost"})
+    resp3 = client.post("/gw_selection", json={**payload, "gameweek": 2, "chip_used": "bench_boost"},
+                        headers=bearer_headers(test_user))
     assert resp3.status_code == 200
     assert len(_chip_rows(engine, test_user, TEST_SEASON, "bench_boost")) == 1
+
+
+def test_free_hit_cannot_be_used_in_consecutive_gameweeks(engine, make_team, make_player, test_user):
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+
+    assert client.post(
+        "/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, gameweek=19, chip_used="free_hit"), headers=bearer_headers(test_user)
+    ).status_code == 200
+
+    consecutive = client.post(
+        "/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, gameweek=20, chip_used="free_hit"), headers=bearer_headers(test_user)
+    )
+    assert consecutive.status_code == 422
+    assert any("free_hit cannot be used in consecutive gameweeks" in e for e in consecutive.json()["detail"])
+
+    assert client.post(
+        "/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, gameweek=21, chip_used="free_hit"), headers=bearer_headers(test_user)
+    ).status_code == 200
 
 
 def test_multiple_simultaneous_violations_all_reported_together(engine, make_team, make_player, test_user):
@@ -404,11 +522,105 @@ def test_multiple_simultaneous_violations_all_reported_together(engine, make_tea
     payload = _base_payload(test_user, xi_ids, bench_ids, chip_used="not_a_real_chip")
     payload["vice_captain_id"] = xi_ids[0]
 
-    resp = client.post("/gw_selection", json=payload)
+    resp = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     errors = resp.json()["detail"]
     assert "FWD count must be between 1 and 3, got 0" in errors
     assert "captain_id and vice_captain_id must be different players" in errors
     assert any("chip_used must be one of" in e for e in errors)
-    assert len(errors) >= 3
+
+
+def test_get_current_selection_no_selection_yet_returns_empty_not_error(test_user):
+    resp = client.get("/gw_selection", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["has_selection"] is False
+    assert body["player_ids"] == []
+    assert body["bench_order"] == []
+    assert body["captain_id"] is None
+    assert body["vice_captain_id"] is None
+    assert body["chip_used"] is None
+
+
+def test_get_current_selection_reflects_last_saved_submission(engine, make_team, make_player, test_user):
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+    payload = _base_payload(test_user, xi_ids, bench_ids, chip_used="bench_boost")
+    client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
+
+    resp = client.get("/gw_selection", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["has_selection"] is True
+    assert set(body["player_ids"]) == set(xi_ids)
+    assert set(body["bench_order"]) == set(bench_ids)
+    assert body["captain_id"] == xi_ids[0]
+    assert body["vice_captain_id"] == xi_ids[1]
+    assert body["chip_used"] == "bench_boost"
+
+
+def test_get_current_selection_reflects_resubmission_not_stale_state(engine, make_team, make_player, test_user):
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+    payload = _base_payload(test_user, xi_ids, bench_ids)
+    client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
+    client.post("/gw_selection", json={**payload, "captain_id": xi_ids[2], "vice_captain_id": xi_ids[3]},
+                headers=bearer_headers(test_user))
+
+    resp = client.get("/gw_selection", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["captain_id"] == xi_ids[2]
+    assert body["vice_captain_id"] == xi_ids[3]
+
+
+def test_get_chips_used_none_used_reports_full_availability(test_user):
+    resp = client.get("/chips/used", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["wildcard_used"] == 0
+    assert body["wildcard_remaining"] == 1
+    assert body["bench_boost_available"] is True
+    assert body["triple_captain_available"] is True
+    assert body["free_hit_available"] is True
+
+
+def test_get_chips_used_reflects_committed_chips(engine, make_team, make_player, test_user):
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+    client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, gameweek=1, chip_used="triple_captain"), headers=bearer_headers(test_user))
+    client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, gameweek=2, chip_used="wildcard"), headers=bearer_headers(test_user))
+
+    # Query for a THIRD gameweek -- both prior chips were used on gameweeks
+    # 1/2, neither of which this query's own :gameweek excludes.
+    resp = client.get("/chips/used", params={"season": TEST_SEASON, "gameweek": 3}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["triple_captain_available"] is False
+    assert body["wildcard_used"] == 1
+    assert body["wildcard_remaining"] == 0
+    assert body["bench_boost_available"] is True
+    assert body["free_hit_available"] is True
+
+
+def test_get_chips_used_excludes_current_gameweeks_own_chip(engine, make_team, make_player, test_user):
+    """Resubmitting the same chip for the gameweek being edited shouldn't
+    make that chip look unavailable to itself."""
+    xi_ids, bench_ids = _seed_squad(
+        engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
+    )
+    client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids, gameweek=1, chip_used="bench_boost"), headers=bearer_headers(test_user))
+
+    resp = client.get("/chips/used", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
+
+    assert resp.status_code == 200
+    assert resp.json()["bench_boost_available"] is True

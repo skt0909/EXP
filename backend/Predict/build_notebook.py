@@ -75,13 +75,13 @@ booster dump. The pickle is not portable across xgboost versions/builds --
 it fails under this venv's xgboost 3.3.0 with `XGBoostError: input stream
 corrupted` (confirmed identical, byte-for-byte, across three separate
 re-saves/re-downloads of the .pkl). The JSON dump has no such issue, so
-`backend/Data_ingestion/model.json` (feature names verified to match `feature_cols`
+`backend/Data/model.json` (feature names verified to match `feature_cols`
 exactly) is the canonical model artifact for this project -- load that
 directly rather than touching the pickle at all."""
 ))
 
 cells.append(nbf.v4.new_code_cell(
-"""MODEL_JSON = Path.cwd().parent / "Data_ingestion" / "model.json"
+"""MODEL_JSON = Path.cwd().parent / "Data" / "model.json"
 
 booster = xgb.Booster()
 booster.load_model(str(MODEL_JSON))

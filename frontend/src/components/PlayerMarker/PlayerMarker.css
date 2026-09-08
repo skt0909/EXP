@@ -1,0 +1,135 @@
+.player-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  /* Never let this marker compress below its badge's min-width -- a
+     shrinkable wrapper combined with wrappable text is what let the name
+     and points render as e.g. "RA" / "Y6" instead of "RAY" / "6". */
+  flex-shrink: 0;
+}
+
+.player-marker__badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.player-marker__badge--vice {
+  background: var(--color-surface-container-lowest);
+  color: var(--color-on-surface);
+}
+
+.player-marker__badge--captain {
+  width: 20px;
+  height: 20px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: 1px solid #ffffff;
+}
+
+.player-marker__avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  margin-bottom: 4px;
+}
+
+.player-marker--captain .player-marker__avatar {
+  width: 48px;
+  height: 48px;
+}
+
+.player-marker--captain .player-marker__avatar .material-symbols-outlined {
+  font-size: 24px;
+}
+
+.player-marker__avatar--GK {
+  background: #fde047;
+  color: #854d0e;
+}
+
+.player-marker__avatar--DEF {
+  background: #93c5fd;
+  color: #1e3a8a;
+}
+
+.player-marker__avatar--MID {
+  background: #86efac;
+  color: #14532d;
+}
+
+.player-marker__avatar--FWD {
+  background: #fca5a5;
+  color: #7f1d1d;
+}
+
+.player-marker__tag {
+  background: var(--color-surface-container-lowest);
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  padding: 2px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+}
+
+.player-marker__tag--captain {
+  min-width: 70px;
+  padding: 4px 12px;
+  border: 1px solid rgba(56, 0, 60, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.player-marker__name,
+.player-marker__points {
+  /* The other half of the mid-word-wrap fix -- guarantees these never break
+     across lines even if the tag is ever squeezed. */
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.player-marker__name {
+  color: var(--color-on-surface);
+  font-weight: 700;
+}
+
+.player-marker--captain .player-marker__name {
+  font-weight: 800;
+}
+
+.player-marker__points {
+  color: var(--color-secondary);
+}
+
+.player-marker--captain .player-marker__points {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.player-marker__multiplier {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--color-on-surface-variant);
+  margin-left: 2px;
+}

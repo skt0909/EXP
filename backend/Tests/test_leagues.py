@@ -1,6 +1,6 @@
 """
-test_leagues.py — tests for Game_logic/leagues.py (create/join HTTP
-endpoints) and Game_logic/standings.py's compute_league_standings
+test_leagues.py — tests for Results/leagues.py (create/join HTTP
+endpoints) and Results/standings.py's compute_league_standings
 (called directly, same approach test_scoring.py uses for
 score_gameweek -- bypasses the Celery task wrapper entirely).
 
@@ -23,60 +23,49 @@ collide, and nothing is deleted -- these rows are permanent by the
 schema's own design.
 """
 
-import uuid
 
 from sqlalchemy import text
 import pytest
 from fastapi.testclient import TestClient
 
-from conftest import TEST_SEASON
+from conftest import TEST_SEASON, bearer_headers
+# Stamped on every gw_scores row so a rules change is legible in the data;
+# see Shared/rules.py.
+from Shared.rules import CURRENT_RULES_VERSION
 from main import app  # shared FastAPI app -- leagues' router is mounted on it
-from standings import compute_league_standings
+from Results.standings import compute_league_standings
 
 client = TestClient(app)
-
-
-@pytest.fixture
-def make_user(engine):
-    def _make():
-        unique = uuid.uuid4().hex[:12]
-        with engine.begin() as conn:
-            return conn.execute(
-                text("INSERT INTO users (email, username, password_hash) VALUES (:e, :u, :p) RETURNING id"),
-                {"e": f"pytest_leagues_{unique}@example.com", "u": f"pytest_leagues_{unique}", "p": "not_a_real_hash"},
-            ).scalar()
-
-    return _make
 
 
 def _create_league(user_id, name, season, league_type, scoring_type, max_members=50):
     resp = client.post(
         "/leagues",
         json={
-            "user_id": user_id,
             "name": name,
             "season": season,
             "league_type": league_type,
             "scoring_type": scoring_type,
             "max_members": max_members,
-        },
+        }, headers=bearer_headers(user_id)
     )
     assert resp.status_code == 200, resp.json()
     return resp.json()
 
 
 def _join_league(user_id, code):
-    return client.post("/leagues/join", json={"user_id": user_id, "code": code})
+    return client.post("/leagues/join", json={"code": code}, headers=bearer_headers(user_id))
 
 
 def _seed_gw_score(engine, user_id, season, gameweek, total_points, season_total):
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO gw_scores (user_id, season, gameweek, raw_points, final_points, transfer_hits, hit_deductions, total_points, season_total) "
-                "VALUES (:u, :s, :gw, :tp, :tp, 0, 0, :tp, :st)"
+                "INSERT INTO gw_scores (user_id, season, gameweek, raw_points, final_points, transfer_hits, hit_deductions, total_points, season_total, rules_version) "
+                "VALUES (:u, :s, :gw, :tp, :tp, 0, 0, :tp, :st, :rv)"
             ),
-            {"u": user_id, "s": season, "gw": gameweek, "tp": total_points, "st": season_total},
+            {"u": user_id, "s": season, "gw": gameweek, "tp": total_points, "st": season_total,
+             "rv": CURRENT_RULES_VERSION},
         )
 
 
@@ -174,6 +163,28 @@ def test_join_at_capacity_rejected(make_user):
 
     assert resp.status_code == 422
     assert any("at capacity" in e for e in resp.json()["detail"])
+
+
+def test_user_leagues_and_table_read_membership(make_user):
+    creator = make_user()
+    joiner = make_user()
+    league = _create_league(creator, "Readable", TEST_SEASON, "private", "classic")
+    _join_league(joiner, league["code"])
+
+    list_resp = client.get("/leagues", params={"season": TEST_SEASON}, headers=bearer_headers(creator))
+    assert list_resp.status_code == 200
+    leagues = list_resp.json()
+    readable = next(item for item in leagues if item["league_id"] == league["league_id"])
+    assert readable["code"] == league["code"]
+    assert readable["member_count"] == 2
+    assert readable["user_season_points"] == 0
+
+    table_resp = client.get(f"/leagues/{league['league_id']}/table", params={}, headers=bearer_headers(creator))
+    assert table_resp.status_code == 200
+    body = table_resp.json()
+    assert body["league"]["league_id"] == league["league_id"]
+    assert body["league"]["member_count"] == 2
+    assert {row["user_id"] for row in body["rows"]} == {creator, joiner}
 
 
 # ---------------------------------------------------------------- classic

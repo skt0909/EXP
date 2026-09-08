@@ -1,0 +1,456 @@
+.transfers-page {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: calc(var(--header-height) + var(--space-lg)) var(--space-md) calc(var(--footer-height) + 180px);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.transfers-page--message {
+  padding-top: calc(var(--header-height) + var(--space-xl));
+  text-align: center;
+  color: var(--color-on-surface-variant);
+}
+
+.transfers-page__status-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-surface-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary);
+}
+
+.transfers-page__free-card {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.transfers-page__free-card h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: var(--color-primary);
+}
+
+.transfers-page__free-card p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+}
+
+.transfers-page__cost {
+  color: var(--color-error);
+  font-weight: 800;
+}
+
+/* Squad / Transfers Out list */
+
+.squad-out__label {
+  margin: 0 0 var(--space-sm);
+  padding: 0 var(--space-sm);
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.squad-out__list {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.squad-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm);
+  border-bottom: 1px solid var(--color-surface-variant);
+}
+
+.squad-row:last-child {
+  border-bottom: none;
+}
+
+.squad-row--focused {
+  background: var(--color-surface-container-low);
+}
+
+.squad-row--pending {
+  background: rgba(186, 26, 26, 0.08);
+}
+
+.squad-row__info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.squad-row__badge {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-container);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.squad-row__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.squad-row--pending .squad-row__name {
+  color: var(--color-error);
+  text-decoration: line-through;
+}
+
+.squad-row__club {
+  font-size: 10px;
+  color: var(--color-on-surface-variant);
+}
+
+.squad-row__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.squad-row__price {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.squad-row__btn {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  border: none;
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.squad-row__btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.squad-row__btn--cancel {
+  background: var(--color-error);
+  color: #fff;
+}
+
+/* Suggested / browse replacements */
+
+.replacements {
+  background: var(--color-surface-container-low);
+  border: 1px dashed var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+}
+
+.replacements__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: var(--space-sm);
+}
+
+.replacements__header h3 {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-primary);
+}
+
+.replacements__max {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+.replacements__empty {
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.replacements__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.replacement-row {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-sm);
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.replacement-row:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.replacement-row__info {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.replacement-row__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.replacement-row__icon .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.replacement-row__name {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.replacement-row__meta {
+  font-size: 10px;
+  color: var(--color-secondary);
+}
+
+.replacement-row__price {
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.replacements__browse-toggle {
+  width: 100%;
+  margin-top: var(--space-sm);
+  padding: var(--space-sm) 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/*
+  Bounded, independently-scrolling panel -- the layout fix reviewed and
+  approved for the Stitch design. Search input, sort chips, and the
+  results list all live inside this box; max-height + overflow-y caps
+  its height regardless of result count, so it scrolls internally
+  instead of growing the page and sliding results under the fixed
+  Pending Changes Summary / BottomNav stack below.
+*/
+.replacements__browse-panel {
+  margin-top: var(--space-md);
+  max-height: 45vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding-right: 4px;
+  padding-bottom: var(--space-lg);
+}
+
+.replacements__search {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface-container-low);
+  padding-top: 2px;
+  padding-bottom: var(--space-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  z-index: 1;
+}
+
+.replacements__search .material-symbols-outlined {
+  position: absolute;
+  margin-left: 12px;
+  color: var(--color-on-surface-variant);
+  font-size: 20px;
+}
+
+.replacements__search input {
+  width: 100%;
+  padding: var(--space-sm) var(--space-md) var(--space-sm) 40px;
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  font-size: 14px;
+  color: var(--color-on-surface);
+}
+
+.replacements__filters {
+  position: sticky;
+  top: 44px;
+  background: var(--color-surface-container-low);
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  padding-bottom: var(--space-xs);
+  z-index: 1;
+}
+
+.filter-chip {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-surface-variant);
+  background: var(--color-surface-container-lowest);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.filter-chip--active {
+  background: var(--color-surface-container-high);
+  border-color: transparent;
+  color: var(--color-on-surface);
+}
+
+.replacements__results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+/* Errors / success */
+
+.transfers-page__errors {
+  background: #ffdad6;
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+  color: var(--color-error);
+  font-size: 13px;
+}
+
+.transfers-page__errors p {
+  margin: 2px 0;
+}
+
+.transfers-page__success {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Pending changes summary -- fixed above BottomNav, always visible */
+
+.pending-summary {
+  position: fixed;
+  bottom: var(--footer-height);
+  left: 0;
+  width: 100%;
+  padding: 0 var(--space-md) var(--space-sm);
+  z-index: 25;
+}
+
+.pending-summary__card {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-surface-variant);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.pending-summary__stats {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: var(--space-sm);
+  border-bottom: 1px solid var(--color-surface-variant);
+}
+
+.pending-summary__stat {
+  text-align: center;
+}
+
+.pending-summary__stat-label {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.pending-summary__stat-value {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pending-summary__stat-sub {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-on-surface-variant);
+}
+
+.pending-summary__stat-value--accent {
+  color: var(--color-secondary);
+}
+
+.pending-summary__confirm {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary);
+  font-size: 16px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+}
+
+.pending-summary__confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

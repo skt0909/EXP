@@ -1,0 +1,203 @@
+.landing-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.landing-header {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--color-outline-variant);
+  padding: var(--space-sm) var(--space-md);
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  z-index: 10;
+}
+
+.landing-header__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-primary);
+}
+
+.landing-main {
+  flex-grow: 1;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+}
+
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--space-md);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg) var(--space-md) var(--space-xl);
+  background: var(--color-surface-container-low);
+}
+
+.hero__title {
+  margin: 0;
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  font-weight: 800;
+  color: var(--color-on-surface);
+}
+
+.hero__subtitle {
+  margin: 0;
+  max-width: 400px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-on-surface-variant);
+}
+
+.hero__cta {
+  margin-top: var(--space-lg);
+  width: 100%;
+  max-width: 300px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary);
+  border: none;
+  padding: var(--space-sm) var(--space-xl);
+  border-radius: var(--radius-lg);
+  font-size: 20px;
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  transition: opacity 0.15s ease;
+}
+
+.hero__cta:hover {
+  opacity: 0.9;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-md);
+}
+
+@media (min-width: 640px) {
+  .features {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.feature-card {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  transition: border-color 0.15s ease;
+}
+
+.feature-card:hover {
+  border-color: var(--color-primary);
+}
+
+.feature-card--featured {
+  grid-column: 1 / -1;
+}
+
+.feature-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feature-card--featured .feature-card__icon {
+  margin-bottom: var(--space-xs);
+}
+
+.feature-card:not(.feature-card--featured) .feature-card__icon {
+  width: 32px;
+  height: 32px;
+  background: var(--color-surface-variant);
+  color: var(--color-primary);
+}
+
+.feature-card__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.feature-card__description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-on-surface-variant);
+}
+
+.landing-footer {
+  margin-top: auto;
+  width: 100%;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+  border-top: 1px solid var(--color-outline-variant);
+  padding: var(--space-xl) var(--space-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-md);
+  background: var(--color-surface-container-low);
+  text-align: center;
+}
+
+.landing-footer__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.3;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--color-primary);
+}
+
+.landing-footer__links {
+  display: flex;
+  gap: var(--space-lg);
+}
+
+.landing-footer__links span {
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--color-outline);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.landing-footer__links span:hover {
+  color: var(--color-primary);
+}
+
+.landing-footer__copy {
+  margin: 0;
+  font-size: 12px;
+  color: var(--color-outline);
+}

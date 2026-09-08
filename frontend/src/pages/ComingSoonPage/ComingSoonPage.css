@@ -1,0 +1,35 @@
+.coming-soon {
+  max-width: 600px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--color-surface);
+  padding-bottom: 96px;
+}
+
+.coming-soon__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 80vh;
+  gap: var(--space-sm);
+  color: var(--color-on-surface-variant);
+  padding: var(--space-md);
+}
+
+.coming-soon__icon {
+  font-size: 40px;
+  color: var(--color-outline);
+}
+
+.coming-soon__content h1 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.coming-soon__content p {
+  margin: 0;
+}

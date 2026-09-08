@@ -23,6 +23,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
+from conftest import bearer_headers
 import main
 from main import app
 
@@ -36,6 +37,21 @@ REAL_GAMEWEEK = 4
 SQUAD_FPL_IDS = [1, 5, 6, 256, 8, 237, 21, 381, 449, 430, 249]
 CAPTAIN_FPL_ID = 430  # Haaland
 VICE_CAPTAIN_FPL_ID = 381  # Salah
+
+
+@pytest.fixture(scope="session")
+def _real_season_seeded(engine):
+    """Whether REAL_SEASON/GW1 data is actually present in whatever DB
+    this suite is running against. True against the dev DB (real FPL data
+    ingested there), False against a freshly migrated/empty test DB --
+    in which case the tests depending on it skip with a clear reason
+    instead of failing on unrelated-looking assertions."""
+    with engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM ml.player_gw_stats WHERE season = :s AND gameweek = 1"),
+            {"s": REAL_SEASON},
+        ).scalar()
+    return count > 0
 
 
 @pytest.fixture
@@ -88,7 +104,7 @@ def test_no_gw1_data_returns_availability_message_and_never_calls_groq():
     with patch("main.call_groq") as mock_groq:
         resp = client.post(
             "/chat",
-            json={"user_id": 1, "season": "8888-00", "gameweek": 4, "message": "test"},
+            json={"season": "8888-00", "gameweek": 4, "message": "test"}, headers=bearer_headers(1)
         )
 
     assert resp.status_code == 200
@@ -96,11 +112,14 @@ def test_no_gw1_data_returns_availability_message_and_never_calls_groq():
     mock_groq.assert_not_called()
 
 
-def test_no_squad_returns_message_and_never_calls_groq():
+def test_no_squad_returns_message_and_never_calls_groq(_real_season_seeded):
+    if not _real_season_seeded:
+        pytest.skip(f"requires real {REAL_SEASON} GW1 data seeded in the target DB (dev DB only, not a fresh test DB)")
+
     with patch("main.call_groq") as mock_groq:
         resp = client.post(
             "/chat",
-            json={"user_id": 8675309, "season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"},
+            json={"season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"}, headers=bearer_headers(8675309)
         )
 
     assert resp.status_code == 200
@@ -108,7 +127,10 @@ def test_no_squad_returns_message_and_never_calls_groq():
     mock_groq.assert_not_called()
 
 
-def test_real_squad_prompt_never_contains_raw_predicted_points(engine, real_squad_user):
+def test_real_squad_prompt_never_contains_raw_predicted_points(engine, real_squad_user, _real_season_seeded):
+    if not _real_season_seeded:
+        pytest.skip(f"requires real {REAL_SEASON} GW1 data seeded in the target DB (dev DB only, not a fresh test DB)")
+
     captured = {}
 
     def fake_call_groq(prompt, *args, **kwargs):
@@ -119,11 +141,10 @@ def test_real_squad_prompt_never_contains_raw_predicted_points(engine, real_squa
         resp = client.post(
             "/chat",
             json={
-                "user_id": real_squad_user,
                 "season": REAL_SEASON,
                 "gameweek": REAL_GAMEWEEK,
                 "message": "Should I captain Salah instead of Haaland?",
-            },
+            }, headers=bearer_headers(real_squad_user)
         )
 
     assert resp.status_code == 200
@@ -157,11 +178,14 @@ def test_real_squad_prompt_never_contains_raw_predicted_points(engine, real_squa
     assert not re.search(r"\d+\.\d{2,}", prompt), f"prompt appears to contain a raw numeric value:\n{prompt}"
 
 
-def test_groq_failure_returns_fallback_not_500(real_squad_user):
+def test_groq_failure_returns_fallback_not_500(real_squad_user, _real_season_seeded):
+    if not _real_season_seeded:
+        pytest.skip(f"requires real {REAL_SEASON} GW1 data seeded in the target DB (dev DB only, not a fresh test DB)")
+
     with patch("main.call_groq", side_effect=main.GroqError("mocked failure")):
         resp = client.post(
             "/chat",
-            json={"user_id": real_squad_user, "season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"},
+            json={"season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"}, headers=bearer_headers(real_squad_user)
         )
 
     assert resp.status_code == 200
@@ -177,7 +201,7 @@ def test_db_failure_returns_fallback_not_500(monkeypatch):
 
     resp = client.post(
         "/chat",
-        json={"user_id": 1, "season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"},
+        json={"season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"}, headers=bearer_headers(1)
     )
 
     assert resp.status_code == 200

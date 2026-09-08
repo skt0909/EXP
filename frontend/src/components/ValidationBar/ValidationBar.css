@@ -1,0 +1,83 @@
+.validation-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 600px;
+  background: rgba(250, 248, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid var(--color-outline-variant);
+  border-radius: 0.75rem 0.75rem 0 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+  padding: var(--space-md);
+  z-index: 50;
+}
+
+.validation-bar__checks {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-sm);
+  padding: 0 4px;
+  gap: var(--space-sm);
+}
+
+.validation-bar__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.validation-bar__check .material-symbols-outlined {
+  font-size: 16px;
+}
+
+.validation-bar__check--ok {
+  color: var(--color-on-secondary-container);
+}
+
+/* Fix: was text-on-tertiary-container (#fe225f), which collides with the
+   FWD position tag's color -- use the theme's (already-defined, previously
+   unused) error token instead so a validation failure reads unambiguously
+   as an error and not as a position tag. */
+.validation-bar__check--error {
+  color: var(--color-error);
+}
+
+.validation-bar__server-errors {
+  margin: 0 0 var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-error);
+  border-radius: var(--radius-lg);
+  color: var(--color-error);
+  font-size: 13px;
+  list-style: disc;
+  list-style-position: inside;
+}
+
+.validation-bar__submit {
+  width: 100%;
+  padding: 16px;
+  border-radius: 0.75rem;
+  border: none;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary);
+  transition: background-color 0.15s ease;
+}
+
+.validation-bar__submit:disabled {
+  background: var(--color-surface-container-high);
+  color: var(--color-outline);
+  cursor: not-allowed;
+}
