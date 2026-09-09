@@ -263,7 +263,8 @@ INSERT_CONTEST_STMT = text(
 )
 
 INSERT_PRICES_STMT = text(
-    "INSERT INTO dream11.player_prices (contest_id, player_id, credit_price) VALUES (:contest_id, :player_id, :credit_price)"
+    "INSERT INTO dream11.player_prices (contest_id, player_id, credit_price, rolling_points) "
+    "VALUES (:contest_id, :player_id, :credit_price, :rolling_points)"
 )
 
 INSERT_CONTEST_MEMBER_STMT = text(
@@ -382,7 +383,7 @@ CONTEST_POOL_QUERY = text(
     SELECT p.fpl_id, p.web_name, p.position, p.status,
            t.short_name AS club,
            (p.team_id = f.home_team_id) AS is_home_team,
-           pp.credit_price
+           pp.credit_price, pp.rolling_points
     FROM dream11.player_prices pp
     JOIN dream11.contests c ON c.id = pp.contest_id
     JOIN ml.fixtures f ON f.id = c.fixture_id
@@ -654,6 +655,13 @@ class PoolPlayerResponse(BaseModel):
     is_home_team: bool
     credit_price: float
     status: str
+    # Mean total_points over the player's last <=5 completed gameweeks
+    # before this contest's fixture -- the same rolling average
+    # credit_price was priced from, frozen at contest creation. None means
+    # no prior data (the same case _compute_prices reads as "price at the
+    # floor"), not zero -- a manager should be able to tell "never played"
+    # apart from "played and scored nothing."
+    rolling_points: float | None = None
 
 
 class LeaderboardRowResponse(BaseModel):
@@ -934,6 +942,7 @@ def get_contest_pool(contest_id: int) -> list[PoolPlayerResponse]:
             is_home_team=row.is_home_team,
             credit_price=float(row.credit_price),
             status=row.status,
+            rolling_points=round(row.rolling_points, 1) if row.rolling_points is not None else None,
         )
         for row in rows
     ]
@@ -1162,7 +1171,16 @@ def create_contest(
                 conn.execute(
                     INSERT_PRICES_STMT,
                     [
-                        {"contest_id": contest_id, "player_id": pid, "credit_price": prices[pid]}
+                        {
+                            "contest_id": contest_id,
+                            "player_id": pid,
+                            "credit_price": prices[pid],
+                            # Frozen alongside credit_price, same "no prior
+                            # data -> NULL" reading _compute_prices already
+                            # uses for the floor price -- see migration
+                            # c2f6a83e91d4.
+                            "rolling_points": rolling_values.get(pid),
+                        }
                         for pid in pool_internal_ids
                     ],
                 )

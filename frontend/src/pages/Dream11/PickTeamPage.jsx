@@ -145,7 +145,14 @@ function PickTeamPage() {
         setContest(contestBody)
         setLocked(contestBody.is_locked)
         // PlayerCard/PlayerJersey key off `id`; the API speaks player_id.
-        setPool(poolBody.map((p) => ({ ...p, id: p.player_id, price: p.credit_price })))
+        // points: PlayerCard's playerPoints() reads player.points, same prop
+        // FPL's squad-selection screen already relies on -- rolling_points is
+        // null for a player with no prior gameweek history, which playerPoints
+        // reads as 0 (a real "no data" case, not a real zero score, but the
+        // same reading FPL's own COALESCE-to-0 points column already uses).
+        setPool(
+          poolBody.map((p) => ({ ...p, id: p.player_id, price: p.credit_price, points: p.rolling_points }))
+        )
       })
       .catch((err) => {
         if (!cancelled) setServerErrors([err.message || 'Could not load this contest'])
@@ -415,6 +422,7 @@ function PickTeamPage() {
             onToggle={toggle}
             player={player}
             selected={selectedIds.includes(player.id)}
+            showPoints
           />
         ))}
       </div>
