@@ -91,11 +91,15 @@ See Worker/celery_app.py for how to actually run Beat locally.
 """
 
 import logging
+import os
 import sys
+import time
 from datetime import timedelta
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT = _ROOT.parent
+sys.path.insert(0, str(_PROJECT_ROOT))
 sys.path.insert(0, str(_ROOT / "Feature_engineering"))
 sys.path.insert(0, str(_ROOT / "Predict"))
 sys.path.insert(0, str(_ROOT / "Data"))
@@ -128,6 +132,12 @@ from Worker.beat_registry import (
 from Game_logic.dream11_scoring import score_dream11_contest, finalize_dream11_contest
 from live_poll import poll_fixture_checkpoint
 from Worker.task_health import record_task_heartbeat
+from simulation.events import MatchEvent, MatchEventType
+from simulation.event_store import insert_events
+from simulation.gameweek import simulate_gameweek as _simulate_gameweek
+from simulation.match import _fixture_context as _simulation_fixture_context
+from simulation.match import simulate_match as _simulate_match
+from simulation.season import simulate_season as _simulate_season
 
 logger = logging.getLogger(__name__)
 
@@ -520,4 +530,87 @@ def poll_and_score_fpl_fixture(self, fixture_id: int, checkpoint: str) -> dict:
             "poll_and_score_fpl_fixture failed for fixture_id=%s, checkpoint=%s (attempt %d/%d)",
             fixture_id, checkpoint, self.request.retries + 1, self.max_retries + 1,
         )
+        raise self.retry(exc=exc)
+
+
+@app.task(bind=True, max_retries=3, default_retry_delay=60, name="simulation.simulate_match")
+def simulate_match_task(self, fixture_id: int, events: list[dict]) -> dict:
+    try:
+        engine = get_engine()
+        typed_events = [
+            MatchEvent(
+                event_type=MatchEventType(event["event_type"]),
+                player_id=event.get("player_id"),
+                minute=event.get("minute", 0),
+                provider_event_id=event.get("provider_event_id"),
+                related_player_id=event.get("related_player_id"),
+                metadata=event.get("metadata") or {},
+            )
+            for event in events
+        ]
+        result = _simulate_match(engine, fixture_id, typed_events)
+        return result.__dict__
+    except Exception as exc:
+        logger.exception("simulation.simulate_match failed for fixture_id=%s", fixture_id)
+        raise self.retry(exc=exc)
+
+
+@app.task(
+    bind=True,
+    max_retries=3,
+    default_retry_delay=2,
+    name="simulation.crashable_match",
+    acks_late=True,
+    reject_on_worker_lost=True,
+)
+def crashable_simulate_match_task(self, fixture_id: int, events: list[dict], sleep_seconds: int = 20) -> dict:
+    """Simulation-only task used to prove mid-task worker loss is recoverable.
+
+    It durably writes the provider events, sleeps long enough for the harness
+    to SIGKILL the worker, and then reuses the normal match simulator on retry.
+    """
+    if os.getenv("ENVIRONMENT") != "simulation":
+        raise RuntimeError("simulation.crashable_match can only run with ENVIRONMENT=simulation")
+    try:
+        engine = get_engine()
+        typed_events = [
+            MatchEvent(
+                event_type=MatchEventType(event["event_type"]),
+                player_id=event.get("player_id"),
+                minute=event.get("minute", 0),
+                provider_event_id=event.get("provider_event_id"),
+                related_player_id=event.get("related_player_id"),
+                metadata=event.get("metadata") or {},
+            )
+            for event in events
+        ]
+        season, gameweek = _simulation_fixture_context(engine, fixture_id)
+        insert_events(engine, fixture_id, season, gameweek, sorted(typed_events, key=lambda item: item.minute))
+        time.sleep(sleep_seconds)
+        result = _simulate_match(engine, fixture_id, typed_events)
+        return result.__dict__
+    except Exception as exc:
+        logger.exception("simulation.crashable_match failed for fixture_id=%s", fixture_id)
+        raise self.retry(exc=exc)
+
+
+@app.task(bind=True, max_retries=3, default_retry_delay=60, name="simulation.simulate_gameweek")
+def simulate_gameweek_task(self, gameweek: int, users: int = 100, season: str = "SIM-2026", seed: int = 12345) -> dict:
+    try:
+        engine = get_engine()
+        result = _simulate_gameweek(engine, gameweek, users=users, season=season, seed=seed, accelerated=True)
+        return result.__dict__
+    except Exception as exc:
+        logger.exception("simulation.simulate_gameweek failed for season=%s gameweek=%s", season, gameweek)
+        raise self.retry(exc=exc)
+
+
+@app.task(bind=True, max_retries=3, default_retry_delay=60, name="simulation.simulate_season")
+def simulate_season_task(self, season: str = "SIM-2026", gameweeks: int = 38, users: int = 100, seed: int = 12345) -> dict:
+    try:
+        engine = get_engine()
+        result = _simulate_season(engine, season_id=season, gameweeks=gameweeks, users=users, seed=seed)
+        return {"season": result.season, "gameweeks": result.gameweeks, "users": result.users}
+    except Exception as exc:
+        logger.exception("simulation.simulate_season failed for season=%s", season)
         raise self.retry(exc=exc)

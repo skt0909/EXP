@@ -6,6 +6,8 @@ __pycache__/
 .ipynb_checkpoints/
 .pytest_cache/
 
+
+
 # Runtime artifacts from local dev processes (Celery Beat's schedule state,
 # uvicorn/vite logs, a stray browser preview dump) -- not source, and
 # machine/run-specific.

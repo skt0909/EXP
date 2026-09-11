@@ -1,0 +1,18 @@
+.git
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.venv
+venv
+node_modules
+frontend/node_modules
+frontend/dist
+__pycache__
+*.pyc
+*.pyo
+*.log
+.agents
+.codex
+.claude
+.vscode
+backend/FPL_Model_1 (1).ipynb

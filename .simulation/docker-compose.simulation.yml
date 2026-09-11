@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: fantasy_simulation
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "55432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fantasy_simulation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: ..
+      dockerfile: simulation/Dockerfile.worker
+    environment:
+      ENVIRONMENT: simulation
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/fantasy_simulation
+      REDIS_URL: redis://redis:6379/0
+      SIMULATION_BEAT_FAST_SECONDS: "5"
+      SIMULATION_BEAT_LOCK_ONLY: "1"
+      SIMULATION_REDIS_VISIBILITY_TIMEOUT: "10"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A Worker.celery_app worker --loglevel=info --pool=solo
+
+  beat:
+    build:
+      context: ..
+      dockerfile: simulation/Dockerfile.worker
+    environment:
+      ENVIRONMENT: simulation
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/fantasy_simulation
+      REDIS_URL: redis://redis:6379/0
+      SIMULATION_BEAT_FAST_SECONDS: "5"
+      SIMULATION_BEAT_LOCK_ONLY: "1"
+      SIMULATION_REDIS_VISIBILITY_TIMEOUT: "10"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A Worker.celery_app beat --loglevel=info

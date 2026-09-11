@@ -82,6 +82,14 @@ def _redis_url() -> str:
 
 
 _REDIS_URL = _redis_url()
+_SIM_FAST_BEAT_SECONDS = os.getenv("SIMULATION_BEAT_FAST_SECONDS")
+
+
+def _beat_interval(seconds: float) -> float:
+    """Allow the simulation compose stack to exercise real Beat ticks fast."""
+    if os.getenv("ENVIRONMENT") == "simulation" and _SIM_FAST_BEAT_SECONDS:
+        return float(_SIM_FAST_BEAT_SECONDS)
+    return seconds
 
 app = Celery(
     "fpl_worker",
@@ -118,19 +126,24 @@ app.conf.result_backend_transport_options = {
     "retry_policy": _FAIL_FAST_RETRY_POLICY,
 }
 app.conf.broker_transport_options = {"socket_connect_timeout": 2}
+if os.getenv("ENVIRONMENT") == "simulation" and os.getenv("SIMULATION_REDIS_VISIBILITY_TIMEOUT"):
+    app.conf.broker_transport_options["visibility_timeout"] = int(os.getenv("SIMULATION_REDIS_VISIBILITY_TIMEOUT", "10"))
+    app.conf.result_backend_transport_options["visibility_timeout"] = int(
+        os.getenv("SIMULATION_REDIS_VISIBILITY_TIMEOUT", "10")
+    )
 app.conf.task_publish_retry_policy = _FAIL_FAST_RETRY_POLICY
 
 app.conf.beat_schedule = {
     "lock-expired-gameweeks": {
         "task": "lock_expired_gameweeks",
-        "schedule": 300.0,  # every 5 minutes
+        "schedule": _beat_interval(300.0),  # every 5 minutes
     },
     "lock-dream11-contests": {
         # Same 5-minute cadence as lock-expired-gameweeks: this is the only
         # thing that ever locks a Dream11 contest, so the interval bounds how
         # long a contest stays joinable/submittable after its fixture starts.
         "task": "lock_dream11_contests",
-        "schedule": 300.0,
+        "schedule": _beat_interval(300.0),
     },
     "revert-free-hits": {
         # Every 15 minutes: this only fires once a gameweek's last fixture
@@ -139,11 +152,11 @@ app.conf.beat_schedule = {
         # free-hit squad after it should have reverted -- there is no
         # deadline being raced here, unlike the two lock tasks above.
         "task": "revert_free_hits",
-        "schedule": 900.0,
+        "schedule": _beat_interval(900.0),
     },
     "refresh-active-gameweeks": {
         "task": "refresh_active_gameweeks",
-        "schedule": 900.0,  # every 15 minutes
+        "schedule": _beat_interval(900.0),  # every 15 minutes
     },
     "finalize-dream11-contests": {
         # Every 15 minutes. Deliberately the same cadence as
@@ -152,7 +165,7 @@ app.conf.beat_schedule = {
         # writes, so finalization can only ever be as current as the
         # fixture refresh feeding it.
         "task": "finalize_dream11_contests",
-        "schedule": 900.0,
+        "schedule": _beat_interval(900.0),
     },
     "refresh-fixtures": {
         # Every 15 minutes, matching schedule-fixture-polls below, which
@@ -162,11 +175,11 @@ app.conf.beat_schedule = {
         # finished=FALSE indefinitely and later gameweeks never got their
         # scores at all.
         "task": "refresh_fixtures",
-        "schedule": 900.0,
+        "schedule": _beat_interval(900.0),
     },
     "schedule-fixture-polls": {
         "task": "schedule_fixture_polls",
-        "schedule": 900.0,  # every 15 minutes -- catches newly-ingested upcoming fixtures without excessive overhead
+        "schedule": _beat_interval(900.0),  # every 15 minutes -- catches newly-ingested upcoming fixtures without excessive overhead
     },
     "schedule-predictions-weekly": {
         # Tuesday 06:00 UTC -- FPL deadlines are typically Fri/Sat, so this
@@ -177,3 +190,8 @@ app.conf.beat_schedule = {
         "schedule": crontab(hour=6, minute=0, day_of_week=2),
     },
 }
+
+if os.getenv("ENVIRONMENT") == "simulation" and os.getenv("SIMULATION_BEAT_LOCK_ONLY") == "1":
+    app.conf.beat_schedule = {
+        "lock-expired-gameweeks": app.conf.beat_schedule["lock-expired-gameweeks"],
+    }
