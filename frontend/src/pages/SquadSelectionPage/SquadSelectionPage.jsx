@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import BottomNav from '../../components/BottomNav/BottomNav'
+import FplHeader from '../../components/FplHeader/FplHeader'
 import PitchView from '../../components/PitchView/PitchView'
 import PositionTabs from '../../components/PositionTabs/PositionTabs'
 import PlayerCard from '../../components/PlayerCard/PlayerCard'
@@ -9,7 +9,7 @@ import { fetchPlayers } from '../../api/players'
 import { fetchCurrentSquad, submitSquad } from '../../api/squad'
 import { LockedError } from '../../api/client'
 import { useAuth } from '../../auth/AuthContext'
-import { CURRENT_GAMEWEEK, CURRENT_SEASON } from '../../config/season'
+import { useGameweek } from '../../config/gameweek'
 import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
 
 const SQUAD_SIZE = 15
@@ -30,7 +30,7 @@ function SquadSelectionPage() {
   // all. `user` is still read here because the load effect below keys on
   // user.id: the page must refetch when the signed-in manager changes.
   const { user } = useAuth()
-  const navigate = useNavigate()
+  const { season, gameweek } = useGameweek()
 
   const [players, setPlayers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -56,8 +56,8 @@ function SquadSelectionPage() {
     setLoadError(null)
 
     Promise.all([
-      fetchPlayers({ season: CURRENT_SEASON, gameweek: CURRENT_GAMEWEEK }),
-      fetchCurrentSquad({ season: CURRENT_SEASON, gameweek: CURRENT_GAMEWEEK }),
+      fetchPlayers({ season, gameweek }),
+      fetchCurrentSquad({ season, gameweek }),
     ])
       .then(([playersData, squadData]) => {
         if (cancelled) return
@@ -74,7 +74,7 @@ function SquadSelectionPage() {
     return () => {
       cancelled = true
     }
-  }, [user.id])
+  }, [user.id, season, gameweek])
 
   const playersById = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
 
@@ -145,7 +145,7 @@ function SquadSelectionPage() {
     setSubmitSuccess(false)
 
     try {
-      await submitSquad({ season: CURRENT_SEASON, player_ids: selectedIds })
+      await submitSquad({ season, player_ids: selectedIds })
       setSubmitSuccess(true)
     } catch (err) {
       // Client-side checks above are for instant feedback only -- the backend's
@@ -161,22 +161,7 @@ function SquadSelectionPage() {
   return (
     <div className="bg-background text-on-background font-body-md antialiased min-h-screen">
       <div className="max-w-[600px] mx-auto bg-surface min-h-screen relative">
-        <header className="sticky top-0 z-50 bg-surface border-b border-outline-variant flex justify-between items-center w-full px-md h-16">
-          <button
-            aria-label="Back to dashboard"
-            className="flex items-center justify-center p-2 rounded-full hover:bg-surface-container-low text-primary"
-            onClick={() => navigate('/dashboard')}
-            type="button"
-          >
-            <span className="material-symbols-outlined">arrow_back</span>
-          </button>
-          <h1 className="font-headline-sm text-headline-sm font-bold text-primary">
-            Squad Selection
-          </h1>
-          <div className="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center">
-            <span className="material-symbols-outlined text-primary text-[20px]">person</span>
-          </div>
-        </header>
+        <FplHeader title="Squad Selection" />
 
         <div className="sticky top-16 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant px-md py-sm flex justify-between items-end shadow-sm">
           <div className="flex flex-col">

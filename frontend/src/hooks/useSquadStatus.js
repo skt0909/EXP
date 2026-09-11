@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { fetchCurrentSquad } from '../api/squad'
 import { useAuth } from '../auth/AuthContext'
-import { CURRENT_SEASON } from '../config/season'
+import { useGameweek } from '../config/gameweek'
 
 const SQUAD_SIZE = 15
 
@@ -19,6 +19,7 @@ const SQUAD_SIZE = 15
  */
 export function useSquadStatus() {
   const { user } = useAuth()
+  const { season } = useGameweek()
   const [hasSquad, setHasSquad] = useState(false)
   const [loading, setLoading] = useState(true)
 
@@ -28,7 +29,7 @@ export function useSquadStatus() {
       return
     }
     let cancelled = false
-    fetchCurrentSquad({ season: CURRENT_SEASON })
+    fetchCurrentSquad({ season })
       .then((squad) => {
         if (!cancelled) setHasSquad((squad.players?.length ?? 0) === SQUAD_SIZE)
       })
@@ -41,7 +42,7 @@ export function useSquadStatus() {
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [user, season])
 
   return { hasSquad, loading }
 }

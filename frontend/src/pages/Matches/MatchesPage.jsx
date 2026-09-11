@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
+import FplHeader from '../../components/FplHeader/FplHeader'
+import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import { fetchFixtures } from '../../api/fixtures'
 
 function kickoffLabel(kickoffTime) {
@@ -38,9 +40,12 @@ function Scoreline({ fixture }) {
   const hasScore = fixture.home_score != null && fixture.away_score != null
   return (
     <div className="flex items-center justify-between gap-sm">
-      <div className="flex-1 min-w-0">
-        <p className="font-headline-sm text-headline-sm text-primary truncate">{fixture.home_team}</p>
-        <p className="font-label-md text-label-md text-on-surface-variant">HOME</p>
+      <div className="flex items-center gap-sm flex-1 min-w-0">
+        <TeamBadge name={fixture.home_team_name} shortName={fixture.home_team} />
+        <div className="min-w-0">
+          <p className="font-headline-sm text-headline-sm text-primary truncate">{fixture.home_team}</p>
+          <p className="font-label-md text-label-md text-on-surface-variant">HOME</p>
+        </div>
       </div>
       {hasScore ? (
         <p className="font-stats-number text-stats-number text-on-surface shrink-0 px-sm">
@@ -49,9 +54,12 @@ function Scoreline({ fixture }) {
       ) : (
         <p className="font-label-md text-label-md text-on-surface-variant shrink-0 px-sm">vs</p>
       )}
-      <div className="flex-1 min-w-0 text-right">
-        <p className="font-headline-sm text-headline-sm text-primary truncate">{fixture.away_team}</p>
-        <p className="font-label-md text-label-md text-on-surface-variant">AWAY</p>
+      <div className="flex items-center justify-end gap-sm flex-1 min-w-0 text-right">
+        <div className="min-w-0">
+          <p className="font-headline-sm text-headline-sm text-primary truncate">{fixture.away_team}</p>
+          <p className="font-label-md text-label-md text-on-surface-variant">AWAY</p>
+        </div>
+        <TeamBadge name={fixture.away_team_name} shortName={fixture.away_team} />
       </div>
     </div>
   )
@@ -156,9 +164,11 @@ function MatchCard({ fixture, now }) {
 /**
  * A season is 380 fixtures, and GET /fixtures returns all of them -- rendering
  * the lot produced a 54,000px page. Sections are capped and expandable rather
- * than the request being narrowed, because there is no trustworthy "current
- * gameweek" to filter on (see config/season.js: CURRENT_GAMEWEEK is a
- * hardcoded constant precisely because the backend has no such endpoint).
+ * than the request being narrowed to one gameweek, because this list is
+ * meant to show the whole season's matches (live/upcoming/completed), not
+ * just the current gameweek -- GET /gameweeks/current (config/gameweek.jsx)
+ * exists now, but it answers "what gameweek can I set a team for," a
+ * different question from "what should Matches display."
  * Live is never capped -- there are at most a handful, and they're the point.
  */
 const SECTION_LIMIT = 6
@@ -252,13 +262,12 @@ function MatchesPage() {
   }, [fixtures])
 
   return (
-    <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
-      <header>
-        <h1 className="font-display-lg text-display-lg text-primary">Matches</h1>
-        <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
+    <>
+      <FplHeader title="Matches" />
+      <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
+        <p className="font-body-md text-body-md text-on-surface-variant">
           {season} · pick a match to create or join a contest.
         </p>
-      </header>
 
       {error && (
         <div className="bg-error-container text-on-error-container rounded-lg p-sm" role="alert">
@@ -279,7 +288,8 @@ function MatchesPage() {
           <Section fixtures={grouped.completed} now={now} title="Completed" />
         </>
       )}
-    </main>
+      </main>
+    </>
   )
 }
 

@@ -41,6 +41,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 
 from Shared.db_utils import get_engine
+from Shared.deadlines import _DEADLINE_EXPR
 from Data.auth import CurrentUser, get_current_user
 
 router = APIRouter()
@@ -202,3 +203,58 @@ def get_fixtures(
         )
         for row in rows
     ]
+
+
+# Reuses deadlines.py's exact deadline expression rather than restating "90
+# minutes before kickoff" a third time -- see that module's docstring on why
+# DEADLINE_OFFSET_MINUTES has exactly one source of truth.
+#
+# Two-tier because "the current gameweek" has two different honest answers
+# depending on where the calendar sits: normally it's the soonest gameweek a
+# manager can still set a team for (deadline still ahead); but between the
+# last ingested gameweek's deadline and the next gameweek's fixtures being
+# ingested, there IS no such gameweek, and returning nothing would strand
+# every page that reads this. In that gap, falling back to the most recent
+# PAST gameweek is deliberate -- the deadline has already passed, so it will
+# render read-only via the same locked-gameweek path Starting XI/Transfers
+# already have, not falsely invite an edit.
+CURRENT_GAMEWEEK_QUERY = text(
+    f"""
+    WITH gw_deadlines AS (
+        SELECT season, gameweek, {_DEADLINE_EXPR} AS deadline
+        FROM ml.fixtures
+        GROUP BY season, gameweek
+    )
+    (SELECT season, gameweek, deadline FROM gw_deadlines
+     WHERE deadline > NOW()
+     ORDER BY deadline ASC LIMIT 1)
+    UNION ALL
+    (SELECT season, gameweek, deadline FROM gw_deadlines
+     ORDER BY deadline DESC LIMIT 1)
+    LIMIT 1
+    """
+)
+
+
+class CurrentGameweekResponse(BaseModel):
+    found: bool
+    season: str | None = None
+    gameweek: int | None = None
+    deadline: datetime | None = None
+
+
+@router.get("/gameweeks/current", response_model=CurrentGameweekResponse)
+def get_current_gameweek(current_user: CurrentUser = Depends(get_current_user)) -> CurrentGameweekResponse:
+    engine = get_engine()
+    with engine.connect() as conn:
+        row = conn.execute(CURRENT_GAMEWEEK_QUERY).first()
+
+    # found=False rather than a 404 when ml.fixtures is empty -- same
+    # "unstarted state is not an error" stance as GET /gw_selection's
+    # has_selection and GET /squad's empty list.
+    if row is None:
+        return CurrentGameweekResponse(found=False)
+
+    return CurrentGameweekResponse(
+        found=True, season=row.season, gameweek=row.gameweek, deadline=row.deadline
+    )

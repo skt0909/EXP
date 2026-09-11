@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useOutletContext, useParams } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import OpponentTeamPanel from '../../components/OpponentTeam/OpponentTeamPanel'
+import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import { fetchContestLeaderboard } from '../../api/dream11'
+import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
 
 function kickoffLabel(kickoffTime) {
   if (!kickoffTime) return 'Kickoff time TBC'
@@ -27,11 +29,17 @@ function Dream11ContestPage() {
   const { contestId } = useParams()
   const { settings } = useOutletContext()
   const { user_id } = settings
+  const navigate = useNavigate()
 
   const [data, setData] = useState(null)
   const [selectedUserId, setSelectedUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  function handleBack() {
+    if (window.history.state?.idx > 0) navigate(-1)
+    else navigate(MODE_HOME[MODE_CONTESTS])
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -69,10 +77,31 @@ function Dream11ContestPage() {
       ) : (
         <>
           <div>
-            <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
-              {contest.home_team} v {contest.away_team} · GW{contest.gameweek}
-            </p>
-            <h1 className="font-display-lg text-display-lg text-primary">{contest.name}</h1>
+            {/* Back-arrow + static h1, same convention as the "How Points
+                Work" screens (ScoringPageHeader) -- this is a drill-down from
+                a contest card, not a BottomNav destination, so it doesn't get
+                the hamburger/account/toggle header. The h1 must name the
+                PAGE, never the contest -- contest.name moved to the
+                subtitle below, alongside the rest of the contest's details. */}
+            <div className="flex items-center gap-sm -ml-1 mb-1">
+              <button
+                aria-label="Go back"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors"
+                onClick={handleBack}
+                type="button"
+              >
+                <span className="material-symbols-outlined">arrow_back</span>
+              </button>
+              <h1 className="font-headline-sm text-headline-sm text-on-surface">Leaderboard</h1>
+            </div>
+            <div className="flex items-center gap-xs">
+              <TeamBadge shortName={contest.home_team} size="sm" />
+              <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
+                {contest.home_team} v {contest.away_team} · GW{contest.gameweek}
+              </p>
+              <TeamBadge shortName={contest.away_team} size="sm" />
+            </div>
+            <h2 className="font-display-lg text-display-lg text-primary">{contest.name}</h2>
             <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
               {contest.member_count}/{contest.max_members} members · code {contest.code}
             </p>

@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { buildClassicRules, TONE } from '../../data/scoringRules'
 import { useScoringRules } from '../../hooks/useScoringRules'
 import { MODE_FPL, MODE_HOME } from '../../config/appMode'
-import { CURRENT_SEASON } from '../../config/season'
+import { useGameweek } from '../../config/gameweek'
 import {
   RuleCard,
   RuleNote,
@@ -30,6 +30,7 @@ const HIGHLIGHT_TONES = {
 function ScoringPage() {
   const navigate = useNavigate()
   const { rules, loading, error } = useScoringRules()
+  const { season } = useGameweek()
 
   function handleBack() {
     // `idx > 0` means there is somewhere to pop back to within this app.
@@ -53,10 +54,10 @@ function ScoringPage() {
         title={content?.title ?? 'Scoring System'}
       />
 
-      {/* Season is read from config, not frozen into the copy -- the mockup's
-          "2024/25" was already a season out of date. */}
+      {/* Season comes from the real current gameweek, not frozen into the
+          copy -- the mockup's "2024/25" was already a season out of date. */}
       <p className="font-label-md text-label-md text-on-surface-variant -mt-sm">
-        Season {CURRENT_SEASON}
+        Season {season}
       </p>
 
       {loading && (

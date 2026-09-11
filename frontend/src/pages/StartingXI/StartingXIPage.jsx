@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import FplHeader from '../../components/FplHeader/FplHeader'
 import {
   DndContext,
   DragOverlay,
@@ -47,6 +48,17 @@ function chipAvailable(chipType, chipsUsed) {
   return chipsUsed[`${chipType}_available`] === true
 }
 
+// Mirrors starting_xi.py's _validate_selection rule-for-rule (11 starters,
+// exactly 1 GK, DEF 3-5, MID 2-5, FWD 1-3, distinct captain/vice, both in the
+// XI). This duplicates backend logic on purpose, not by oversight: there is
+// no dry-run/validate endpoint (GET /gw_selection only plays back what was
+// already saved -- see that file's own docstring), and POST /gw_selection is
+// the only way to ask the server "is this legal," which would mean a round
+// trip on every drag. So this is the same pattern used elsewhere for instant
+// feedback while editing; it is NOT the source of truth. The Save Team
+// response is -- a formation that passes here can still be rejected there if
+// the two ever drift, and the submitError banner (not this check) is what
+// renders on that mismatch.
 function computeFormationErrors(startingIds, squadById, captainId, viceCaptainId) {
   const errors = []
   const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 }
@@ -64,6 +76,9 @@ function computeFormationErrors(startingIds, squadById, captainId, viceCaptainId
   if (counts.FWD < 1 || counts.FWD > 3) errors.push(`Forwards must be between 1 and 3 -- currently ${counts.FWD}`)
   if (!captainId) errors.push('Select a captain')
   if (!viceCaptainId) errors.push('Select a vice-captain')
+  if (captainId && viceCaptainId && captainId === viceCaptainId) {
+    errors.push('Captain and vice-captain must be different players')
+  }
 
   return errors
 }
@@ -127,6 +142,37 @@ function SortablePitchPlayer({ player, isCaptain, isVice, onOpenPopover, onBench
         size={isCaptain ? 'lg' : 'md'}
         viceCaptain={isVice}
       />
+    </div>
+  )
+}
+
+// The bench GK: never draggable, never reordered against the 3 outfield subs
+// -- there's only ever one, so there's nothing to prioritise it against.
+// resolve_autosubs (Results/scoring.py) finds it by ml.players.position at
+// scoring time, never by its slot in bench_order, so it doesn't need (and
+// must not claim) an outfield-style priority label like "4th Sub".
+function ReserveGkPlayer({ player, canPromote, onPromote }) {
+  return (
+    <div className="bench-player flex items-center gap-sm p-sm bg-surface-container-lowest rounded-lg border border-outline-variant">
+      <span className="w-[18px] shrink-0" aria-hidden="true" />
+      <span className="font-label-md text-[9px] text-on-surface-variant w-[42px] shrink-0">
+        Reserve GK
+      </span>
+      <PlayerJersey player={player} size="xs" showName={false} />
+      <span className="font-body-md text-body-md text-on-surface truncate flex-1 min-w-0">
+        {player.name}
+      </span>
+      <div className="flex items-center gap-1 shrink-0">
+        <button
+          aria-label={`Move ${player.name} into starting XI`}
+          className="w-7 h-7 rounded flex items-center justify-center text-on-surface-variant bg-surface-container border border-outline-variant hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          disabled={!canPromote}
+          onClick={onPromote}
+          type="button"
+        >
+          <span className="material-symbols-outlined text-[14px]">person_add</span>
+        </button>
+      </div>
     </div>
   )
 }
@@ -234,46 +280,6 @@ function StartingXIPage() {
 
   const lastOverIdRef = useRef(null)
 
-  // Order within the starting XI is meaningless (only membership + captain
-  // matter), so resolving "over" against every individual pitch card via
-  // closestCenter caused a real bug: as a dragged card crossed into the
-  // pitch, the bench list reflowed underneath the (stationary) pointer,
-  // which flipped the nearest-item result back to a bench card, which
-  // moved the item back, which reflowed the pitch, which flipped it
-  // forward again -- an infinite per-frame oscillation between the two
-  // containers. Fix: treat the whole pitch as one stable drop target
-  // (pointerWithin against #starting-container) instead of resolving to
-  // whichever pitch card happens to be nearest. Bench still resolves to
-  // individual items via closestCenter, since sub-priority order there
-  // is real and needs precise reordering.
-  const collisionDetectionStrategy = useCallback(
-    (args) => {
-      const pointerCollisions = pointerWithin(args)
-
-      if (pointerCollisions.some((c) => c.id === 'starting-container')) {
-        lastOverIdRef.current = 'starting-container'
-        return [{ id: 'starting-container' }]
-      }
-
-      if (pointerCollisions.some((c) => c.id === 'bench-container')) {
-        const benchItemContainers = args.droppableContainers.filter((c) => benchIds.includes(c.id))
-        const benchCollisions = closestCenter({ ...args, droppableContainers: benchItemContainers })
-        const overId = getFirstCollision(benchCollisions, 'id') ?? 'bench-container'
-        lastOverIdRef.current = overId
-        return [{ id: overId }]
-      }
-
-      const fallback = closestCenter(args)
-      const overId = getFirstCollision(fallback, 'id')
-      if (overId != null) {
-        lastOverIdRef.current = overId
-        return fallback
-      }
-      return lastOverIdRef.current ? [{ id: lastOverIdRef.current }] : []
-    },
-    [benchIds]
-  )
-
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -360,6 +366,57 @@ function StartingXIPage() {
   }, [startingIds, squadById])
 
   const benchPlayers = useMemo(() => benchIds.map((id) => squadById.get(id)).filter(Boolean), [benchIds, squadById])
+  // Split for display only -- benchIds itself stays one array (its order is
+  // what's actually submitted as bench_order). The reserve GK is always
+  // wherever it falls in that array; only the outfield players' RELATIVE
+  // order to each other is the real substitution priority resolve_autosubs
+  // reads, so filtering here can't disturb it.
+  const benchGk = useMemo(() => benchPlayers.find((p) => p.position === 'GK') ?? null, [benchPlayers])
+  const outfieldBench = useMemo(() => benchPlayers.filter((p) => p.position !== 'GK'), [benchPlayers])
+  const outfieldBenchIds = useMemo(() => outfieldBench.map((p) => p.player_id), [outfieldBench])
+
+  // Order within the starting XI is meaningless (only membership + captain
+  // matter), so resolving "over" against every individual pitch card via
+  // closestCenter caused a real bug: as a dragged card crossed into the
+  // pitch, the bench list reflowed underneath the (stationary) pointer,
+  // which flipped the nearest-item result back to a bench card, which
+  // moved the item back, which reflowed the pitch, which flipped it
+  // forward again -- an infinite per-frame oscillation between the two
+  // containers. Fix: treat the whole pitch as one stable drop target
+  // (pointerWithin against #starting-container) instead of resolving to
+  // whichever pitch card happens to be nearest. Bench still resolves to
+  // individual items via closestCenter, since sub-priority order there
+  // is real and needs precise reordering.
+  const collisionDetectionStrategy = useCallback(
+    (args) => {
+      const pointerCollisions = pointerWithin(args)
+
+      if (pointerCollisions.some((c) => c.id === 'starting-container')) {
+        lastOverIdRef.current = 'starting-container'
+        return [{ id: 'starting-container' }]
+      }
+
+      if (pointerCollisions.some((c) => c.id === 'bench-container')) {
+        // Only the 3 outfield subs are individually sortable -- the reserve
+        // GK isn't wrapped in useSortable (there's nothing to prioritise it
+        // against), so it never appears here as a per-item drop target.
+        const benchItemContainers = args.droppableContainers.filter((c) => outfieldBenchIds.includes(c.id))
+        const benchCollisions = closestCenter({ ...args, droppableContainers: benchItemContainers })
+        const overId = getFirstCollision(benchCollisions, 'id') ?? 'bench-container'
+        lastOverIdRef.current = overId
+        return [{ id: overId }]
+      }
+
+      const fallback = closestCenter(args)
+      const overId = getFirstCollision(fallback, 'id')
+      if (overId != null) {
+        lastOverIdRef.current = overId
+        return fallback
+      }
+      return lastOverIdRef.current ? [{ id: lastOverIdRef.current }] : []
+    },
+    [outfieldBenchIds]
+  )
 
   const formationErrors = useMemo(
     () => computeFormationErrors(startingIds, squadById, captainId, viceCaptainId),
@@ -423,14 +480,53 @@ function StartingXIPage() {
     setStartingIds((prev) => [...prev, player.player_id])
   }
 
-  function moveBench(index, direction) {
-    setBenchIds((prev) => {
-      const next = [...prev]
-      const swapWith = index + direction
-      if (swapWith < 0 || swapWith >= next.length) return prev
-      ;[next[index], next[swapWith]] = [next[swapWith], next[index]]
-      return next
-    })
+  // The reserve GK's position within benchIds is arbitrary (see ReserveGkPlayer's
+  // comment), so reordering the 3 outfield subs never needs to touch it --
+  // just splice it back in wherever it already was. This is what both the
+  // drag handles and the up/down buttons funnel through, since they're the
+  // same underlying action (change bench_order) and must behave identically.
+  function reorderOutfieldBench(nextOutfieldIds) {
+    const gkId = benchIds.find((id) => squadById.get(id)?.position === 'GK')
+    const nextBenchIds = gkId ? [gkId, ...nextOutfieldIds] : nextOutfieldIds
+    setBenchIds(nextBenchIds)
+    persistBenchOrder(nextBenchIds)
+    return nextBenchIds
+  }
+
+  function moveOutfieldBench(index, direction) {
+    const swapWith = index + direction
+    if (swapWith < 0 || swapWith >= outfieldBenchIds.length) return
+    const next = [...outfieldBenchIds]
+    ;[next[index], next[swapWith]] = [next[swapWith], next[index]]
+    reorderOutfieldBench(next)
+  }
+
+  // There is no lightweight "reorder bench" endpoint on the backend -- the
+  // full POST /gw_selection (11 starters + all 4 bench ids + captain/vice) is
+  // the only write path, so a drag or an up/down tap has to resubmit
+  // everything, not just bench_order. Skipped while the CURRENT starting XI
+  // is itself invalid: submitting it now would fail on the unrelated
+  // formation errors, not the bench order, so the reorder just stays local
+  // until the user fixes the XI and hits Save Team, which sends this same
+  // bench order anyway.
+  async function persistBenchOrder(nextBenchIds) {
+    if (locked || formationErrors.length > 0) return
+    setSubmitError(null)
+    try {
+      await submitGwSelection({
+        season,
+        gameweek,
+        player_ids: startingIds,
+        bench_order: nextBenchIds,
+        captain_id: captainId,
+        vice_captain_id: viceCaptainId,
+        chip_used: chipUsed,
+      })
+      setSubmitSuccess('Bench order saved.')
+    } catch (err) {
+      if (err instanceof LockedError) setLocked(true)
+      setSubmitError(err.errors ?? [err.message])
+    }
   }
 
   function openCaptainPopover(playerId) {
@@ -522,12 +618,14 @@ function StartingXIPage() {
         return arrayMove(prev, oldIndex, newIndex)
       })
     } else {
-      setBenchIds((prev) => {
-        const oldIndex = prev.indexOf(active.id)
-        const newIndex = prev.indexOf(over.id)
-        if (oldIndex === -1 || newIndex === -1) return prev
-        return arrayMove(prev, oldIndex, newIndex)
-      })
+      // Only the 3 outfield subs are sortable drag targets (the reserve GK
+      // isn't), so active/over here are always outfield ids -- reorder that
+      // subset and route through the same full-resubmit path the up/down
+      // buttons use.
+      const oldIndex = outfieldBenchIds.indexOf(active.id)
+      const newIndex = outfieldBenchIds.indexOf(over.id)
+      if (oldIndex === -1 || newIndex === -1) return
+      reorderOutfieldBench(arrayMove(outfieldBenchIds, oldIndex, newIndex))
     }
   }
 
@@ -576,14 +674,21 @@ function StartingXIPage() {
 
   return (
     <>
+      <FplHeader title="Starting XI" />
       <main className="w-full flex flex-col pb-[180px]">
-        <div className="flex overflow-x-auto gap-2 px-md py-sm border-b border-surface-container w-full [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {/* flex-wrap, not overflow-x-auto: a scrolling strip left the last
+            chip visibly cut off at the viewport edge with no affordance
+            telling you to swipe -- it just looked broken. Wrapping to a
+            second row guarantees all 4 real chips (the backend's actual
+            VALID_CHIPS -- wildcard, triple_captain, bench_boost, free_hit)
+            are always fully visible at any width, phones included. */}
+        <div className="flex flex-wrap gap-2 px-md py-sm border-b border-surface-container w-full">
           {CHIPS.map((chip) => {
             const active = chipUsed === chip.type
             const available = chipAvailable(chip.type, chipsUsed)
             return (
               <button
-                className={`shrink-0 px-4 py-1.5 rounded-full font-label-md text-label-md border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                className={`px-4 py-1.5 rounded-full font-label-md text-label-md border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                   active
                     ? 'bg-primary-container text-on-primary border-primary-container shadow-sm'
                     : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-high'
@@ -674,26 +779,37 @@ function StartingXIPage() {
             <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-sm">
               Bench
             </h3>
-            <SortableContext items={benchIds} strategy={verticalListSortingStrategy}>
-              <DroppableContainer
-                className="bg-surface-container-low rounded-xl p-2 border border-outline-variant shadow-sm flex flex-col gap-2 min-h-[64px]"
-                id="bench-container"
-              >
-                {benchPlayers.map((p, i) => (
+            {/* One droppable zone for the whole bench (so a pitch player can
+                still be dropped anywhere in it), but only the 3 outfield subs
+                are individually sortable -- the reserve GK renders as its own
+                fixed row, not part of that SortableContext, since there's
+                only ever one and nothing to prioritise it against. */}
+            <DroppableContainer
+              className="bg-surface-container-low rounded-xl p-2 border border-outline-variant shadow-sm flex flex-col gap-2 min-h-[64px]"
+              id="bench-container"
+            >
+              {benchGk && (
+                // Always promotable: bringing in the reserve GK just swaps
+                // it with whoever's starting in goal (see toggleStarting's
+                // GK branch), never adds a 12th starter.
+                <ReserveGkPlayer canPromote onPromote={() => toggleStarting(benchGk)} player={benchGk} />
+              )}
+              <SortableContext items={outfieldBenchIds} strategy={verticalListSortingStrategy}>
+                {outfieldBench.map((p, i) => (
                   <SortableBenchPlayer
-                    key={p.player_id}
-                    player={p}
-                    subLabel={`${['1st', '2nd', '3rd', '4th'][i] ?? `${i + 1}th`} Sub`}
+                    canMoveDown={i < outfieldBench.length - 1}
                     canMoveUp={i > 0}
-                    canMoveDown={i < benchPlayers.length - 1}
-                    canPromote={p.position === 'GK' || startingIds.length < STARTING_XI_SIZE}
-                    onMoveUp={() => moveBench(i, -1)}
-                    onMoveDown={() => moveBench(i, 1)}
+                    canPromote={startingIds.length < STARTING_XI_SIZE}
+                    key={p.player_id}
+                    onMoveDown={() => moveOutfieldBench(i, 1)}
+                    onMoveUp={() => moveOutfieldBench(i, -1)}
                     onPromote={() => toggleStarting(p)}
+                    player={p}
+                    subLabel={`${['1st', '2nd', '3rd'][i] ?? `${i + 1}th`} Sub`}
                   />
                 ))}
-              </DroppableContainer>
-            </SortableContext>
+              </SortableContext>
+            </DroppableContainer>
           </section>
 
           <DragOverlay>

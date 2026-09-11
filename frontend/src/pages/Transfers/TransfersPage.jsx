@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import FplHeader from '../../components/FplHeader/FplHeader'
 import { fetchCurrentSquad } from '../../api/squad'
 import { fetchPlayers } from '../../api/players'
 import { fetchTransfersUsed, submitTransfers } from '../../api/transfers'
@@ -254,6 +255,7 @@ function TransfersPage() {
 
   return (
     <>
+      <FplHeader title="Transfers" />
       <main className="w-full px-safe-margin py-md flex flex-col gap-lg pb-[200px]">
         <div className="flex justify-between items-center bg-surface-container rounded-lg p-sm">
           <span className="font-label-md text-label-md text-primary">Gameweek {gameweek}</span>

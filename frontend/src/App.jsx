@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import Layout from './layout/Layout'
 import { AppModeProvider } from './config/appMode'
+import { GameweekProvider } from './config/gameweek'
 import { AuthProvider } from './auth/AuthContext'
 import ProtectedRoute from './auth/ProtectedRoute'
 import LoginPage from './pages/Login/LoginPage'
@@ -19,11 +20,17 @@ import Dream11ScoringPage from './pages/Dream11/Dream11ScoringPage'
 import PickTeamPage from './pages/Dream11/PickTeamPage'
 import ScoringPage from './pages/Scoring/ScoringPage'
 
-/** Carries game mode to every authenticated page, Layout-wrapped or not. */
+/**
+ * Carries game mode and the real current season/gameweek to every
+ * authenticated page, Layout-wrapped or not (Dashboard and Squad Selection
+ * draw their own chrome outside Layout, so this can't just live there).
+ */
 function ModeShell() {
   return (
     <AppModeProvider>
-      <Outlet />
+      <GameweekProvider>
+        <Outlet />
+      </GameweekProvider>
     </AppModeProvider>
   )
 }

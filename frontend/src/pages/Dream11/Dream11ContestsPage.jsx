@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
+import FplHeader from '../../components/FplHeader/FplHeader'
+import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import { fetchUserContests } from '../../api/dream11'
 
 /**
@@ -38,14 +40,13 @@ function Dream11ContestsPage() {
   }, [user_id])
 
   return (
-    <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
-      <div>
-        <h1 className="font-display-lg text-display-lg text-primary">Dream11</h1>
-        <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
+    <>
+      <FplHeader title="Contests" />
+      <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
+        <p className="font-body-md text-body-md text-on-surface-variant">
           {contests.length} contest{contests.length === 1 ? '' : 's'} · single-match, 100 credits,
           11 players.
         </p>
-      </div>
 
       {error && (
         <div className="bg-error-container text-on-error-container rounded-lg p-sm" role="alert">
@@ -83,9 +84,13 @@ function Dream11ContestsPage() {
                     {contest.is_locked ? 'Locked' : 'Open'}
                   </span>
                 </div>
-                <p className="font-body-md text-body-md text-on-surface-variant">
-                  {contest.home_team} v {contest.away_team} · GW{contest.gameweek}
-                </p>
+                <div className="flex items-center gap-xs">
+                  <TeamBadge shortName={contest.home_team} size="sm" />
+                  <p className="font-body-md text-body-md text-on-surface-variant">
+                    {contest.home_team} v {contest.away_team} · GW{contest.gameweek}
+                  </p>
+                  <TeamBadge shortName={contest.away_team} size="sm" />
+                </div>
                 <p className="font-label-md text-label-md text-on-surface-variant mt-1">
                   {contest.member_count}/{contest.max_members} members
                   {contest.user_has_team ? '' : ' · you haven’t picked yet'}
@@ -103,7 +108,8 @@ function Dream11ContestsPage() {
           ))}
         </div>
       )}
-    </main>
+      </main>
+    </>
   )
 }
 

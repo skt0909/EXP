@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { fetchFixtures } from '../../api/fixtures'
 import { createContest, fetchFixtureContests, joinContest, ValidationError } from '../../api/dream11'
+import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
+import TeamBadge from '../../components/TeamBadge/TeamBadge'
 
 const FIELD =
   'rounded-lg border border-outline-variant bg-surface px-3 py-2 font-body-md text-body-md text-on-surface ' +
@@ -51,6 +53,11 @@ function MatchDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [joinCode, setJoinCode] = useState('')
   const [createForm, setCreateForm] = useState({ name: '', max_members: 50 })
+
+  function handleBack() {
+    if (window.history.state?.idx > 0) navigate(-1)
+    else navigate(MODE_HOME[MODE_CONTESTS])
+  }
 
   async function loadContests() {
     const data = await fetchFixtureContests({ fixture_id: Number(fixtureId), user_id })
@@ -134,6 +141,21 @@ function MatchDetailPage() {
 
   return (
     <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
+      {/* Back-arrow + static h1, same convention as the "How Points Work"
+          screens -- a drill-down from Matches, not a BottomNav destination,
+          so no hamburger/account/toggle header here. */}
+      <div className="flex items-center gap-sm -ml-1">
+        <button
+          aria-label="Go back"
+          className="w-9 h-9 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors"
+          onClick={handleBack}
+          type="button"
+        >
+          <span className="material-symbols-outlined">arrow_back</span>
+        </button>
+        <h1 className="font-headline-sm text-headline-sm text-on-surface">Match</h1>
+      </div>
+
       {loading ? (
         <p className="font-body-md text-body-md text-on-surface-variant">Loading match…</p>
       ) : !fixture ? (
@@ -145,13 +167,19 @@ function MatchDetailPage() {
               GW{fixture.gameweek} · Premier League
             </p>
             <div className="flex items-center justify-between gap-sm mt-sm">
-              <p className="font-headline-sm text-headline-sm text-primary flex-1 truncate">
-                {fixture.home_team}
-              </p>
-              <p className="font-label-md text-label-md text-on-surface-variant px-sm">vs</p>
-              <p className="font-headline-sm text-headline-sm text-primary flex-1 text-right truncate">
-                {fixture.away_team}
-              </p>
+              <div className="flex items-center gap-sm flex-1 min-w-0">
+                <TeamBadge name={fixture.home_team_name} shortName={fixture.home_team} />
+                <p className="font-headline-sm text-headline-sm text-primary truncate">
+                  {fixture.home_team}
+                </p>
+              </div>
+              <p className="font-label-md text-label-md text-on-surface-variant px-sm shrink-0">vs</p>
+              <div className="flex items-center justify-end gap-sm flex-1 min-w-0">
+                <p className="font-headline-sm text-headline-sm text-primary text-right truncate">
+                  {fixture.away_team}
+                </p>
+                <TeamBadge name={fixture.away_team_name} shortName={fixture.away_team} />
+              </div>
             </div>
             <p className="font-label-md text-label-md text-on-surface-variant mt-sm text-center">
               {remaining ? `Starts in ${remaining}` : fixture.status === 'live' ? 'In progress' : 'Started'}

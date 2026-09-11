@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import ChatLog from '../../components/ChatLog/ChatLog'
 import ChatInput from '../../components/ChatInput/ChatInput'
+import FplHeader from '../../components/FplHeader/FplHeader'
 import { sendChatMessage } from '../../api/chat'
 
 const WELCOME_MESSAGE = {
@@ -32,8 +33,13 @@ function ChatPage() {
 
   // Fills the space Layout gives it (viewport minus header and BottomNav) so
   // the log scrolls internally and the composer stays put at the bottom.
+  // FplHeader's bar is a fixed h-16 (64px), same height the old bare header
+  // used, so the h-[calc(...)] math above still holds unchanged. ChatLog is
+  // already flex-1 (see that component), so it absorbs whatever height the
+  // header doesn't use.
   return (
     <div className="flex flex-col h-[calc(100dvh-64px-88px)]">
+      <FplHeader title="Assist" />
       <ChatLog isTyping={isTyping} messages={messages} />
       <ChatInput disabled={isTyping} onSend={handleSend} />
     </div>

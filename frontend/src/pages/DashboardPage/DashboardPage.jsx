@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import BottomNav from '../../components/BottomNav/BottomNav'
-import ModeToggle from '../../components/ModeToggle/ModeToggle'
+import FplHeader from '../../components/FplHeader/FplHeader'
 import { fetchFixtures } from '../../api/fixtures'
 import { fetchTeamDashboard } from '../../api/team'
 import { useAuth } from '../../auth/AuthContext'
 import { useSquadStatus } from '../../hooks/useSquadStatus'
-import { CURRENT_GAMEWEEK, CURRENT_SEASON } from '../../config/season'
+import { useGameweek } from '../../config/gameweek'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
-import { getTeamByPlayer, normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
+import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
 
 const ROWS = ['GK', 'DEF', 'MID', 'FWD']
 
@@ -108,19 +109,6 @@ function formatFixtureTime(kickoffIso) {
   }).format(new Date(kickoffIso))
 }
 
-function TeamBadge({ shortName, name }) {
-  const team = getTeamByPlayer({ club: shortName })
-  return (
-    <div className="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant shrink-0">
-      {team?.badge ? (
-        <img alt={`${name} badge`} className="w-7 h-7 object-contain" draggable="false" src={team.badge} />
-      ) : (
-        <span className="font-label-md text-[10px] text-primary">{shortName}</span>
-      )}
-    </div>
-  )
-}
-
 function FixtureRow({ fixture }) {
   const hasScore = fixture.home_score != null && fixture.away_score != null
 
@@ -176,6 +164,7 @@ function FixtureRow({ fixture }) {
 function DashboardPage() {
   const { user } = useAuth()
   const { hasSquad } = useSquadStatus()
+  const { season, gameweek } = useGameweek()
   const navigate = useNavigate()
 
   const [data, setData] = useState(null)
@@ -189,9 +178,9 @@ function DashboardPage() {
     setLoadError(null)
 
     Promise.all([
-      fetchTeamDashboard({ season: CURRENT_SEASON, gameweek: CURRENT_GAMEWEEK }),
+      fetchTeamDashboard({ season, gameweek }),
       fetchFixtures({
-        season: CURRENT_SEASON,
+        season,
         upcoming_only: true,
       }),
     ])
@@ -210,7 +199,7 @@ function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [user.id])
+  }, [user.id, season, gameweek])
 
   const pitchRows = useMemo(() => {
     if (!data) return []
@@ -222,33 +211,9 @@ function DashboardPage() {
 
   return (
     <div className="bg-background text-on-background font-body-md min-h-screen pb-24">
-      <header className="fixed top-0 w-full z-50 bg-surface border-b border-outline-variant">
-        <div className="flex justify-between items-center w-full px-safe-margin py-sm max-w-[600px] mx-auto">
-          <div className="flex items-center gap-sm min-w-0">
-            <div className="w-8 h-8 rounded-full bg-surface-container-highest flex items-center justify-center shrink-0">
-              <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
-                person
-              </span>
-            </div>
-            <h1 className="font-headline-md text-headline-md font-extrabold text-primary truncate">
-              {data?.team_name || 'PitchSide AI'}
-            </h1>
-          </div>
-          <button
-            aria-label="Log out"
-            className="p-2 hover:bg-surface-container-low rounded-full transition-colors"
-            onClick={() => navigate('/login')}
-          >
-            <span className="material-symbols-outlined text-primary">notifications</span>
-          </button>
-        </div>
-      </header>
+      <FplHeader title="Dashboard" />
 
-      <main className="pt-20 px-safe-margin max-w-[600px] mx-auto w-full flex flex-col gap-lg">
-        {/* This page draws its own chrome instead of using Layout, so it needs
-            its own copy of the mode toggle -- without it, FPL's home screen
-            would be the one place with no way through to Contests. */}
-        <ModeToggle />
+      <main className="px-safe-margin max-w-[600px] mx-auto w-full flex flex-col gap-lg">
         {loading && <p className="font-body-md text-on-surface-variant mt-lg">Loading your team…</p>}
         {loadError && (
           <p className="font-body-md text-error mt-lg" role="alert">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
+import FplHeader from '../../components/FplHeader/FplHeader'
 import {
   createLeague,
   fetchLeagueTable,
@@ -143,18 +144,23 @@ function LeaguesPage() {
   }
 
   return (
-    <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
-      <div>
-        <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
-          {season}
-        </p>
-        <h1 className="font-display-lg text-display-lg text-primary">Leagues</h1>
-        <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
-          {leagues.length} joined · manage your private and public FPL leagues.
-        </p>
-      </div>
+    <>
+      <FplHeader title="Leagues" />
+      <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
+        {/* Season label and the joined-count subtitle are real, useful
+            context -- just not what the <h1> is for. They now sit below
+            the header bar as their own element, same as any other page's
+            secondary descriptive text. */}
+        <div>
+          <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
+            {season}
+          </p>
+          <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
+            {leagues.length} joined · manage your private and public FPL leagues.
+          </p>
+        </div>
 
-      {errors.length > 0 && (
+        {errors.length > 0 && (
         <div
           className="bg-error-container text-on-error-container rounded-lg p-sm flex flex-col gap-xs"
           role="alert"
@@ -407,7 +413,8 @@ function LeaguesPage() {
           </section>
         </>
       )}
-    </main>
+      </main>
+    </>
   )
 }
 

@@ -18,7 +18,10 @@ import { MODE_CONTESTS, useAppMode } from '../../config/appMode'
  * the flex children keeps them from wrapping or being clipped at 390px, which
  * has regressed before.
  */
-const FPL_ITEMS = [
+// Exported so NavDrawer.jsx (opened from FplHeader's hamburger) lists the
+// exact same destinations as the bottom tab bar, from one definition --
+// duplicating this array would mean the two navs could silently drift.
+export const FPL_ITEMS = [
   { key: 'home', label: 'Home', icon: 'house', to: '/dashboard' },
   { key: 'starting-xi', label: 'Starting XI', icon: 'groups', to: '/squad', needsSquad: true },
   { key: 'transfers', label: 'Transfers', icon: 'swap_horiz', to: '/transfers' },
@@ -26,7 +29,7 @@ const FPL_ITEMS = [
   { key: 'chats', label: 'Chats', icon: 'chat', to: '/chat' },
 ]
 
-const CONTESTS_ITEMS = [
+export const CONTESTS_ITEMS = [
   { key: 'matches', label: 'Matches', icon: 'calendar_month', to: '/matches' },
   { key: 'my-contests', label: 'My Contests', icon: 'leaderboard', to: '/dream11' },
   { key: 'chats', label: 'Chats', icon: 'chat', to: '/chat' },

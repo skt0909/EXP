@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import PlayerCard from '../../components/PlayerCard/PlayerCard'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
+import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import {
   fetchContest,
   fetchContestPool,
@@ -9,6 +10,7 @@ import {
   LockedError,
   ValidationError,
 } from '../../api/dream11'
+import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
 
 // Mirrors Game_logic/dream11.py's _validate_team. Duplicated deliberately: the
 // server stays the authority and re-checks everything, but a builder that only
@@ -130,6 +132,11 @@ function PickTeamPage() {
   const [submitting, setSubmitting] = useState(false)
   const [serverErrors, setServerErrors] = useState([])
   const [locked, setLocked] = useState(false)
+
+  function handleBack() {
+    if (window.history.state?.idx > 0) navigate(-1)
+    else navigate(MODE_HOME[MODE_CONTESTS])
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -261,10 +268,29 @@ function PickTeamPage() {
   return (
     <main className="w-full px-safe-margin py-md flex flex-col gap-md pb-[180px]">
       <div>
-        <h1 className="font-display-lg text-display-lg text-primary">{contest.name}</h1>
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          {contest.home_team} vs {contest.away_team} · Single Match Contest
-        </p>
+        {/* Back-arrow + static h1, same convention as the "How Points Work"
+            screens -- a drill-down from a contest, not a BottomNav
+            destination. The h1 must name the PAGE, never the contest --
+            contest.name moved to the subtitle below. */}
+        <div className="flex items-center gap-sm -ml-1 mb-1">
+          <button
+            aria-label="Go back"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors"
+            onClick={handleBack}
+            type="button"
+          >
+            <span className="material-symbols-outlined">arrow_back</span>
+          </button>
+          <h1 className="font-headline-sm text-headline-sm text-on-surface">Pick Team</h1>
+        </div>
+        <h2 className="font-display-lg text-display-lg text-primary">{contest.name}</h2>
+        <div className="flex items-center gap-xs">
+          <TeamBadge shortName={contest.home_team} size="sm" />
+          <p className="font-body-md text-body-md text-on-surface-variant">
+            {contest.home_team} vs {contest.away_team} · Single Match Contest
+          </p>
+          <TeamBadge shortName={contest.away_team} size="sm" />
+        </div>
         {remaining && (
           <p className="font-label-md text-label-md text-on-surface-variant mt-1">
             Locks in {remaining}
