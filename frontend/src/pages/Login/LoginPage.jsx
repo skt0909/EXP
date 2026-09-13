@@ -99,6 +99,12 @@ function LoginPage() {
                 </span>
               </button>
             </div>
+            <Link
+              className="self-end font-label-md text-label-md text-on-surface-variant hover:text-primary transition-colors"
+              to="/forgot-password"
+            >
+              Forgot password?
+            </Link>
           </div>
 
           {error && (

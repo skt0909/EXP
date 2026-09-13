@@ -27,9 +27,11 @@ a missing secret raises at call time rather than silently signing tokens
 with a guessable constant.
 """
 
+import hashlib
 import logging
 import os
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -60,6 +62,11 @@ MAX_TEAM_NAME_LENGTH = 50  # matches users.team_name varchar(50)
 
 TOKEN_TTL = timedelta(hours=12)
 JWT_ALGORITHM = "HS256"
+
+# How long a forgot-password link stays usable. Short on purpose -- unlike
+# the login JWT this gets emailed/logged in plaintext, so a shorter window
+# limits the damage if that link leaks somewhere it shouldn't.
+RESET_TOKEN_TTL = timedelta(minutes=30)
 
 # Deliberately identical for "no such account" and "wrong password" --
 # a distinguishable message would let anyone enumerate registered emails.
@@ -109,6 +116,52 @@ USER_BY_ID_QUERY = text(
     "SELECT id, email, username, team_name FROM users WHERE id = :user_id AND deleted_at IS NULL"
 )
 
+# Same lower(email) + deleted_at filter as LOGIN_LOOKUP_QUERY -- a
+# soft-deleted or nonexistent account must not be able to request (or,
+# more importantly, receive evidence of) a reset link.
+FORGOT_PASSWORD_LOOKUP_QUERY = text(
+    "SELECT id FROM users WHERE lower(email) = lower(:email) AND deleted_at IS NULL"
+)
+
+INSERT_RESET_TOKEN_STMT = text(
+    """
+    INSERT INTO password_reset_tokens (user_id, token_hash, expires_at)
+    VALUES (:user_id, :token_hash, :expires_at)
+    """
+)
+
+# used_at IS NULL AND expires_at > now() in one WHERE -- a token that is
+# either already consumed or past its window is equally "not found" to the
+# caller; RESET_TOKEN_ROW_QUERY doesn't distinguish which, same way
+# INVALID_CREDENTIALS_MESSAGE doesn't distinguish "no such account" from
+# "wrong password".
+RESET_TOKEN_ROW_QUERY = text(
+    """
+    SELECT id, user_id FROM password_reset_tokens
+    WHERE token_hash = :token_hash AND used_at IS NULL AND expires_at > now()
+    """
+)
+
+UPDATE_PASSWORD_STMT = text(
+    "UPDATE users SET password_hash = :password_hash, updated_at = now() WHERE id = :user_id"
+)
+
+CONSUME_RESET_TOKEN_STMT = text(
+    "UPDATE password_reset_tokens SET used_at = now() WHERE id = :token_id"
+)
+
+# Burns every other still-live token for this user once one of them is
+# successfully redeemed -- an older reset link/email that leaked somewhere
+# (a shared inbox, a browser history) can't be replayed after the account
+# owner has already reset their password with a newer one.
+INVALIDATE_OTHER_RESET_TOKENS_STMT = text(
+    """
+    UPDATE password_reset_tokens
+    SET used_at = now()
+    WHERE user_id = :user_id AND used_at IS NULL AND id != :token_id
+    """
+)
+
 # Placeholders are derived from the user's own id -- deterministic and
 # guaranteed unique (ids are unique), no extra randomness source needed.
 # password_hash reuses the same "deliberately unusable" placeholder text
@@ -148,6 +201,37 @@ def _jwt_secret() -> str:
         looked = "\n  ".join(str(d / ".env") for d in _SEARCH_DIRS[:4])
         raise RuntimeError("JWT_SECRET not set. Looked for a .env in:\n  " + looked)
     return secret
+
+
+@lru_cache(maxsize=1)
+def _frontend_base_url() -> str:
+    """The frontend origin to build a reset link against, e.g.
+    "http://localhost:5173/reset-password?token=...".
+
+    Reuses ALLOWED_ORIGINS (already set for CORS -- see
+    Context_assembler/main.py's _allowed_origins()) rather than adding a
+    second env var that names the same origin. Not imported from that
+    module directly: main.py imports this router, so importing back would
+    be circular -- same reason every module that reads a shared .env value
+    (this file's own _jwt_secret, Shared/db_utils.py's DATABASE_URL) has its
+    own small copy of the search-and-load logic rather than a shared one.
+    Takes the first entry when several are configured, same as a browser
+    only ever running from one of them at a time in dev.
+    """
+    for d in _SEARCH_DIRS:
+        candidate = d / ".env"
+        if candidate.is_file():
+            load_dotenv(candidate)
+            break
+    else:
+        load_dotenv()
+
+    raw = os.getenv("ALLOWED_ORIGINS")
+    if not raw:
+        looked = "\n  ".join(str(d / ".env") for d in _SEARCH_DIRS[:4])
+        raise RuntimeError("ALLOWED_ORIGINS not set. Looked for a .env in:\n  " + looked)
+    origins = [origin.strip() for origin in raw.split(",") if origin.strip()]
+    return origins[0]
 
 
 def hash_password(password: str) -> str:
@@ -195,6 +279,18 @@ class CurrentUser(BaseModel):
     username: str
 
 
+def _validate_password(password: str) -> list[str]:
+    """The two length rules every new password must pass, whether it's
+    arriving via registration or a password reset -- pulled out so the two
+    call sites can't drift on what "a valid password" means."""
+    errors: list[str] = []
+    if len(password) < MIN_PASSWORD_LENGTH:
+        errors.append(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
+    if len(password.encode("utf-8")) > MAX_PASSWORD_BYTES:
+        errors.append(f"password must be at most {MAX_PASSWORD_BYTES} bytes")
+    return errors
+
+
 def _validate_registration(req: RegisterRequest, conn) -> list[str]:
     """Every failure at once, matching squad_selection._validate_squad."""
     errors: list[str] = []
@@ -211,10 +307,7 @@ def _validate_registration(req: RegisterRequest, conn) -> list[str]:
     elif conn.execute(USERNAME_EXISTS_QUERY, {"username": username}).first() is not None:
         errors.append("username already taken")
 
-    if len(req.password) < MIN_PASSWORD_LENGTH:
-        errors.append(f"password must be at least {MIN_PASSWORD_LENGTH} characters")
-    if len(req.password.encode("utf-8")) > MAX_PASSWORD_BYTES:
-        errors.append(f"password must be at most {MAX_PASSWORD_BYTES} bytes")
+    errors.extend(_validate_password(req.password))
 
     if req.team_name is not None and len(req.team_name.strip()) > MAX_TEAM_NAME_LENGTH:
         errors.append(f"team_name must be at most {MAX_TEAM_NAME_LENGTH} characters")
@@ -311,6 +404,95 @@ def login(req: LoginRequest) -> TokenResponse:
     return TokenResponse(
         access_token=create_access_token(row.id), user_id=row.id, team_name=row.team_name
     )
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str = "If that email is registered, a reset link has been sent."
+
+
+# This app has no email-sending capability yet (no SMTP/SendGrid/SES
+# anywhere) -- logging the link is the dev-appropriate stand-in until one is
+# wired in. Swapping it for a real send is a one-function change: replace
+# this log call with a call to whatever provider gets added, the token
+# generation/storage/expiry logic above it doesn't change at all.
+@router.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(req: ForgotPasswordRequest) -> ForgotPasswordResponse:
+    engine = get_engine()
+
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                FORGOT_PASSWORD_LOOKUP_QUERY, {"email": req.email.strip()}
+            ).first()
+
+            # Same response whether or not the email is registered -- see
+            # INVALID_CREDENTIALS_MESSAGE's reasoning. Only a real match gets
+            # a token generated and stored.
+            if row is not None:
+                token = secrets.token_urlsafe(32)
+                token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+                expires_at = datetime.now(timezone.utc) + RESET_TOKEN_TTL
+                conn.execute(
+                    INSERT_RESET_TOKEN_STMT,
+                    {"user_id": row.id, "token_hash": token_hash, "expires_at": expires_at},
+                )
+                logger.info(
+                    "Password reset requested for user_id=%s: %s/reset-password?token=%s",
+                    row.id,
+                    _frontend_base_url(),
+                    token,
+                )
+    except SQLAlchemyError as e:
+        logger.error("Forgot-password lookup failed: %s: %s", type(e).__name__, e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+    return ForgotPasswordResponse()
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+class ResetPasswordResponse(BaseModel):
+    reset: bool = True
+
+
+@router.post("/auth/reset-password", response_model=ResetPasswordResponse)
+def reset_password(req: ResetPasswordRequest) -> ResetPasswordResponse:
+    errors = _validate_password(req.new_password)
+    if errors:
+        raise HTTPException(status_code=422, detail=errors)
+
+    token_hash = hashlib.sha256(req.token.encode("utf-8")).hexdigest()
+    engine = get_engine()
+
+    try:
+        with engine.begin() as conn:
+            token_row = conn.execute(RESET_TOKEN_ROW_QUERY, {"token_hash": token_hash}).first()
+            if token_row is None:
+                raise HTTPException(status_code=422, detail=["invalid or expired reset link"])
+
+            conn.execute(
+                UPDATE_PASSWORD_STMT,
+                {"password_hash": hash_password(req.new_password), "user_id": token_row.user_id},
+            )
+            conn.execute(CONSUME_RESET_TOKEN_STMT, {"token_id": token_row.id})
+            conn.execute(
+                INVALIDATE_OTHER_RESET_TOKENS_STMT,
+                {"user_id": token_row.user_id, "token_id": token_row.id},
+            )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as e:
+        logger.error("Reset-password failed: %s: %s", type(e).__name__, e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+    return ResetPasswordResponse()
 
 
 @router.get("/auth/me", response_model=CurrentUser)

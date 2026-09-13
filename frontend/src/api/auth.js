@@ -21,3 +21,19 @@ export function fetchCurrentUser() {
 export function deleteAccount() {
   return request('/auth/me', { method: 'DELETE' })
 }
+
+// auth:false -- same reasoning as login/register: no token exists at this
+// point in the flow (forgotPassword is called while signed out, and
+// resetPassword replaces the credential a token would have been issued
+// against anyway).
+export function forgotPassword({ email }) {
+  return request('/auth/forgot-password', { method: 'POST', auth: false, body: { email } })
+}
+
+export function resetPassword({ token, new_password }) {
+  return request('/auth/reset-password', {
+    method: 'POST',
+    auth: false,
+    body: { token, new_password },
+  })
+}

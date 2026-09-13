@@ -6,6 +6,8 @@ import { AuthProvider } from './auth/AuthContext'
 import ProtectedRoute from './auth/ProtectedRoute'
 import LoginPage from './pages/Login/LoginPage'
 import RegisterPage from './pages/Register/RegisterPage'
+import ForgotPasswordPage from './pages/ForgotPassword/ForgotPasswordPage'
+import ResetPasswordPage from './pages/ResetPassword/ResetPasswordPage'
 import ChatPage from './pages/Chat/ChatPage'
 import TransfersPage from './pages/Transfers/TransfersPage'
 import StartingXIPage from './pages/StartingXI/StartingXIPage'
@@ -40,9 +42,11 @@ function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          {/* Public: the only two routes reachable without a token. */}
+          {/* Public: reachable without a token. */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
 
           {/* Everything else sits behind ProtectedRoute, which redirects to
               /login when GET /auth/me doesn't confirm a session.
