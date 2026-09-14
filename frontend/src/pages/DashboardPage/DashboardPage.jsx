@@ -167,6 +167,18 @@ function DashboardPage() {
   const { season, gameweek } = useGameweek()
   const navigate = useNavigate()
 
+  // Defaults to the real current gameweek and never needs to guard against
+  // gameweek being null on first render -- GameweekProvider (config/gameweek.jsx)
+  // already blocks the whole authenticated app from rendering until it
+  // resolves, so by the time this component exists, `gameweek` is a real
+  // number. Stepping back only ever goes to a settled week: GET /team is
+  // already fully (season, gameweek)-scoped for everything except team
+  // value/bank (see the two sections below that special-case it), so no
+  // backend change was needed to view history -- this is the one piece of
+  // real state the feature adds.
+  const [selectedGameweek, setSelectedGameweek] = useState(() => gameweek)
+  const isCurrentGameweek = selectedGameweek === gameweek
+
   const [data, setData] = useState(null)
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading] = useState(true)
@@ -178,7 +190,7 @@ function DashboardPage() {
     setLoadError(null)
 
     Promise.all([
-      fetchTeamDashboard({ season, gameweek }),
+      fetchTeamDashboard({ season, gameweek: selectedGameweek }),
       fetchFixtures({
         season,
         upcoming_only: true,
@@ -199,7 +211,7 @@ function DashboardPage() {
     return () => {
       cancelled = true
     }
-  }, [user.id, season, gameweek])
+  }, [user.id, season, selectedGameweek])
 
   const pitchRows = useMemo(() => {
     if (!data) return []
@@ -224,7 +236,24 @@ function DashboardPage() {
         {data && (
           <>
             <section className="flex flex-col items-center text-center mt-sm">
+              {/* Steps 1..current -- never beyond, since there's no future
+                  data to show. Past weeks are already blocked from editing
+                  at the DB level (enforce_selection_lock/
+                  enforce_transfers_immutability), which is exactly why the
+                  Make Transfers/Set Starting XI rows disappear below rather
+                  than merely disabling -- there is nothing actionable on a
+                  settled week. */}
               <div className="flex items-center gap-sm mb-1">
+                <button
+                  aria-label="Previous gameweek"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  data-testid="gw-picker-prev"
+                  disabled={selectedGameweek <= 1}
+                  onClick={() => setSelectedGameweek((gw) => gw - 1)}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
                 <h2 className="font-headline-sm text-headline-sm text-on-surface">
                   Gameweek {data.gameweek}
                 </h2>
@@ -234,6 +263,16 @@ function DashboardPage() {
                 >
                   {badge.label}
                 </span>
+                <button
+                  aria-label="Next gameweek"
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-on-surface-variant hover:bg-surface-container-high transition-colors disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                  data-testid="gw-picker-next"
+                  disabled={selectedGameweek >= gameweek}
+                  onClick={() => setSelectedGameweek((gw) => gw + 1)}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
               </div>
               {countdown && (
                 <div className="inline-flex items-center gap-xs bg-surface-container-high px-sm py-xs rounded-full mt-xs">
@@ -276,23 +315,40 @@ function DashboardPage() {
             </section>
 
             <section className="bg-primary-container rounded-xl p-md flex justify-between items-center shadow-md">
-              <div>
-                <span className="font-label-md text-label-md text-primary-fixed-dim uppercase block mb-xs">
-                  Team Value
-                </span>
-                <span className="font-headline-sm text-headline-sm text-on-primary">
-                  £{data.team_value.toFixed(1)}m
-                </span>
-              </div>
-              <div className="w-px h-8 bg-surface-tint opacity-30" />
-              <div className="text-right">
-                <span className="font-label-md text-label-md text-primary-fixed-dim uppercase block mb-xs">
-                  In the Bank
-                </span>
-                <span className="font-headline-sm text-headline-sm text-on-primary">
-                  £{data.bank.toFixed(1)}m
-                </span>
-              </div>
+              {data.team_value_available ? (
+                <>
+                  <div>
+                    <span className="font-label-md text-label-md text-primary-fixed-dim uppercase block mb-xs">
+                      Team Value
+                    </span>
+                    <span className="font-headline-sm text-headline-sm text-on-primary">
+                      £{data.team_value.toFixed(1)}m
+                    </span>
+                  </div>
+                  <div className="w-px h-8 bg-surface-tint opacity-30" />
+                  <div className="text-right">
+                    <span className="font-label-md text-label-md text-primary-fixed-dim uppercase block mb-xs">
+                      In the Bank
+                    </span>
+                    <span className="font-headline-sm text-headline-sm text-on-primary">
+                      £{data.bank.toFixed(1)}m
+                    </span>
+                  </div>
+                </>
+              ) : (
+                // False only for a settled gameweek with no
+                // user_gameweek_finance row (Results/scoring.py writes one
+                // alongside gw_scores at scoring time -- see that module's
+                // UPSERT_GW_FINANCE_STMT). Genuinely missing, not something
+                // to fall back to today's live figure for: that would
+                // misrepresent today's number as this gameweek's history.
+                <p
+                  className="font-label-md text-label-md text-primary-fixed-dim w-full text-center"
+                  data-testid="team-value-unavailable"
+                >
+                  Team value wasn't recorded for this gameweek.
+                </p>
+              )}
             </section>
 
             {data.has_lineup ? (
@@ -410,39 +466,49 @@ function DashboardPage() {
                 <span className="material-symbols-outlined text-outline">chevron_right</span>
               </button>
 
-              <button
-                className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl p-md border border-outline-variant flex items-center justify-between gap-sm shadow-sm"
-                onClick={() => navigate('/transfers')}
-              >
-                <div className="flex items-center gap-sm">
-                  <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined">swap_horiz</span>
-                  </div>
-                  <span className="font-body-md text-body-md font-semibold text-on-surface whitespace-nowrap">
-                    Make Transfers
-                  </span>
-                </div>
-                <span className="material-symbols-outlined text-outline">chevron_right</span>
-              </button>
+              {/* Both rows below act on the CURRENT gameweek only -- already
+                  blocked at the DB level for a settled one
+                  (enforce_selection_lock/enforce_transfers_immutability), so
+                  there's nothing actionable to show while viewing history.
+                  Hidden entirely rather than disabled, per the same
+                  reasoning the gameweek picker's own comment gives. */}
+              {isCurrentGameweek && (
+                <>
+                  <button
+                    className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl p-md border border-outline-variant flex items-center justify-between gap-sm shadow-sm"
+                    onClick={() => navigate('/transfers')}
+                  >
+                    <div className="flex items-center gap-sm">
+                      <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+                        <span className="material-symbols-outlined">swap_horiz</span>
+                      </div>
+                      <span className="font-body-md text-body-md font-semibold text-on-surface whitespace-nowrap">
+                        Make Transfers
+                      </span>
+                    </div>
+                    <span className="material-symbols-outlined text-outline">chevron_right</span>
+                  </button>
 
-              {/* Same gate as the nav: no squad, no XI to set. */}
-              <button
-                className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl p-md border border-outline-variant flex items-center justify-between gap-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface-container-lowest"
-                data-testid="set-starting-xi"
-                disabled={!hasSquad}
-                onClick={() => navigate('/squad')}
-                title={hasSquad ? undefined : 'Submit your 15-player squad first'}
-              >
-                <div className="flex items-center gap-sm">
-                  <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
-                    <span className="material-symbols-outlined">{hasSquad ? 'group_add' : 'lock'}</span>
-                  </div>
-                  <span className="font-body-md text-body-md font-semibold text-on-surface whitespace-nowrap">
-                    Set Starting XI
-                  </span>
-                </div>
-                <span className="material-symbols-outlined text-outline">chevron_right</span>
-              </button>
+                  {/* Same gate as the nav: no squad, no XI to set. */}
+                  <button
+                    className="bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl p-md border border-outline-variant flex items-center justify-between gap-sm shadow-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-surface-container-lowest"
+                    data-testid="set-starting-xi"
+                    disabled={!hasSquad}
+                    onClick={() => navigate('/squad')}
+                    title={hasSquad ? undefined : 'Submit your 15-player squad first'}
+                  >
+                    <div className="flex items-center gap-sm">
+                      <div className="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary">
+                        <span className="material-symbols-outlined">{hasSquad ? 'group_add' : 'lock'}</span>
+                      </div>
+                      <span className="font-body-md text-body-md font-semibold text-on-surface whitespace-nowrap">
+                        Set Starting XI
+                      </span>
+                    </div>
+                    <span className="material-symbols-outlined text-outline">chevron_right</span>
+                  </button>
+                </>
+              )}
 
               {/* Ungated, unlike the three above: the rules are the one thing a
                   manager with no squad yet actually needs to read. */}

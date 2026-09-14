@@ -495,3 +495,81 @@ def test_bench_boost_reports_no_autosubs(engine, make_team, make_player, make_gw
     lines = [q for group in body["lineup"].values() for q in group] + body["bench"]
     assert all(p["is_autosubbed_in"] is False for p in lines)
     assert all(p["is_autosubbed_out"] is False for p in lines)
+
+
+# ------------------------------------------------------ finance history
+# user_gameweek_finance: a 'final' gameweek reads the frozen snapshot
+# Results/scoring.py wrote at scoring time; anything not yet 'final' keeps
+# reading today's live user_squads/squad_players state, unchanged.
+
+
+def _seed_finance_snapshot(engine, user_id, season, gameweek, bank_tenths, team_value_tenths):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO user_gameweek_finance (user_id, season, gameweek, bank, team_value) "
+                "VALUES (:u, :s, :gw, :b, :tv)"
+            ),
+            {"u": user_id, "s": season, "gw": gameweek, "b": bank_tenths, "tv": team_value_tenths},
+        )
+
+
+def _finish_gameweek_fixture(make_team, make_fixture, gameweek, id_offset):
+    home = make_team(fpl_id=id_offset, name=f"Home{id_offset}", short_name=f"H{id_offset}")
+    away = make_team(fpl_id=id_offset + 1, name=f"Away{id_offset}", short_name=f"A{id_offset}")
+    make_fixture(
+        fpl_id=id_offset + 2, gameweek=gameweek, home_team_id=home, away_team_id=away,
+        kickoff_time=datetime(2020, 1, 1, tzinfo=timezone.utc), finished=True,
+    )
+
+
+def test_team_value_stays_live_when_gameweek_not_final(engine, make_team, make_player, test_user):
+    """No fixtures ingested for this gameweek -> live_status is 'upcoming',
+    not 'final' -- team_value/bank must keep reading today's live squad,
+    exactly as before this feature existed, even though a (deliberately
+    different) snapshot row exists for the same gameweek."""
+    gw = 9109
+    _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, id_offset=9600)  # live: £90.0m / bank £10.0m
+    _seed_finance_snapshot(engine, test_user, TEST_SEASON, gw, bank_tenths=1, team_value_tenths=1)  # decoy
+
+    body = client.get("/team", params={"season": TEST_SEASON, "gameweek": gw}, headers=bearer_headers(test_user)).json()
+
+    assert body["live_status"] == "upcoming"
+    assert body["team_value_available"] is True
+    assert body["team_value"] == 90.0
+    assert body["bank"] == (1000 - 15 * 60) / 10
+
+
+def test_team_value_reads_snapshot_when_gameweek_final(engine, make_team, make_fixture, make_player, test_user):
+    """Once every fixture is finished, team_value/bank must come from the
+    frozen user_gameweek_finance snapshot, NOT today's live squad -- the two
+    are seeded to different, distinguishable values specifically to prove
+    the snapshot (not the live query) is what's actually being read."""
+    gw = 9110
+    _finish_gameweek_fixture(make_team, make_fixture, gw, id_offset=9601)
+    _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, id_offset=9610)  # live: £90.0m / bank £10.0m
+    _seed_finance_snapshot(engine, test_user, TEST_SEASON, gw, bank_tenths=25, team_value_tenths=205)
+
+    body = client.get("/team", params={"season": TEST_SEASON, "gameweek": gw}, headers=bearer_headers(test_user)).json()
+
+    assert body["live_status"] == "final"
+    assert body["team_value_available"] is True
+    assert body["team_value"] == 20.5
+    assert body["bank"] == 2.5
+
+
+def test_team_value_unavailable_when_final_gameweek_has_no_snapshot(engine, make_team, make_fixture, make_player, test_user):
+    """A 'final' gameweek that was somehow never scored (no
+    user_gameweek_finance row) reports team_value_available=False rather
+    than silently falling back to today's live figures, which would
+    misrepresent them as this gameweek's history."""
+    gw = 9111
+    _finish_gameweek_fixture(make_team, make_fixture, gw, id_offset=9611)
+    _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, id_offset=9620)  # live squad exists, but no snapshot
+
+    body = client.get("/team", params={"season": TEST_SEASON, "gameweek": gw}, headers=bearer_headers(test_user)).json()
+
+    assert body["live_status"] == "final"
+    assert body["team_value_available"] is False
+    assert body["team_value"] == 0.0
+    assert body["bank"] == 0.0

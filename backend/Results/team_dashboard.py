@@ -144,6 +144,17 @@ TEAM_VALUE_AND_BANK_QUERY = text(
     """
 )
 
+# Results/scoring.py writes one of these rows at the same moment it writes
+# gw_scores (same transaction) -- see that module's UPSERT_GW_FINANCE_STMT.
+# Only ever consulted for a 'final' gameweek (see get_team_dashboard below):
+# the live/current gameweek keeps reading TEAM_VALUE_AND_BANK_QUERY exactly
+# as before, unchanged, since a not-yet-scored gameweek has no snapshot row
+# to read anyway.
+GAMEWEEK_FINANCE_SNAPSHOT_QUERY = text(
+    "SELECT bank, team_value FROM user_gameweek_finance "
+    "WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
+)
+
 
 class PlayerLine(BaseModel):
     player_id: int
@@ -197,6 +208,11 @@ class TeamDashboardResponse(BaseModel):
     live_status: str
     overall_rank: int | None
     overall_rank_total: int | None
+    # False only for a 'final' gameweek with no user_gameweek_finance row --
+    # bank/team_value are 0.0 in that case, not a real figure. Always True
+    # for the live/current gameweek, which reads today's live squad state
+    # exactly as it always has.
+    team_value_available: bool
     team_value: float
     bank: float
     lineup: Lineup
@@ -331,9 +347,28 @@ def get_team_dashboard(
         overall_rank = rank_row.rank if rank_row is not None else None
         overall_rank_total = rank_row.total if rank_row is not None else None
 
-        squad_row = conn.execute(TEAM_VALUE_AND_BANK_QUERY, {"user_id": user_id, "season": season}).first()
-        bank = squad_row.budget_remaining / 10 if squad_row is not None else 0.0
-        team_value = squad_row.team_value_tenths / 10 if squad_row is not None else 0.0
+        # The live/current gameweek (anything not yet 'final') keeps reading
+        # today's live squad state exactly as before -- unchanged behavior,
+        # per spec. A 'final' gameweek instead reads the frozen snapshot
+        # Results/scoring.py wrote at scoring time, since today's live
+        # budget_remaining/purchase_price sum has nothing to do with what
+        # this user's finances looked like back then. If a 'final' gameweek
+        # was somehow never scored (no gw_selections row that week), there
+        # is no snapshot to read -- reported as unavailable rather than
+        # falling back to live figures, which would misrepresent today's
+        # numbers as historical.
+        if live_status == "final":
+            finance_row = conn.execute(
+                GAMEWEEK_FINANCE_SNAPSHOT_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
+            ).first()
+            team_value_available = finance_row is not None
+            bank = finance_row.bank / 10 if finance_row is not None else 0.0
+            team_value = finance_row.team_value / 10 if finance_row is not None else 0.0
+        else:
+            squad_row = conn.execute(TEAM_VALUE_AND_BANK_QUERY, {"user_id": user_id, "season": season}).first()
+            team_value_available = True
+            bank = squad_row.budget_remaining / 10 if squad_row is not None else 0.0
+            team_value = squad_row.team_value_tenths / 10 if squad_row is not None else 0.0
 
     return TeamDashboardResponse(
         user_id=user_id,
@@ -357,6 +392,7 @@ def get_team_dashboard(
         season_total=season_total,
         overall_rank=overall_rank,
         overall_rank_total=overall_rank_total,
+        team_value_available=team_value_available,
         team_value=team_value,
         bank=bank,
         lineup=lineup,

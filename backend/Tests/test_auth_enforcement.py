@@ -92,6 +92,7 @@ ENDPOINTS = [
     ("GET", "/squad", {"season": TEST_SEASON}, None),
     ("POST", "/squad/select", None, {"season": TEST_SEASON, "player_ids": []}),
     ("GET", "/team", {"season": TEST_SEASON, "gameweek": GAMEWEEK}, None),
+    ("GET", "/gameweeks/current", None, None),
     ("GET", "/transfer-drafts", {"season": TEST_SEASON, "gameweek": GAMEWEEK}, None),
     ("PUT", "/transfer-drafts", None,
      {"season": TEST_SEASON, "gameweek": GAMEWEEK, "player_out_id": 1, "player_in_id": 2}),
@@ -121,6 +122,13 @@ PUBLIC_ROUTES = {
     # You cannot present a token before you have one.
     ("POST", "/auth/register"),
     ("POST", "/auth/login"),
+    # Same reasoning, for the same reason a locked-out user is contacting
+    # these at all: no session exists yet to authenticate with. Neither
+    # reveals whether an email is registered (see auth.py's
+    # forgot_password) or anything about the account it might act on
+    # without a valid, unexpired, single-use reset token.
+    ("POST", "/auth/forgot-password"),
+    ("POST", "/auth/reset-password"),
     # Season reference data: the same player catalogue for every caller, with
     # nothing user-scoped in it. Public by decision, not by omission.
     ("GET", "/players"),

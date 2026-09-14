@@ -91,6 +91,29 @@ def real_squad_user(engine):
         conn.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})  # cascades
 
 
+@pytest.fixture
+def real_user_no_squad(engine):
+    """A real, authenticatable user with no gw_selections/starting_xi row at
+    all -- get_current_user re-reads the users table on every request (see
+    Data/auth.py), so a bearer token naming a made-up id 401s before this
+    endpoint's own squad check is ever reached. That was silently masking
+    this test: it always ran against a hardcoded fake id, which only ever
+    got exercised when _real_season_seeded happened to be True, and 401'd
+    every time it was. A real inserted-then-deleted user (same pattern as
+    real_squad_user, just without the gw_selections/starting_xi rows) is
+    the minimal fix -- authenticates for real, and still has no squad."""
+    with engine.begin() as conn:
+        user_id = conn.execute(
+            text("INSERT INTO users (email, username, password_hash) VALUES (:e, :u, :p) RETURNING id"),
+            {"e": "pytest_no_squad_user@example.com", "u": "pytest_no_squad_user", "p": "not_a_real_hash"},
+        ).scalar()
+
+    yield user_id
+
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": user_id})
+
+
 def test_no_gw1_data_returns_availability_message_and_never_calls_groq():
     """
     The GW1 chat-availability gate must fire before anything else --
@@ -112,18 +135,19 @@ def test_no_gw1_data_returns_availability_message_and_never_calls_groq():
     mock_groq.assert_not_called()
 
 
-def test_no_squad_returns_message_and_never_calls_groq(_real_season_seeded):
+def test_no_squad_returns_message_and_never_calls_groq(_real_season_seeded, real_user_no_squad):
     if not _real_season_seeded:
         pytest.skip(f"requires real {REAL_SEASON} GW1 data seeded in the target DB (dev DB only, not a fresh test DB)")
 
     with patch("main.call_groq") as mock_groq:
         resp = client.post(
             "/chat",
-            json={"season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"}, headers=bearer_headers(8675309)
+            json={"season": REAL_SEASON, "gameweek": REAL_GAMEWEEK, "message": "test"},
+            headers=bearer_headers(real_user_no_squad),
         )
 
     assert resp.status_code == 200
-    assert resp.json()["response"] == "Please select your squad for this gameweek first."
+    assert resp.json()["response"] == main.NO_SQUAD_MESSAGE
     mock_groq.assert_not_called()
 
 

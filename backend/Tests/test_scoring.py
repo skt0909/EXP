@@ -43,6 +43,8 @@ def test_user(engine):
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM gw_scores WHERE user_id = :uid"), {"uid": uid})
         conn.execute(text("DELETE FROM gw_selections WHERE user_id = :uid"), {"uid": uid})  # cascades starting_xi
+        conn.execute(text("DELETE FROM user_gameweek_finance WHERE user_id = :uid"), {"uid": uid})
+        conn.execute(text("DELETE FROM user_squads WHERE user_id = :uid"), {"uid": uid})  # cascades squad_players
 
 
 def _seed_player(make_team, make_player, make_gw_stat, fpl_id, position, gameweek, minutes, total_points):
@@ -112,6 +114,49 @@ def _gw_score_row(engine, user_id, season, gameweek):
             ),
             {"u": user_id, "s": season, "gw": gameweek},
         ).first()
+
+
+def _finance_row(engine, user_id, season, gameweek):
+    with engine.connect() as conn:
+        return conn.execute(
+            text(
+                "SELECT bank, team_value FROM user_gameweek_finance "
+                "WHERE user_id = :u AND season = :s AND gameweek = :gw"
+            ),
+            {"u": user_id, "s": season, "gw": gameweek},
+        ).first()
+
+
+def _seed_squad_finance(engine, user_id, season, budget_remaining_tenths, prices_tenths, id_offset=70000):
+    """Seeds user_squads/squad_players directly -- the same tables
+    Results/team_dashboard.py's TEAM_VALUE_AND_BANK_QUERY reads, which is
+    also exactly what Results/scoring.py's finance-snapshot write reuses
+    (see that module's own copy of the query). Deliberately independent of
+    whatever ml.players rows _build_squad creates for the starting XI --
+    scoring.py's finance write only cares about (user_id, season), not
+    which fpl_ids happen to overlap with the XI being scored.
+    """
+    with engine.begin() as conn:
+        user_squad_id = conn.execute(
+            text(
+                "INSERT INTO user_squads (user_id, season, budget_remaining, updated_at) "
+                "VALUES (:u, :s, :b, now()) "
+                "ON CONFLICT (user_id, season) DO UPDATE SET budget_remaining = EXCLUDED.budget_remaining "
+                "RETURNING id"
+            ),
+            {"u": user_id, "s": season, "b": budget_remaining_tenths},
+        ).scalar()
+        # A prior call's squad_players rows (if any) would otherwise keep
+        # contributing to the team_value SUM alongside the new ones.
+        conn.execute(text("DELETE FROM squad_players WHERE user_squad_id = :usid"), {"usid": user_squad_id})
+        for i, price in enumerate(prices_tenths):
+            conn.execute(
+                text(
+                    "INSERT INTO squad_players (user_squad_id, player_id, purchase_price, is_active) "
+                    "VALUES (:usid, :pid, :price, TRUE)"
+                ),
+                {"usid": user_squad_id, "pid": id_offset + i, "price": price},
+            )
 
 
 # A 1GK/4DEF/4MID/2FWD XI + a 4-man bench (1GK/1DEF/1MID/1FWD), all 3
@@ -335,3 +380,76 @@ def test_season_total_sums_across_gameweeks(engine, make_team, make_player, make
     assert row1.total_points == 36
     assert row2.total_points == 36
     assert row2.season_total == row1.total_points + row2.total_points  # 72, not just gw2's own 36
+
+
+# ------------------------------------------------------ finance snapshot
+# user_gameweek_finance: written alongside gw_scores in the same
+# transaction, reusing Results/team_dashboard.py's own live team-value/
+# bank query rather than reimplementing the selling-price math.
+
+def test_scoring_writes_finance_snapshot_matching_live_squad_state(
+    engine, make_team, make_player, make_gw_stat, test_user
+):
+    xi_ids, bench_ids = _build_squad(make_team, make_player, make_gw_stat, GAMEWEEK, SIMPLE_XI, SIMPLE_BENCH)
+    _seed_gw_selection(engine, test_user, TEST_SEASON, GAMEWEEK, xi_ids, bench_ids, xi_ids[0], xi_ids[1])
+    # 3 players at 55/60/70 tenths = 185 tenths team value; budget_remaining
+    # 40 tenths bank -- arbitrary numbers, chosen only to be distinguishable
+    # from each other and from zero.
+    _seed_squad_finance(engine, test_user, TEST_SEASON, budget_remaining_tenths=40, prices_tenths=[55, 60, 70])
+
+    score_gameweek(engine, TEST_SEASON, GAMEWEEK)
+
+    row = _finance_row(engine, test_user, TEST_SEASON, GAMEWEEK)
+    assert row is not None
+    assert row.bank == 40
+    assert row.team_value == 185
+
+
+def test_rescoring_upserts_finance_snapshot_not_duplicates(
+    engine, make_team, make_player, make_gw_stat, test_user
+):
+    xi_ids, bench_ids = _build_squad(make_team, make_player, make_gw_stat, GAMEWEEK, SIMPLE_XI, SIMPLE_BENCH)
+    _seed_gw_selection(engine, test_user, TEST_SEASON, GAMEWEEK, xi_ids, bench_ids, xi_ids[0], xi_ids[1])
+    _seed_squad_finance(engine, test_user, TEST_SEASON, budget_remaining_tenths=40, prices_tenths=[55, 60, 70])
+
+    score_gameweek(engine, TEST_SEASON, GAMEWEEK)
+    first = _finance_row(engine, test_user, TEST_SEASON, GAMEWEEK)
+    assert (first.bank, first.team_value) == (40, 185)
+
+    # A transfer between the two scoring runs changes the live squad state
+    # -- re-scoring (as refresh_active_gameweeks does repeatedly during a
+    # gameweek's 5-day active window) must pick up the NEW figures, not
+    # keep serving the first run's now-stale snapshot.
+    _seed_squad_finance(engine, test_user, TEST_SEASON, budget_remaining_tenths=25, prices_tenths=[55, 60, 90])
+
+    score_gameweek(engine, TEST_SEASON, GAMEWEEK)
+    second = _finance_row(engine, test_user, TEST_SEASON, GAMEWEEK)
+    assert (second.bank, second.team_value) == (25, 205)
+
+    with engine.connect() as conn:
+        count = conn.execute(
+            text(
+                "SELECT COUNT(*) FROM user_gameweek_finance WHERE user_id = :u AND season = :s AND gameweek = :gw"
+            ),
+            {"u": test_user, "s": TEST_SEASON, "gw": GAMEWEEK},
+        ).scalar()
+    assert count == 1
+
+
+def test_no_user_squads_row_skips_finance_snapshot_without_error(
+    engine, make_team, make_player, make_gw_stat, test_user
+):
+    """Every other test in this file already exercises this path
+    implicitly (none of them seed user_squads), but this asserts it
+    directly: a user who somehow has a gw_selections row with no
+    user_squads row at all (shouldn't normally happen, but scoring.py
+    must not crash on it) gets scored, and simply has no finance
+    snapshot -- not a fabricated 0.0 row."""
+    xi_ids, bench_ids = _build_squad(make_team, make_player, make_gw_stat, GAMEWEEK, SIMPLE_XI, SIMPLE_BENCH)
+    _seed_gw_selection(engine, test_user, TEST_SEASON, GAMEWEEK, xi_ids, bench_ids, xi_ids[0], xi_ids[1])
+
+    summary = score_gameweek(engine, TEST_SEASON, GAMEWEEK)
+
+    assert summary["failed"] == []
+    assert _gw_score_row(engine, test_user, TEST_SEASON, GAMEWEEK) is not None  # scoring itself still succeeded
+    assert _finance_row(engine, test_user, TEST_SEASON, GAMEWEEK) is None

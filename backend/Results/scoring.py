@@ -173,6 +173,39 @@ UPSERT_GW_SCORE_STMT = text(
     """
 )
 
+# The exact live computation Results/team_dashboard.py's
+# TEAM_VALUE_AND_BANK_QUERY already uses -- reused verbatim rather than
+# reimplemented, so a snapshot can never disagree with what the live
+# banner would have shown at the moment it was taken. team_value is the
+# sum of what was PAID for the active squad (purchase_price), not what it
+# could currently be sold for -- same definition the live banner already
+# uses, not a new one introduced here.
+TEAM_VALUE_AND_BANK_QUERY = text(
+    """
+    SELECT us.budget_remaining,
+           COALESCE(SUM(sp.purchase_price) FILTER (WHERE sp.is_active), 0) AS team_value_tenths
+    FROM user_squads us
+    LEFT JOIN squad_players sp ON sp.user_squad_id = us.id
+    WHERE us.user_id = :user_id AND us.season = :season
+    GROUP BY us.id, us.budget_remaining
+    """
+)
+
+# Upserted, not inserted-only: a gameweek can be re-scored while still
+# inside the 5-day active window (GameEngine/gameweek_finalize), and this
+# snapshot must track the latest re-score exactly like gw_scores itself
+# does, not accumulate a stale first snapshot alongside a fresher score.
+UPSERT_GW_FINANCE_STMT = text(
+    """
+    INSERT INTO user_gameweek_finance (user_id, season, gameweek, bank, team_value)
+    VALUES (:user_id, :season, :gameweek, :bank, :team_value)
+    ON CONFLICT (user_id, season, gameweek) DO UPDATE SET
+        bank = EXCLUDED.bank,
+        team_value = EXCLUDED.team_value,
+        captured_at = now()
+    """
+)
+
 
 def _formation_legal(effective_starters: dict) -> bool:
     counts = Counter(r.position for r in effective_starters.values())
@@ -365,6 +398,29 @@ def _score_one_user(
                 "rules_version": CURRENT_RULES_VERSION,
             },
         )
+
+        # Snapshots the same (user_id, season) team-value/bank state
+        # gw_scores was just written for, in the same transaction -- so
+        # the two either both land or neither does. No row here just
+        # means this user has never selected a squad (no user_squads row
+        # at all), which shouldn't be possible for anyone with a
+        # gw_selections row to have reached this far, but is handled the
+        # same "not an error" way every other missing-row case in this
+        # codebase is: skip the snapshot rather than write a fabricated 0.
+        finance_row = conn.execute(
+            TEAM_VALUE_AND_BANK_QUERY, {"user_id": user_id, "season": season}
+        ).first()
+        if finance_row is not None:
+            conn.execute(
+                UPSERT_GW_FINANCE_STMT,
+                {
+                    "user_id": user_id,
+                    "season": season,
+                    "gameweek": gameweek,
+                    "bank": finance_row.budget_remaining,
+                    "team_value": finance_row.team_value_tenths,
+                },
+            )
 
 
 def score_gameweek(engine, season: str, gameweek: int) -> dict:

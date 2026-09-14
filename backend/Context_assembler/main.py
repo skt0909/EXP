@@ -338,6 +338,14 @@ CHAT_AVAILABILITY_MESSAGE = (
     "check back after the first matches finish."
 )
 
+# Distinct from CHAT_AVAILABILITY_MESSAGE above: that one is a season-wide
+# gate (no GW1 data exists for anyone yet); this one is per-user (GW1 data
+# exists, but *this* caller has no starting_xi/gw_selections row for the
+# requested season+gameweek yet). Named the same way for the same reason --
+# so tests assert against the constant, not a string literal that could
+# drift between main.py and the test file.
+NO_SQUAD_MESSAGE = "Create your team for this gameweek to get chat advice on your squad."
+
 
 def is_chat_available(engine, season: str) -> bool:
     """False until GW1 data exists -- before that, every player would show
@@ -403,7 +411,7 @@ def chat(
         )
 
         if squad.empty:
-            return ChatResponse(response="Please select your squad for this gameweek first.")
+            return ChatResponse(response=NO_SQUAD_MESSAGE)
 
         if len(squad) > MAX_PLAYERS:
             raise HTTPException(
