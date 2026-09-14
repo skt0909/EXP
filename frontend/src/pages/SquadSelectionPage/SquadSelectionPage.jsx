@@ -61,7 +61,14 @@ function SquadSelectionPage() {
     ])
       .then(([playersData, squadData]) => {
         if (cancelled) return
-        setPlayers(playersData.map(normalizePremierLeaguePlayer))
+        // Squad Selection shows season-to-date form, not one gameweek's score
+        // -- override points with season_points here, page-locally, rather
+        // than in normalizePremierLeaguePlayer (shared with Transfers/
+        // Dashboard/StartingXI, which must keep showing the single-gameweek
+        // number they already rely on).
+        setPlayers(
+          playersData.map((p) => normalizePremierLeaguePlayer({ ...p, points: p.season_points }))
+        )
         setSelectedIds((squadData.players ?? []).map((p) => p.player_id))
       })
       .catch((err) => {

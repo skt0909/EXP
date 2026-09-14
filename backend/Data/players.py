@@ -14,6 +14,15 @@ status is returned but not used to filter or block anything here -- same
 "no availability rule at this layer" stance as squad_selection.py -- purely
 so the frontend can show an injured/doubtful badge if it wants to.
 
+season_points sums total_points across every ingested gameweek this season
+(independent of :gameweek, always computed) -- Squad Selection reads this
+to show "how has this player done all season", separately from `points`,
+which stays exactly what it always was: one specific gameweek's score, the
+number Transfers relies on to compare targets by recent form. A row only
+ever exists in ml.player_gw_stats once that gameweek has actually been
+polled, so summing every row already ingested is summing every gameweek
+that's actually finished -- no separate "is it complete" check needed.
+
 next_opponent/next_opponent_is_home are optional (default None) -- for the
 Transfers page's player browsing, resolved per-team as the earliest
 unfinished fixture in ml.fixtures for that team. If a team has no
@@ -34,13 +43,20 @@ PLAYERS_QUERY = text(
     """
     SELECT p.fpl_id, p.web_name, p.position, p.team_id, t.short_name,
            COALESCE(p.now_cost, p.cost_start) AS price,
-           p.status, COALESCE(pgs.total_points, 0) AS points
+           p.status, COALESCE(pgs.total_points, 0) AS points,
+           COALESCE(season_totals.season_points, 0) AS season_points
     FROM ml.players p
     JOIN ml.teams t ON t.id = p.team_id
     LEFT JOIN ml.player_gw_stats pgs
         ON pgs.player_id = p.id
        AND pgs.season = p.season
        AND pgs.gameweek = :gameweek
+    LEFT JOIN (
+        SELECT player_id, SUM(total_points) AS season_points
+        FROM ml.player_gw_stats
+        WHERE season = :season
+        GROUP BY player_id
+    ) season_totals ON season_totals.player_id = p.id
     WHERE p.season = :season
     ORDER BY p.fpl_id
     """
@@ -78,6 +94,7 @@ class PlayerOut(BaseModel):
     price: float
     status: str
     points: int = 0
+    season_points: int = 0
     next_opponent: str | None = None
     next_opponent_is_home: bool | None = None
 
@@ -106,6 +123,7 @@ def get_players(season: str, gameweek: int | None = None) -> list[PlayerOut]:
                 price=row.price / 10,
                 status=row.status,
                 points=row.points,
+                season_points=row.season_points,
                 next_opponent=opponent,
                 next_opponent_is_home=is_home,
             )

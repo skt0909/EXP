@@ -60,9 +60,41 @@ def test_returns_correct_shape(make_team, make_player):
         "price": 8.5,
         "status": "a",
         "points": 0,
+        "season_points": 0,
         "next_opponent": None,
         "next_opponent_is_home": None,
     }
+
+
+def test_season_points_sums_every_ingested_gameweek_independent_of_the_gameweek_param(
+    make_team, make_player, make_gw_stat
+):
+    """season_points must (a) sum across every gameweek this player has a
+    row for, and (b) stay the same regardless of which :gameweek was
+    requested -- unlike `points`, which is scoped to exactly that one
+    gameweek. Both read from the same request/response to prove they can't
+    drift apart."""
+    team_id = make_team(fpl_id=1, name="Test FC", short_name="TFC")
+    internal_id = make_player(fpl_id=101, team_id=team_id, web_name="Testman")
+    make_gw_stat(player_id=internal_id, gameweek=1, total_points=5)
+    make_gw_stat(player_id=internal_id, gameweek=2, total_points=8)
+    make_gw_stat(player_id=internal_id, gameweek=3, total_points=2)
+
+    resp_gw2 = client.get("/players", params={"season": TEST_SEASON, "gameweek": 2})
+    assert resp_gw2.status_code == 200
+    player_gw2 = resp_gw2.json()[0]
+    assert player_gw2["points"] == 8  # gameweek 2 only
+    assert player_gw2["season_points"] == 15  # 5 + 8 + 2
+
+    resp_gw1 = client.get("/players", params={"season": TEST_SEASON, "gameweek": 1})
+    player_gw1 = resp_gw1.json()[0]
+    assert player_gw1["points"] == 5  # gameweek 1 only
+    assert player_gw1["season_points"] == 15  # unchanged by which gameweek was asked for
+
+    resp_no_gw = client.get("/players", params={"season": TEST_SEASON})
+    player_no_gw = resp_no_gw.json()[0]
+    assert player_no_gw["points"] == 0  # no gameweek requested -- the existing, unchanged behavior
+    assert player_no_gw["season_points"] == 15  # season total needs no gameweek param at all
 
 
 def test_price_converted_from_x10_scale(make_team, make_player):
