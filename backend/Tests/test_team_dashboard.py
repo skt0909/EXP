@@ -167,6 +167,29 @@ def test_full_dashboard_happy_path(engine, make_team, make_player, test_user):
     assert len(vice_lines) == 1 and vice_lines[0]["player_id"] == vice
 
 
+def test_lineup_and_bench_players_carry_their_own_club(engine, make_team, make_player, test_user):
+    """Regression test: STARTING_XI_ROWS_QUERY used to omit club entirely,
+    so every PlayerLine came back with no team identity at all -- the
+    frontend's PlayerJersey component resolves a real kit graphic from
+    this exact field (matching GET /squad's own club column), and with
+    nothing to resolve against it silently fell back to a placeholder box
+    for every player on the Dashboard's pitch view. _seed_squad_player
+    gives each of the 15 players its own distinct club (f"C{fpl_id}"), so
+    a wrong join (e.g. one that accidentally joined the same team to every
+    row) would show up as a collision here, not just a missing field."""
+    fpl_ids = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, id_offset=9700)
+    xi_ids, bench_ids = fpl_ids[:11], fpl_ids[11:]
+    _seed_gw_selection(engine, test_user, TEST_SEASON, GAMEWEEK, xi_ids, bench_ids, xi_ids[0], xi_ids[1])
+
+    body = client.get("/team", params={"season": TEST_SEASON, "gameweek": GAMEWEEK}, headers=bearer_headers(test_user)).json()
+
+    all_players = [p for players in body["lineup"].values() for p in players] + body["bench"]
+    assert len(all_players) == 15
+    clubs_by_player = {p["player_id"]: p["club"] for p in all_players}
+    assert all(club for club in clubs_by_player.values())  # never empty/missing
+    assert clubs_by_player == {fpl_id: f"C{fpl_id}" for fpl_id in fpl_ids}  # each player keeps its own club
+
+
 def test_triple_captain_chip_reports_3x_multiplier(engine, make_team, make_player, test_user):
     fpl_ids = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON)
     xi_ids, bench_ids = fpl_ids[:11], fpl_ids[11:]

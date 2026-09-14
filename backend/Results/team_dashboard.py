@@ -73,14 +73,25 @@ GW_SELECTION_QUERY = text(
 # total_points defaults to 0 via COALESCE when no player_gw_stats row
 # exists yet (match not played/ingested) -- same partial/live-scoring
 # convention Results/scoring.py uses for the same join.
+#
+# club (t.short_name) is joined in the same way Gameplay/squad_selection.py's
+# own player-row query already does for GET /squad -- this query used to
+# omit it entirely, which is why the Dashboard's pitch view rendered a
+# fallback placeholder instead of a real jersey for every player: the
+# frontend's PlayerJersey component resolves a club's jersey graphic from
+# this exact short_name string (e.g. "ARS"), and had nothing to resolve
+# against. No id-space translation is involved -- short_name is the same
+# human-readable string in every mode's response (Dream11's queries select
+# it the same way), never a raw numeric id.
 STARTING_XI_ROWS_QUERY = text(
     """
     SELECT sx.position_slot, sx.is_captain, sx.is_vice_captain,
-           mp.fpl_id AS player_id, mp.web_name, mp.position,
+           mp.fpl_id AS player_id, mp.web_name, mp.position, t.short_name AS club,
            COALESCE(pgs.total_points, 0) AS points,
            COALESCE(pgs.minutes, 0) AS minutes
     FROM starting_xi sx
     JOIN ml.players mp ON mp.fpl_id = sx.player_id AND mp.season = :season
+    JOIN ml.teams t ON t.id = mp.team_id
     LEFT JOIN ml.player_gw_stats pgs
         ON pgs.player_id = mp.id AND pgs.season = :season AND pgs.gameweek = :gameweek
     WHERE sx.gw_selection_id = :gw_selection_id
@@ -160,6 +171,10 @@ class PlayerLine(BaseModel):
     player_id: int
     name: str
     position: str
+    # Club short-name (e.g. "ARS") -- what the frontend's PlayerJersey
+    # component resolves a real kit graphic from. Same field GET /squad's
+    # CurrentSquadPlayerOut already carries for the same purpose.
+    club: str
     points: int
     is_captain: bool
     is_vice_captain: bool
@@ -303,6 +318,7 @@ def get_team_dashboard(
                     player_id=r.player_id,
                     name=r.web_name,
                     position=r.position,
+                    club=r.club,
                     points=r.points,
                     is_captain=r.is_captain,
                     is_vice_captain=r.is_vice_captain,

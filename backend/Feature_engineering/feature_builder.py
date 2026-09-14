@@ -18,10 +18,14 @@ with missing=nan).
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
+
+logger = logging.getLogger(__name__)
 
 FEATURE_COLS = [
     "pts_rolling_3gw",
@@ -171,14 +175,54 @@ def build_features(engine: Engine, season: str, target_gameweek: int) -> pd.Data
 
     rolling = _rolling_features(history)
 
+    # rolling's index is exactly "players with at least one prior gameweek
+    # row" -- so a NaN in ITS OWN value/selected here means an ingested
+    # player_gw_stats row is genuinely missing one of these fields, not the
+    # ordinary "zero prior history" case (which doesn't show up until the
+    # join below, and is already the documented, intentional NaN this
+    # module produces for a player with no history at all). Checked here,
+    # before that join, so the two can't be confused with each other.
+    if not rolling.empty:
+        missing_value = rolling.index[pd.to_numeric(rolling["value"], errors="coerce").isna()]
+        if len(missing_value) > 0:
+            logger.warning(
+                "ml.player_gw_stats has NULL value for %d player(s) (season=%s, gameweek<%s), "
+                "e.g. player_id %s -- price_current will be NaN for them rather than a "
+                "fabricated price.",
+                len(missing_value), season, target_gameweek, list(missing_value[:5]),
+            )
+        missing_selected = rolling.index[pd.to_numeric(rolling["selected"], errors="coerce").isna()]
+        if len(missing_selected) > 0:
+            logger.warning(
+                "ml.player_gw_stats has NULL selected for %d player(s) (season=%s, gameweek<%s), "
+                "e.g. player_id %s -- treating ownership_log as 0 (unknown ownership) rather "
+                "than crashing.",
+                len(missing_selected), season, target_gameweek, list(missing_selected[:5]),
+            )
+
     df = players.set_index("player_id")
     df = df.join(rolling, how="left")
 
     was_home_map = _was_home_by_team(fixtures)
     df["was_home"] = df["team_id"].map(was_home_map)
 
-    df["price_current"] = df["value"] / 10
-    df["ownership_log"] = np.log1p(df["selected"])
+    # errors="coerce" is defensive regardless of the NULL source above: an
+    # all-NULL batch reaching pandas as a whole can leave the column as
+    # object dtype with literal None entries rather than float64 NaN, and
+    # np.log1p on an object-dtype array calls .log1p() on each element --
+    # which is exactly what raised AttributeError: 'NoneType' object has no
+    # attribute 'log1p' before this fix, instead of producing NaN like a
+    # numeric ufunc would.
+    #
+    # price_current is left as NaN when value is missing -- consistent with
+    # this module's "no zero-imputation" rule (see the module docstring):
+    # a fabricated price would be misleading, and XGBoost was trained to
+    # handle a genuine NaN here. ownership_log instead falls back to 0
+    # (log1p(0) == 0, i.e. "unknown/no recorded ownership") since an
+    # ownership count has no equivalently misleading "invented" value the
+    # way a price does.
+    df["price_current"] = pd.to_numeric(df["value"], errors="coerce") / 10
+    df["ownership_log"] = np.log1p(pd.to_numeric(df["selected"], errors="coerce")).fillna(0)
 
     for col in _UNAVAILABLE_FEATURES:
         df[col] = np.nan
