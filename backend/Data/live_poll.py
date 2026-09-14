@@ -59,18 +59,28 @@ VALID_CHECKPOINTS = {"halftime", "fulltime"}
 # that it has been done. They sit here, beside the polling they schedule,
 # rather than beside the gameweek engine they shared nothing with.
 #
-# "Needing scheduling" is finished = FALSE, a real (non-NULL) FUTURE
-# kickoff_time, and either no ml.fixture_poll_schedule row yet or one not
-# yet marked halftime_scheduled.
+# "Needing scheduling" is finished = FALSE, a real (non-NULL) kickoff_time
+# within the last POLL_SCHEDULE_LOOKBACK (covers both future kickoffs and
+# ones Beat missed scheduling at the time -- a Beat outage spanning a
+# kickoff must not permanently drop that fixture's polls, see live_poll.py
+# module docstring), and either no ml.fixture_poll_schedule row yet or one
+# not yet marked halftime_scheduled.
+#
+# The lookback bound is FULLTIME_OFFSET_MINUTES (115min, Worker/tasks.py)
+# plus headroom for extra time/delay, not "forever": without it, a fixture
+# stuck at finished=FALSE for an unrelated reason (e.g. a stalled
+# refresh_fixtures ingest) would get re-selected on every 15-minute tick
+# indefinitely.
+POLL_SCHEDULE_LOOKBACK = "4 hours"
 
 FIXTURES_NEEDING_POLL_SCHEDULE_QUERY = text(
-    """
+    f"""
     SELECT f.id, f.season, f.gameweek, f.kickoff_time
     FROM ml.fixtures f
     LEFT JOIN ml.fixture_poll_schedule ps ON ps.fixture_id = f.id
     WHERE f.finished = FALSE
       AND f.kickoff_time IS NOT NULL
-      AND f.kickoff_time > NOW()
+      AND f.kickoff_time > NOW() - INTERVAL '{POLL_SCHEDULE_LOOKBACK}'
       AND (ps.fixture_id IS NULL OR ps.halftime_scheduled = FALSE)
     ORDER BY f.kickoff_time ASC
     """
