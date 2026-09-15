@@ -67,15 +67,24 @@ def test_returns_correct_shape(make_team, make_player):
 
 
 def test_season_points_sums_every_ingested_gameweek_independent_of_the_gameweek_param(
-    make_team, make_player, make_gw_stat
+    make_team, make_player, make_gw_stat, make_fixture
 ):
     """season_points must (a) sum across every gameweek this player has a
     row for, and (b) stay the same regardless of which :gameweek was
     requested -- unlike `points`, which is scoped to exactly that one
     gameweek. Both read from the same request/response to prove they can't
-    drift apart."""
+    drift apart.
+
+    A fixture is seeded for every gameweek queried here (1-3) -- since the
+    blank-gameweek eligibility filter added alongside this test would
+    otherwise exclude the player entirely from a gameweek-scoped query,
+    same as test_excludes_player_whose_club_has_no_fixture_that_gameweek
+    below relies on deliberately."""
     team_id = make_team(fpl_id=1, name="Test FC", short_name="TFC")
+    opponent_id = make_team(fpl_id=2, name="Opponent FC", short_name="OPP")
     internal_id = make_player(fpl_id=101, team_id=team_id, web_name="Testman")
+    for gw in (1, 2, 3):
+        make_fixture(fpl_id=1000 + gw, gameweek=gw, home_team_id=team_id, away_team_id=opponent_id, finished=True)
     make_gw_stat(player_id=internal_id, gameweek=1, total_points=5)
     make_gw_stat(player_id=internal_id, gameweek=2, total_points=8)
     make_gw_stat(player_id=internal_id, gameweek=3, total_points=2)
@@ -183,6 +192,68 @@ def test_next_opponent_picks_earliest_of_multiple_unfinished_fixtures(make_team,
     player = next(p for p in resp.json() if p["id"] == 101)
     assert player["next_opponent"] == "SOO"
     assert player["next_opponent_is_home"] is True
+
+
+# ------------------------------------------------ blank/double gameweek
+# eligibility filtering (Squad Selection's and Transfers' shared picker --
+# Starting XI has no player-browsing picker of its own, see Data/players.py's
+# module docstring)
+
+
+def test_excludes_player_whose_club_has_no_fixture_that_gameweek(make_team, make_player, make_fixture):
+    team_with_fixture = make_team(fpl_id=1, name="Playing FC", short_name="PLY")
+    team_blank = make_team(fpl_id=2, name="Blank FC", short_name="BLK")
+    opponent_id = make_team(fpl_id=3, name="Opponent FC", short_name="OPP")
+    make_player(fpl_id=101, team_id=team_with_fixture, web_name="Playing Player")
+    make_player(fpl_id=102, team_id=team_blank, web_name="Blank Player")
+
+    # Only team_with_fixture plays in gameweek 5 -- team_blank has a
+    # completely blank gameweek.
+    make_fixture(fpl_id=2001, gameweek=5, home_team_id=team_with_fixture, away_team_id=opponent_id)
+
+    resp = client.get("/players", params={"season": TEST_SEASON, "gameweek": 5})
+
+    assert resp.status_code == 200
+    ids = {p["id"] for p in resp.json()}
+    assert ids == {101}
+    assert 102 not in ids
+
+
+def test_double_gameweek_club_appears_once_not_twice(make_team, make_player, make_fixture):
+    team_id = make_team(fpl_id=1, name="Busy FC", short_name="BSY")
+    opponent_a = make_team(fpl_id=2, name="Opponent A", short_name="OPA")
+    opponent_b = make_team(fpl_id=3, name="Opponent B", short_name="OPB")
+    make_player(fpl_id=101, team_id=team_id, web_name="Double Player")
+
+    # Two fixtures for the same club in the same gameweek -- a double
+    # gameweek. One as home, one as away, to also prove the home/away
+    # UNION doesn't itself introduce a duplicate.
+    make_fixture(fpl_id=2001, gameweek=5, home_team_id=team_id, away_team_id=opponent_a)
+    make_fixture(fpl_id=2002, gameweek=5, home_team_id=opponent_b, away_team_id=team_id)
+
+    resp = client.get("/players", params={"season": TEST_SEASON, "gameweek": 5})
+
+    assert resp.status_code == 200
+    ids = [p["id"] for p in resp.json()]
+    assert ids.count(101) == 1
+
+
+def test_no_gameweek_param_returns_full_unfiltered_catalogue(make_team, make_player, make_fixture):
+    """The escape hatch this filter deliberately preserves: omitting
+    gameweek entirely must behave exactly as it did before this filter
+    existed -- everyone included, blank-gameweek clubs and all."""
+    team_with_fixture = make_team(fpl_id=1, name="Playing FC", short_name="PLY")
+    team_blank = make_team(fpl_id=2, name="Blank FC", short_name="BLK")
+    opponent_id = make_team(fpl_id=3, name="Opponent FC", short_name="OPP")
+    make_player(fpl_id=101, team_id=team_with_fixture, web_name="Playing Player")
+    make_player(fpl_id=102, team_id=team_blank, web_name="Blank Player")
+    make_fixture(fpl_id=2001, gameweek=5, home_team_id=team_with_fixture, away_team_id=opponent_id)
+
+    resp = client.get("/players", params={"season": TEST_SEASON})
+
+    assert resp.status_code == 200
+    ids = {p["id"] for p in resp.json()}
+    assert ids == {101, 102}
 
 
 def test_next_opponent_null_when_no_unfinished_fixture(make_team, make_player, make_fixture):

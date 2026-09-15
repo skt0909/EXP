@@ -29,6 +29,22 @@ unfinished fixture in ml.fixtures for that team. If a team has no
 unfinished fixture yet (e.g. next gameweek's fixtures haven't been
 ingested), both fields stay None rather than erroring -- an incomplete
 fixture calendar is an expected, temporary state, not a bug.
+
+WHEN A GAMEWEEK IS GIVEN, THE CATALOGUE ITSELF IS FILTERED, NOT JUST
+ANNOTATED. Squad Selection and Transfers are the two callers of this
+endpoint (Starting XI has no player-browsing picker of its own -- it works
+entirely from the squad the user already owns), and both always pass a
+concrete gameweek in practice. A player whose club has no fixture that
+gameweek (a "blank" gameweek) is excluded from the result entirely, not
+merely shown with points=0 -- there is nothing useful to pick them FOR that
+week. `gameweek=None` is kept as an explicit escape hatch that returns the
+full, unfiltered catalogue (matching this endpoint's behaviour before this
+filter existed), for any future caller that genuinely wants every player
+regardless of gameweek. This is deliberately NOT applied to who a user is
+allowed to keep owning or transfer in for a LATER gameweek plan -- it only
+narrows what THIS call's picker offers, the same way real FPL restricts
+starting-XI selection around blank/double gameweeks without restricting
+squad ownership itself.
 """
 
 from fastapi import APIRouter
@@ -58,6 +74,28 @@ PLAYERS_QUERY = text(
         GROUP BY player_id
     ) season_totals ON season_totals.player_id = p.id
     WHERE p.season = :season
+      -- Omitted (NULL) gameweek means "no gameweek in view" -- return the
+      -- full catalogue unfiltered, same as before this clause existed. A
+      -- real gameweek restricts to clubs actually playing that week (either
+      -- side of ml.fixtures), so a blank-gameweek player isn't offered as
+      -- pickable. IN (subquery), not a JOIN to ml.fixtures -- a double
+      -- gameweek club has two fixture rows, and joining directly would
+      -- return that club's players twice.
+      --
+      -- Cast is explicit for the same reason fixtures.py's identical
+      -- pattern needs one: psycopg2 sends a bare NULL with no type for an
+      -- unset optional param, and Postgres can't infer one for a standalone
+      -- ":gameweek IS NULL" check.
+      AND (
+        CAST(:gameweek AS INTEGER) IS NULL
+        OR p.team_id IN (
+            SELECT home_team_id FROM ml.fixtures
+            WHERE season = :season AND gameweek = CAST(:gameweek AS INTEGER)
+            UNION
+            SELECT away_team_id FROM ml.fixtures
+            WHERE season = :season AND gameweek = CAST(:gameweek AS INTEGER)
+        )
+      )
     ORDER BY p.fpl_id
     """
 )
