@@ -145,7 +145,13 @@ this gameweek. If asked about captaincy, compare your suggestion against
 that current pick explicitly, don't just rank players in a vacuum.
 
 Never state a specific predicted-points number or invent one, even if
-asked directly -- you were not given one and do not have one."""
+asked directly -- you were not given one and do not have one.
+
+Formatting: respond in plain flowing paragraphs only. Do not use Markdown
+tables, bullet points, numbered lists, headers, or bold/italic asterisks --
+the chat window displays raw text, so any of that shows up as broken
+symbols instead of formatting. Write the way you'd explain it out loud to
+someone: full sentences, grouped into short paragraphs by topic."""
 
 app = FastAPI(title="FPL Context Assembler")
 
