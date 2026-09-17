@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import PitchLineup from '../PitchLineup/PitchLineup'
 import { fetchContestTeam, ForbiddenError, NotFoundError } from '../../api/dream11'
 
@@ -99,8 +100,13 @@ function NoTeamSubmitted() {
  * are ordinary states of the game (hidden until kickoff / never picked) and get
  * their own panels, while anything else really is a failure and gets the error
  * treatment. See api/dream11.js's fetchContestTeam.
+ *
+ * isLocked gates the Edit Team button alongside isSelf: this panel is also
+ * used to view a rival's team (once the contest locks, per fetchContestTeam's
+ * own 403 rule above), so isSelf alone isn't enough -- editing must stop the
+ * moment the contest locks, same as submitting a first team does.
  */
-function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, onClose }) {
+function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, isLocked = false, onClose }) {
   const [team, setTeam] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | hidden | no-team | error
   const [message, setMessage] = useState('')
@@ -216,6 +222,14 @@ function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, o
               </dd>
             </div>
           </dl>
+          {isSelf && !isLocked && (
+            <Link
+              className="w-full text-center bg-primary-container text-on-primary-container rounded-lg py-sm font-label-md text-label-md uppercase tracking-wider hover:opacity-90 transition-opacity"
+              to={`/dream11/contests/${contestId}/edit`}
+            >
+              Edit Team
+            </Link>
+          )}
         </>
       )}
     </section>

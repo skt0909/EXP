@@ -88,3 +88,16 @@ export function submitContestTeam({ contest_id, user_id, player_ids, captain_id,
     body: { user_id, player_ids, captain_id, vice_captain_id },
   })
 }
+
+/**
+ * Replaces an already-submitted team's full 11 + captain/vice in one call
+ * (edit-only -- Game_logic/dream11.py's PATCH 404s if there's no existing
+ * team yet, matching submitContestTeam's POST being create-only). Same
+ * body shape as submitContestTeam so PickTeamPage can post to either.
+ */
+export function editContestTeam({ contest_id, user_id, player_ids, captain_id, vice_captain_id }) {
+  return request(`/dream11/contests/${contest_id}/team`, {
+    method: 'PATCH',
+    body: { user_id, player_ids, captain_id, vice_captain_id },
+  })
+}

@@ -187,6 +187,14 @@ def _submit_team(contest_id, user_id, player_ids, captain_id, vice_captain_id):
     )
 
 
+def _edit_team(contest_id, user_id, player_ids, captain_id, vice_captain_id):
+    return client.patch(
+        f"/dream11/contests/{contest_id}/team",
+        json={"player_ids": player_ids, "captain_id": captain_id, "vice_captain_id": vice_captain_id},
+        headers=_auth_headers(user_id),
+    )
+
+
 def _get_team(contest_id, target_user_id, as_user_id=None):
     """as_user_id defaults to the team's owner -- i.e. reading your own."""
     viewer = as_user_id if as_user_id is not None else target_user_id
@@ -927,6 +935,145 @@ def test_submit_team_twice_rejected_clean_422_not_500(engine, make_user, make_te
 
     assert second.status_code == 422, second.json()
     assert "user has already submitted a team for this contest" in second.json()["detail"]
+
+
+# ---------------------------------------------------------------- team editing (PATCH)
+#
+# edit_team is a full-lineup replace of an already-submitted team, reusing
+# _validate_team (so invalid-lineup cases are already covered by the
+# test_submit_team_* validation tests above -- only one is re-asserted
+# here, to confirm PATCH goes through the same _validate_team rather than
+# skipping it) and a Python-level is_locked check instead of a DB trigger
+# (enforce_contest_lock_fn only fires BEFORE INSERT ON dream11.teams, never
+# on the team_players rows this endpoint actually writes -- see
+# Game_logic/dream11.py's edit_team docstring).
+
+def _pick_different_valid_team(pool, exclude_ids):
+    """Same shape _pick_valid_team builds (1 GK + 4 DEF + 4 MID + 2 FWD,
+    interleaved home/away), but drawn from the pool players NOT in
+    exclude_ids -- so an edit test can prove the lineup actually changed,
+    not just re-submitted the same 11 ids."""
+    def take(position, count):
+        home = [p["fpl_id"] for p in pool if p["position"] == position and p["team"] == "home" and p["fpl_id"] not in exclude_ids]
+        away = [p["fpl_id"] for p in pool if p["position"] == position and p["team"] == "away" and p["fpl_id"] not in exclude_ids]
+        picked = []
+        while len(picked) < count and (home or away):
+            for side in (home, away):
+                if side and len(picked) < count:
+                    picked.append(side.pop(0))
+        return picked
+
+    return take("GK", 1) + take("DEF", 4) + take("MID", 4) + take("FWD", 2)
+
+
+def test_edit_team_valid_succeeds_before_lock(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5000)
+    contest = _create_contest(fixture_id, creator)
+    original = _pick_valid_team(pool)
+    submit = _submit_team(contest["contest_id"], creator, original, captain_id=original[0], vice_captain_id=original[1])
+    assert submit.status_code == 200, submit.json()
+    original_team_id = submit.json()["team_id"]
+
+    new_team = _pick_different_valid_team(pool, exclude_ids=set(original))
+    assert set(new_team).isdisjoint(original)  # sanity: this really is a different 11
+
+    resp = _edit_team(contest["contest_id"], creator, new_team, captain_id=new_team[1], vice_captain_id=new_team[0])
+
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["team_id"] == original_team_id  # same team row, not a new one
+    assert {p["player_id"] for p in body["players"]} == set(new_team)
+    assert next(p for p in body["players"] if p["player_id"] == new_team[1])["is_captain"] is True
+    assert next(p for p in body["players"] if p["player_id"] == new_team[0])["is_vice_captain"] is True
+
+    with engine.connect() as conn:
+        rows = list(conn.execute(
+            text(
+                "SELECT tp.player_id FROM dream11.team_players tp "
+                "JOIN dream11.teams t ON t.id = tp.team_id WHERE t.contest_id = :cid AND t.user_id = :uid"
+            ),
+            {"cid": contest["contest_id"], "uid": creator},
+        ))
+    assert len(rows) == 11
+    assert {r.player_id for r in rows} == {p["internal_id"] for p in pool if p["fpl_id"] in new_team}
+
+
+def test_edit_team_rejected_after_lock(engine, make_user, make_team, make_player):
+    """The trigger that blocks submit_team after lock (enforce_contest_lock_fn)
+    fires only on INSERT INTO dream11.teams, which edit_team never does --
+    so this specifically proves edit_team's own explicit is_locked check is
+    what's stopping this, not a leftover DB protection."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5100)
+    contest = _create_contest(fixture_id, creator)
+    original = _pick_valid_team(pool)
+    submit = _submit_team(contest["contest_id"], creator, original, captain_id=original[0], vice_captain_id=original[1])
+    assert submit.status_code == 200, submit.json()
+
+    _lock_contest(engine, contest["contest_id"])
+
+    new_team = _pick_different_valid_team(pool, exclude_ids=set(original))
+    resp = _edit_team(contest["contest_id"], creator, new_team, captain_id=new_team[0], vice_captain_id=new_team[1])
+
+    assert resp.status_code == 422, resp.json()
+    assert resp.json()["detail"] == ["Contest is locked, team can no longer be edited"]
+
+    # And the original lineup must still be exactly what's stored.
+    with engine.connect() as conn:
+        rows = list(conn.execute(
+            text(
+                "SELECT tp.player_id FROM dream11.team_players tp "
+                "JOIN dream11.teams t ON t.id = tp.team_id WHERE t.contest_id = :cid AND t.user_id = :uid"
+            ),
+            {"cid": contest["contest_id"], "uid": creator},
+        ))
+    assert {r.player_id for r in rows} == {p["internal_id"] for p in pool if p["fpl_id"] in original}
+
+
+def test_edit_team_with_no_existing_team_rejected_404(engine, make_user, make_team, make_player):
+    """edit-only, not upsert: joining a contest without ever submitting a
+    team must not let PATCH create one -- creation stays on POST."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5200)
+    contest = _create_contest(fixture_id, creator)
+    joiner = make_user()
+    join = _join_contest(joiner, contest["code"])
+    assert join.status_code == 200, join.json()
+
+    team = _pick_valid_team(pool)
+    resp = _edit_team(contest["contest_id"], joiner, team, captain_id=team[0], vice_captain_id=team[1])
+
+    assert resp.status_code == 404, resp.json()
+    assert "has not submitted a team" in resp.json()["detail"]
+
+
+def test_edit_team_invalid_lineup_rejected(engine, make_user, make_team, make_player):
+    """Confirms edit_team runs the new lineup through the exact same
+    _validate_team create already uses -- same error, same shape."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5300)
+    contest = _create_contest(fixture_id, creator)
+    original = _pick_valid_team(pool)
+    submit = _submit_team(contest["contest_id"], creator, original, captain_id=original[0], vice_captain_id=original[1])
+    assert submit.status_code == 200, submit.json()
+
+    too_few = original[:10]  # 10, not 11 -- same invalid case test_submit_team_wrong_count_rejected uses
+    resp = _edit_team(contest["contest_id"], creator, too_few, captain_id=too_few[0], vice_captain_id=too_few[1])
+
+    assert resp.status_code == 422, resp.json()
+    assert "team must contain exactly 11 players, got 10" in resp.json()["detail"]
+
+    # Rejected edit must not have touched the stored (still-valid) lineup.
+    with engine.connect() as conn:
+        rows = list(conn.execute(
+            text(
+                "SELECT tp.player_id FROM dream11.team_players tp "
+                "JOIN dream11.teams t ON t.id = tp.team_id WHERE t.contest_id = :cid AND t.user_id = :uid"
+            ),
+            {"cid": contest["contest_id"], "uid": creator},
+        ))
+    assert len(rows) == 11
 
 
 # ---------------------------------------------------------------- calculate_dream11_points

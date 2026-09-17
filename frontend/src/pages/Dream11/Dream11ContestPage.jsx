@@ -190,6 +190,7 @@ function Dream11ContestPage() {
           {selectedRow && (
             <OpponentTeamPanel
               contestId={contestId}
+              isLocked={contest.is_locked}
               isSelf={selectedRow.user_id === user_id}
               kickoffTime={contest.kickoff_time}
               onClose={() => setSelectedUserId(null)}

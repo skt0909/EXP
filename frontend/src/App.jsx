@@ -73,6 +73,12 @@ function App() {
                 <Route path="/dream11/scoring" element={<Dream11ScoringPage />} />
                 <Route path="/dream11/contests/:contestId" element={<Dream11ContestPage />} />
                 <Route path="/dream11/contests/:contestId/pick" element={<PickTeamPage />} />
+                {/* Distinct route rather than /pick?mode=edit: this is a real
+                    navigational state (own tab in browser history, own back
+                    target), not a filter on the same view, and every other
+                    pair of purposes on this router already gets its own path
+                    (contest page vs pick page) rather than a query param. */}
+                <Route path="/dream11/contests/:contestId/edit" element={<PickTeamPage mode="edit" />} />
               </Route>
               {/* Self-contained pages: these render their own header/nav rather
                   than Layout's, so nesting them under Layout would double it up. */}

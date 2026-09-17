@@ -315,6 +315,19 @@ INSERT_TEAM_PLAYER_STMT = text(
     """
 )
 
+# edit_team only -- finds the team row a user already has in a contest,
+# without creating one. NULL when the user has joined but never submitted,
+# which edit_team reads as 404 (edit-only, not upsert -- see its docstring).
+EXISTING_TEAM_QUERY = text(
+    "SELECT id AS team_id FROM dream11.teams WHERE contest_id = :contest_id AND user_id = :user_id"
+)
+
+# edit_team only -- the delete half of the full-lineup replace. team_players
+# has no immutability trigger of its own (unlike dream11.player_prices);
+# the only protection an edit needs is the is_locked check edit_team does
+# in Python before ever reaching this statement.
+DELETE_TEAM_PLAYERS_STMT = text("DELETE FROM dream11.team_players WHERE team_id = :team_id")
+
 # ------------------------------------------------------------------ read queries
 #
 # The shared contest-summary projection. :user_id is always the CALLER
@@ -1032,31 +1045,44 @@ def get_user_team(
                     detail="only contest members can view another member's team",
                 )
 
-        is_finalized = contest_row.finalized_at is not None
+        return _build_user_team_response(conn, contest_row, contest_id, user_id)
 
-        if is_finalized:
-            # Frozen result: read the stored breakdown, and do not go near
-            # ml.player_gw_stats or calculate_dream11_points at all.
-            rows = conn.execute(
-                FINALIZED_USER_TEAM_QUERY, {"contest_id": contest_id, "user_id": user_id}
-            ).all()
-        else:
-            rows = conn.execute(
-                USER_TEAM_QUERY,
-                {
-                    "contest_id": contest_id,
-                    "user_id": user_id,
-                    "season": contest_row.season,
-                    "gameweek": contest_row.gameweek,
-                    "fixture_id": contest_row.fixture_id,
-                },
-            ).all()
-        if not rows:
-            raise HTTPException(status_code=404, detail="user has not submitted a team for this contest")
 
-        member_row = conn.execute(
-            CONTEST_MEMBER_POINTS_QUERY, {"contest_id": contest_id, "user_id": user_id}
-        ).first()
+def _build_user_team_response(conn, contest_row, contest_id: int, user_id: int) -> UserTeamResponse:
+    """Shared by GET .../team and PATCH .../team: reads back one user's
+    current team in one contest and builds the response both endpoints
+    return. Permission/existence checks on the CONTEST live in the
+    caller (get_user_team's opponent-visibility rule, edit_team's lock
+    check) -- this only 404s if the user has no team at all, which is a
+    real possible state for either caller (GET: never submitted; PATCH:
+    called right after a successful edit, so effectively unreachable
+    there, but kept so this function has one behaviour regardless of
+    caller)."""
+    is_finalized = contest_row.finalized_at is not None
+
+    if is_finalized:
+        # Frozen result: read the stored breakdown, and do not go near
+        # ml.player_gw_stats or calculate_dream11_points at all.
+        rows = conn.execute(
+            FINALIZED_USER_TEAM_QUERY, {"contest_id": contest_id, "user_id": user_id}
+        ).all()
+    else:
+        rows = conn.execute(
+            USER_TEAM_QUERY,
+            {
+                "contest_id": contest_id,
+                "user_id": user_id,
+                "season": contest_row.season,
+                "gameweek": contest_row.gameweek,
+                "fixture_id": contest_row.fixture_id,
+            },
+        ).all()
+    if not rows:
+        raise HTTPException(status_code=404, detail="user has not submitted a team for this contest")
+
+    member_row = conn.execute(
+        CONTEST_MEMBER_POINTS_QUERY, {"contest_id": contest_id, "user_id": user_id}
+    ).first()
 
     contest_total = int(member_row.total_points or 0) if member_row else 0
 
@@ -1315,3 +1341,88 @@ def submit_team(
             for p in resolved_players
         ],
     )
+
+
+@router.patch("/dream11/contests/{contest_id}/team", response_model=UserTeamResponse)
+def edit_team(
+    contest_id: int,
+    req: SubmitTeamRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> UserTeamResponse:
+    """Replace a user's already-submitted team with a new 11-player lineup
+    + captain/vice, all at once -- a full-lineup replace, not a per-player
+    swap, using the exact same request shape as submit_team so the picker
+    UI can post to either one.
+
+    EDIT-ONLY, THE MIRROR OF submit_team BEING INSERT-ONLY. No existing
+    team -> 404, not "create it for me": creation stays on POST, one verb
+    per purpose, same split the rest of this router already uses.
+
+    THE is_locked CHECK BELOW IS NOT BELT-AND-BRACES, IT IS THE ONLY GATE.
+    submit_team's lock protection comes entirely from
+    dream11.enforce_contest_lock_fn, a trigger that fires BEFORE INSERT ON
+    dream11.teams. This endpoint never inserts into dream11.teams -- the
+    team row already exists from the original submission and is left
+    untouched (same id, same submitted_at) -- it only replaces
+    dream11.team_players rows, which that trigger has never covered.
+    Skipping this check would silently let a locked contest's picks be
+    changed after kickoff, exactly what the trigger exists to prevent for
+    creation.
+    """
+    user_id = current_user.id
+    engine = get_engine()
+
+    with engine.connect() as conn:
+        contest_row = conn.execute(CONTEST_SEASON_AND_GW_QUERY, {"contest_id": contest_id}).first()
+        if contest_row is None:
+            raise HTTPException(status_code=422, detail=[f"contest_id {contest_id} does not exist"])
+
+        if contest_row.is_locked:
+            raise HTTPException(
+                status_code=422, detail=["Contest is locked, team can no longer be edited"]
+            )
+
+        is_member = (
+            conn.execute(IS_CONTEST_MEMBER_QUERY, {"contest_id": contest_id, "user_id": user_id}).first()
+            is not None
+        )
+        existing_team = conn.execute(
+            EXISTING_TEAM_QUERY, {"contest_id": contest_id, "user_id": user_id}
+        ).first()
+        if existing_team is None:
+            raise HTTPException(
+                status_code=404, detail="user has not submitted a team for this contest yet"
+            )
+
+        unique_ids = list(dict.fromkeys(req.player_ids))
+        players_by_fpl_id = {
+            row.fpl_id: row
+            for row in conn.execute(PLAYERS_LOOKUP_QUERY, {"season": contest_row.season, "player_ids": unique_ids})
+        }
+        pool_prices = {
+            row.internal_id: float(row.credit_price)
+            for row in conn.execute(CONTEST_PRICES_QUERY, {"contest_id": contest_id})
+        }
+
+    resolved_players, errors = _validate_team(req, is_member, players_by_fpl_id, pool_prices)
+    if errors:
+        raise HTTPException(status_code=422, detail=errors)
+
+    team_id = existing_team.team_id
+    with engine.begin() as conn:
+        conn.execute(DELETE_TEAM_PLAYERS_STMT, {"team_id": team_id})
+        conn.execute(
+            INSERT_TEAM_PLAYER_STMT,
+            [
+                {
+                    "team_id": team_id,
+                    "player_id": p["internal_id"],
+                    "is_captain": p["fpl_id"] == req.captain_id,
+                    "is_vice_captain": p["fpl_id"] == req.vice_captain_id,
+                }
+                for p in resolved_players
+            ],
+        )
+
+    with engine.connect() as conn:
+        return _build_user_team_response(conn, contest_row, contest_id, user_id)

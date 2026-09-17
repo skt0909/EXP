@@ -4,10 +4,13 @@ import PlayerCard from '../../components/PlayerCard/PlayerCard'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
 import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import {
+  editContestTeam,
   fetchContest,
   fetchContestPool,
+  fetchContestTeam,
   submitContestTeam,
   LockedError,
+  NotFoundError,
   ValidationError,
 } from '../../api/dream11'
 import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
@@ -115,8 +118,18 @@ function AddSlot({ position, onClick }) {
  * Rows run GK at the top down to FWD, matching the contest pitch rather than
  * PitchView's squad-building layout (which is fixed at a 15-man 2/5/5/3 shape
  * and doesn't fit a variable Dream11 formation).
+ *
+ * mode="edit" (routed at /dream11/contests/:contestId/edit, see App.jsx)
+ * reuses this exact picker for an already-submitted team: the only
+ * differences are (a) the initial selection is pre-populated from
+ * fetchContestTeam instead of starting empty, and (b) submit calls
+ * editContestTeam (PATCH, full-lineup replace) instead of submitContestTeam
+ * (POST, create-only) -- both send the same {player_ids, captain_id,
+ * vice_captain_id} shape, so nothing about the pitch/validation/budget UI
+ * below needs to know which mode it's in.
  */
-function PickTeamPage() {
+function PickTeamPage({ mode = 'create' }) {
+  const isEdit = mode === 'edit'
   const { contestId } = useParams()
   const { settings } = useOutletContext()
   const { user_id } = settings
@@ -146,8 +159,11 @@ function PickTeamPage() {
     Promise.all([
       fetchContest({ contest_id: contestId, user_id }),
       fetchContestPool({ contest_id: contestId }),
+      // Only edit mode needs the existing team, to pre-populate the picker
+      // below instead of starting from an empty selection.
+      isEdit ? fetchContestTeam({ contest_id: contestId, user_id }) : Promise.resolve(null),
     ])
-      .then(([contestBody, poolBody]) => {
+      .then(([contestBody, poolBody, teamBody]) => {
         if (cancelled) return
         setContest(contestBody)
         setLocked(contestBody.is_locked)
@@ -160,9 +176,20 @@ function PickTeamPage() {
         setPool(
           poolBody.map((p) => ({ ...p, id: p.player_id, price: p.credit_price, points: p.rolling_points }))
         )
+        if (teamBody) {
+          setSelectedIds(teamBody.players.map((p) => p.player_id))
+          setCaptainId(teamBody.players.find((p) => p.is_captain)?.player_id ?? null)
+          setViceId(teamBody.players.find((p) => p.is_vice_captain)?.player_id ?? null)
+        }
       })
       .catch((err) => {
-        if (!cancelled) setServerErrors([err.message || 'Could not load this contest'])
+        if (!cancelled) {
+          setServerErrors([
+            err instanceof NotFoundError
+              ? 'No existing team to edit -- go back and submit one first.'
+              : err.message || 'Could not load this contest',
+          ])
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -171,7 +198,7 @@ function PickTeamPage() {
     return () => {
       cancelled = true
     }
-  }, [contestId, user_id])
+  }, [contestId, isEdit, user_id])
 
   const byId = useMemo(() => new Map(pool.map((p) => [p.id, p])), [pool])
   const selected = useMemo(
@@ -225,7 +252,8 @@ function PickTeamPage() {
     setSubmitting(true)
     setServerErrors([])
     try {
-      await submitContestTeam({
+      const submitFn = isEdit ? editContestTeam : submitContestTeam
+      await submitFn({
         contest_id: contestId,
         user_id,
         player_ids: selectedIds,
@@ -281,7 +309,9 @@ function PickTeamPage() {
           >
             <span className="material-symbols-outlined">arrow_back</span>
           </button>
-          <h1 className="font-headline-sm text-headline-sm text-on-surface">Pick Team</h1>
+          <h1 className="font-headline-sm text-headline-sm text-on-surface">
+            {isEdit ? 'Edit Team' : 'Pick Team'}
+          </h1>
         </div>
         <h2 className="font-display-lg text-display-lg text-primary">{contest.name}</h2>
         <div className="flex items-center gap-xs">
@@ -470,7 +500,11 @@ function PickTeamPage() {
           onClick={handleSubmit}
           type="button"
         >
-          {submitting ? 'Submitting…' : `Submit Team (${cost.toFixed(1)} credits)`}
+          {submitting
+            ? isEdit
+              ? 'Saving…'
+              : 'Submitting…'
+            : `${isEdit ? 'Save Changes' : 'Submit Team'} (${cost.toFixed(1)} credits)`}
         </button>
       </div>
     </main>
