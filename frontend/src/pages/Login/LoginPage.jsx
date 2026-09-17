@@ -42,7 +42,7 @@ function LoginPage() {
     <div className="bg-surface text-on-surface min-h-screen flex items-center justify-center font-body-md text-body-md">
       <main className="relative z-10 w-full max-w-[400px] px-safe-margin py-xl flex flex-col items-center">
         <div className="mb-xl text-center">
-          <h1 className="font-display-lg text-display-lg text-primary mb-sm">PitchSide AI</h1>
+          <h1 className="font-display-lg text-display-lg text-primary mb-sm">PitchSide</h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant">Welcome back, manager.</p>
         </div>
 

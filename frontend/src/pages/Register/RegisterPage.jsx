@@ -63,7 +63,7 @@ function RegisterPage() {
     <div className="bg-background text-on-background min-h-screen flex flex-col antialiased">
       <main className="relative z-10 flex-grow flex flex-col items-center justify-center w-full max-w-[600px] mx-auto px-safe-margin py-xl">
         <div className="mb-xl flex flex-col items-center text-center">
-          <h1 className="font-display-lg text-display-lg text-primary tracking-tight">PitchSide AI</h1>
+          <h1 className="font-display-lg text-display-lg text-primary tracking-tight">PitchSide</h1>
           <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
             Manager Registration
           </p>
