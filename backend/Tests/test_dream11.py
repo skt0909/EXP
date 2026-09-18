@@ -396,6 +396,49 @@ def test_get_leaderboard_orders_scored_members_before_unscored(engine, make_user
     assert body["rows"][0]["has_submitted_team"] is False
 
 
+def test_get_leaderboard_self_heals_stale_points_without_a_scoring_checkpoint(
+    engine, make_user, make_team, make_player, make_gw_stat
+):
+    """Regression test for a real bug report: total_points/rank on
+    dream11.contest_members are normally refreshed by score_dream11_contest,
+    called from Worker/tasks.py's kickoff+50min/+115min checkpoints -- but
+    those are Celery-scheduled ETAs, so in an environment with no worker/
+    Beat actually running (e.g. local dev), or simply between the two
+    checkpoints, a member's real live points never reach contest_members at
+    all. Before the leaderboard endpoint called score_dream11_contest
+    itself, this meant the leaderboard showed everyone frozen at 0 points /
+    an arbitrary tie-rank forever, while GET .../team recomputed and showed
+    the correct live total for whichever member you clicked into -- the
+    exact "leaderboard says 0, my team screen says real points" symptom.
+    This test seeds real stats and reads ONLY the leaderboard endpoint, no
+    scoring call of any kind, to prove it now reflects them on its own."""
+    creator = make_user()
+    rival = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 6350, gameweek=2)
+    contest = _create_contest(fixture_id, creator)
+    cid = contest["contest_id"]
+    _join_contest(rival, contest["code"])
+
+    team = _pick_valid_team(pool)
+    _submit_team(cid, creator, team, captain_id=team[0], vice_captain_id=team[1])
+    _submit_team(cid, rival, team, captain_id=team[0], vice_captain_id=team[1])
+
+    # Only the creator's captain scores -- same goal for both teams' shared
+    # captain pick, so creator (who owns the captain bonus too) must end up
+    # strictly ahead of rival despite both teams being otherwise identical.
+    captain_internal = next(p["internal_id"] for p in pool if p["fpl_id"] == team[0])
+    make_gw_stat(captain_internal, gameweek=2, fixture_id=fixture_id, goals_scored=1, goals_conceded=3)
+
+    resp = client.get(f"/dream11/contests/{cid}/leaderboard", headers=_auth_headers(creator))
+
+    assert resp.status_code == 200
+    rows = {r["user_id"]: r for r in resp.json()["rows"]}
+    assert rows[creator]["total_points"] > 0
+    assert rows[creator]["total_points"] == rows[rival]["total_points"]  # same team, same goal
+    assert rows[creator]["rank"] == 1
+    assert rows[rival]["rank"] == 1  # a genuine tie -- both submitted the identical lineup
+
+
 def test_get_user_team_returns_players_with_live_points(engine, make_user, make_team, make_player, make_gw_stat):
     creator = make_user()
     fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 6400, gameweek=2)

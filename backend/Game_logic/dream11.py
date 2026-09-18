@@ -173,6 +173,7 @@ from Game_logic.dream11_scoring import (
     CAPTAIN_MULTIPLIER,
     VICE_CAPTAIN_MULTIPLIER,
     calculate_dream11_points,
+    score_dream11_contest,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -969,14 +970,39 @@ def get_contest_leaderboard(
     """Every member's standing, plus the contest summary carrying the
     CALLER's own membership flags -- same rule as get_contest above. The
     rows are the whole table either way; only the embedded summary is
-    caller-specific."""
+    caller-specific.
+
+    SELF-HEALING REFRESH BEFORE READING. dream11.contest_members.total_points
+    /rank are normally kept current by score_dream11_contest, invoked from
+    the kickoff+50min/+115min checkpoints Worker/tasks.py schedules per
+    contest -- but those are two one-off ETAs, not a live stream, so
+    between them (or whenever nothing is actually running those scheduled
+    tasks, e.g. local dev with no Celery worker/Beat process) the stored
+    numbers go stale while get_user_team's live_total_points keeps
+    recomputing fresh from ml.player_gw_stats on every single call. Left
+    alone, that is exactly the two-totals-on-adjacent-screens problem this
+    module's docstring describes finalization solving for a FINISHED
+    match -- except unsolved for the ordinary case of a match still being
+    played. Since score_dream11_contest is a plain, idempotent UPDATE (see
+    its own docstring), it's cheap enough to call on every leaderboard GET:
+    this re-scores the contest first whenever it isn't finalized yet, so
+    the leaderboard is never more stale than the request that just loaded
+    it -- the same "recompute until frozen" rule get_user_team already
+    follows, just applied on write here instead of on read.
+    """
     engine = get_engine()
+    with engine.connect() as conn:
+        state = conn.execute(CONTEST_SEASON_AND_GW_QUERY, {"contest_id": contest_id}).first()
+    if state is None:
+        raise HTTPException(status_code=404, detail="contest not found")
+
+    if state.finalized_at is None:
+        score_dream11_contest(engine, contest_id)
+
     with engine.connect() as conn:
         contest_row = conn.execute(
             CONTEST_DETAIL_QUERY, {"contest_id": contest_id, "user_id": current_user.id}
         ).first()
-        if contest_row is None:
-            raise HTTPException(status_code=404, detail="contest not found")
         rows = conn.execute(CONTEST_LEADERBOARD_QUERY, {"contest_id": contest_id}).all()
 
     return ContestLeaderboardResponse(
