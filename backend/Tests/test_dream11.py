@@ -474,6 +474,37 @@ def test_get_user_team_returns_players_with_live_points(engine, make_user, make_
     assert body["vice_captain_bonus"] == 0.0  # vice was blank, so their 1.5x adds nothing
     assert body["live_total_points"] == MID_GOAL_POINTS * 2
 
+    # breakdown must exist for a live (not-finalized) contest, and its own
+    # "total" must equal the same points value above -- see
+    # dream11.py's _build_user_team_response, which derives points_by_fpl_id
+    # from each breakdown's "total" rather than a separate calculation.
+    assert captain_row["breakdown"]["total"] == MID_GOAL_POINTS
+    assert captain_row["breakdown"]["goals_count"] == 1
+    assert captain_row["breakdown"]["goals"] == MID_GOAL_POINTS
+    assert captain_row["breakdown"]["clean_sheet_achieved"] is False  # conceded 3
+    blank_row = next(p for p in body["players"] if p["player_id"] != captain)
+    assert blank_row["breakdown"]["total"] == 0
+    assert blank_row["breakdown"]["goals_count"] == 0
+
+
+def test_get_user_team_breakdown_is_none_once_finalized(engine, make_user, make_team, make_player):
+    """dream11.team_players only ever persists final_points/final_minutes at
+    finalization (UPDATE_TEAM_PLAYER_FINAL_STMT), not the itemized
+    breakdown -- and ml.player_gw_stats, what the breakdown is computed
+    from, is off-limits once a result is frozen. So the sheet has no
+    per-category data to show for a finalized team, even though the total
+    itself is still exactly right."""
+    cid, _fixture_id, creator, _team, _pool = _finalized_contest(
+        engine, make_user, make_team, make_player, 5350
+    )
+
+    body = _get_team(cid, creator).json()
+
+    assert body["is_finalized"] is True
+    assert len(body["players"]) == 11
+    assert all(p["breakdown"] is None for p in body["players"])
+    assert all(p["points"] == 20 for p in body["players"])  # each player's 1 assist, unaffected
+
 
 def test_get_user_team_before_kickoff_is_all_zeroes_not_an_error(engine, make_user, make_team, make_player):
     creator = make_user()

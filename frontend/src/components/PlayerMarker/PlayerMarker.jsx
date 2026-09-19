@@ -1,11 +1,28 @@
 import PlayerJersey from '../PlayerJersey/PlayerJersey'
 import './PlayerMarker.css'
 
-function PlayerMarker({ name, points, position, captain = false, viceCaptain = false, multiplier, ...player }) {
+// onSelect is optional -- PickTeamPage's own builder markers (a different,
+// separate implementation, not this component) don't need this, and no
+// current caller passes it except OpponentTeamPanel's read-only pitch.
+function PlayerMarker({
+  name,
+  points,
+  position,
+  captain = false,
+  viceCaptain = false,
+  multiplier,
+  onSelect,
+  ...player
+}) {
   const jerseyPlayer = { ...player, name, position }
+  const Tag = onSelect ? 'button' : 'div'
 
   return (
-    <div className={`player-marker ${captain ? 'player-marker--captain' : ''}`}>
+    <Tag
+      className={`player-marker ${captain ? 'player-marker--captain' : ''} ${onSelect ? 'player-marker--tappable' : ''}`}
+      onClick={onSelect ? () => onSelect({ ...player, name, position, points, captain, viceCaptain, multiplier }) : undefined}
+      type={onSelect ? 'button' : undefined}
+    >
       <PlayerJersey
         captain={captain}
         player={jerseyPlayer}
@@ -26,7 +43,7 @@ function PlayerMarker({ name, points, position, captain = false, viceCaptain = f
           )}
         </span>
       </div>
-    </div>
+    </Tag>
   )
 }
 

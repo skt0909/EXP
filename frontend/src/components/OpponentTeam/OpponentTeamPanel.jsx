@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import PitchLineup from '../PitchLineup/PitchLineup'
+import PlayerPointsSheet from '../PlayerPointsSheet/PlayerPointsSheet'
 import { fetchContestTeam, ForbiddenError, NotFoundError } from '../../api/dream11'
 
 const ROWS = ['GK', 'DEF', 'MID', 'FWD']
@@ -110,12 +111,14 @@ function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, i
   const [team, setTeam] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | hidden | no-team | error
   const [message, setMessage] = useState('')
+  const [selectedPlayer, setSelectedPlayer] = useState(null)
 
   useEffect(() => {
     let cancelled = false
     setStatus('loading')
     setTeam(null)
     setMessage('')
+    setSelectedPlayer(null)
 
     fetchContestTeam({ contest_id: contestId, user_id: opponent.user_id })
       .then((data) => {
@@ -201,7 +204,7 @@ function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, i
 
       {status === 'ready' && (
         <>
-          <PitchLineup lineup={toLineup(team.players)} />
+          <PitchLineup lineup={toLineup(team.players)} onSelectPlayer={setSelectedPlayer} />
           <dl className="grid grid-cols-3 gap-sm text-center">
             <div>
               <dt className="font-label-md text-label-md text-on-surface-variant">Credits</dt>
@@ -231,6 +234,10 @@ function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, i
             </Link>
           )}
         </>
+      )}
+
+      {selectedPlayer && (
+        <PlayerPointsSheet onClose={() => setSelectedPlayer(null)} player={selectedPlayer} />
       )}
     </section>
   )

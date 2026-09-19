@@ -172,7 +172,7 @@ from Shared.db_utils import get_engine
 from Game_logic.dream11_scoring import (
     CAPTAIN_MULTIPLIER,
     VICE_CAPTAIN_MULTIPLIER,
-    calculate_dream11_points,
+    dream11_points_breakdown,
     score_dream11_contest,
 )
 
@@ -692,6 +692,42 @@ class ContestLeaderboardResponse(BaseModel):
     rows: list[LeaderboardRowResponse]
 
 
+class Dream11PointsBreakdown(BaseModel):
+    """One player's Dream11 score, itemized. Mirrors
+    dream11_points_breakdown()'s dict exactly -- see that function for what
+    each field means and dream11_scoring.py's module-level constants for
+    the exact point values -- so a UI can show "+2 goals -> 12 pts" instead
+    of only the final total. The *_eligible flags exist so the frontend can
+    tell "this player could never earn this row" (e.g. a FWD's clean sheet,
+    a DEF's saves) apart from "eligible, but did not happen this match" --
+    both currently render as 0, and only the flag tells them apart."""
+    minutes: int
+    goals: int
+    goals_count: int
+    assists: int
+    assists_count: int
+    clean_sheet: int
+    clean_sheet_achieved: bool
+    clean_sheet_eligible: bool
+    goals_conceded: int
+    goals_conceded_count: int
+    goals_conceded_eligible: bool
+    saves: int
+    saves_count: int
+    saves_eligible: bool
+    yellow_cards: int
+    yellow_cards_count: int
+    red_cards: int
+    red_cards_count: int
+    own_goals: int
+    own_goals_count: int
+    penalties_saved: int
+    penalties_saved_count: int
+    penalties_missed: int
+    penalties_missed_count: int
+    total: int
+
+
 class UserTeamPlayerResponse(BaseModel):
     player_id: int
     name: str
@@ -702,6 +738,14 @@ class UserTeamPlayerResponse(BaseModel):
     is_vice_captain: bool
     minutes: int
     points: int  # this player's own Dream11 points, before any C/VC multiplier
+    # None once a contest is finalized: dream11.team_players only persists
+    # final_points/final_minutes at finalization (see
+    # UPDATE_TEAM_PLAYER_FINAL_STMT), not the itemized breakdown, and
+    # ml.player_gw_stats -- what the breakdown is computed FROM -- is
+    # deliberately off-limits once a result is frozen (see
+    # dream11_scoring.py's FINALIZATION section). A finalized team's total
+    # is still exactly right; only the per-category sheet can't be shown.
+    breakdown: Dream11PointsBreakdown | None = None
 
 
 class UserTeamResponse(BaseModel):
@@ -1119,8 +1163,13 @@ def _build_user_team_response(conn, contest_row, contest_id: int, user_id: int) 
         # breakdown by construction -- and total_points is the stored team
         # total, NOT a re-sum, so it can never drift from the leaderboard.
         points_by_fpl_id = {row.fpl_id: int(row.points) for row in rows}
+        breakdown_by_fpl_id = {}
     else:
-        points_by_fpl_id = {row.fpl_id: calculate_dream11_points(row, row.position) for row in rows}
+        # One breakdown call per player, not calculate_dream11_points AND a
+        # separate breakdown call -- points_by_fpl_id is just each
+        # breakdown's own "total" key, so the two can never disagree.
+        breakdown_by_fpl_id = {row.fpl_id: dream11_points_breakdown(row, row.position) for row in rows}
+        points_by_fpl_id = {fpl_id: b["total"] for fpl_id, b in breakdown_by_fpl_id.items()}
 
     captain_row = next((r for r in rows if r.is_captain), None)
     vice_row = next((r for r in rows if r.is_vice_captain), None)
@@ -1146,6 +1195,11 @@ def _build_user_team_response(conn, contest_row, contest_id: int, user_id: int) 
                 is_vice_captain=row.is_vice_captain,
                 minutes=row.minutes,
                 points=points_by_fpl_id[row.fpl_id],
+                breakdown=(
+                    Dream11PointsBreakdown(**breakdown_by_fpl_id[row.fpl_id])
+                    if row.fpl_id in breakdown_by_fpl_id
+                    else None
+                ),
             )
             for row in rows
         ],

@@ -195,28 +195,73 @@ UPDATE_TEAM_PLAYER_FINAL_STMT = text(
 )
 
 
-def calculate_dream11_points(stats_row, position: str) -> int:
-    goal_pts = stats_row.goals_scored * GOAL_POINTS[position]
-    assist_pts = stats_row.assists * ASSIST_POINTS
+def dream11_points_breakdown(stats_row, position: str) -> dict:
+    """Every named component calculate_dream11_points sums into one number,
+    kept alongside its own raw stat count so a UI can show both ("+2 goals"
+    and "12 pts" rather than just the latter). calculate_dream11_points is
+    now a one-line wrapper around this -- added for the points-breakdown
+    bottom sheet, which needs the intermediate values this function was
+    already computing internally; nothing here is a recompute of anything,
+    just the same arithmetic returned instead of discarded.
 
+    goals_conceded/saves are int-divided (// GOALS_CONCEDED_PER, // SAVES_PER)
+    before their point value is looked up, same as calculate_dream11_points
+    always did -- this returns the POINTS from that division, not the raw
+    conceded/save count, which the caller gets separately as *_count.
+    """
     clean_sheet = stats_row.goals_conceded == 0 and stats_row.minutes >= CLEAN_SHEET_MINUTES_THRESHOLD
-    cs_pts = CLEAN_SHEET_POINTS[position] if clean_sheet else 0
+    conceded_eligible = position in ("GK", "DEF")
+    saves_eligible = position == "GK"
 
-    conceded_pts = (
-        (stats_row.goals_conceded // GOALS_CONCEDED_PER) * GOALS_CONCEDED_PENALTY
-        if position in ("GK", "DEF")
-        else 0
+    goals = stats_row.goals_scored * GOAL_POINTS[position]
+    assists = stats_row.assists * ASSIST_POINTS
+    clean_sheet_pts = CLEAN_SHEET_POINTS[position] if clean_sheet else 0
+    goals_conceded_pts = (
+        (stats_row.goals_conceded // GOALS_CONCEDED_PER) * GOALS_CONCEDED_PENALTY if conceded_eligible else 0
     )
-    saves_pts = (stats_row.saves // SAVES_PER) * SAVES_POINTS if position == "GK" else 0
+    saves_pts = (stats_row.saves // SAVES_PER) * SAVES_POINTS if saves_eligible else 0
+    yellow_cards = stats_row.yellow_cards * YELLOW_CARD_POINTS
+    red_cards = stats_row.red_cards * RED_CARD_POINTS
+    own_goals = stats_row.own_goals * OWN_GOAL_POINTS
+    penalties_saved = stats_row.penalties_saved * PENALTY_SAVED_POINTS
+    penalties_missed = stats_row.penalties_missed * PENALTY_MISSED_POINTS
 
-    card_pts = stats_row.yellow_cards * YELLOW_CARD_POINTS + stats_row.red_cards * RED_CARD_POINTS
-    other_pts = (
-        stats_row.own_goals * OWN_GOAL_POINTS
-        + stats_row.penalties_saved * PENALTY_SAVED_POINTS
-        + stats_row.penalties_missed * PENALTY_MISSED_POINTS
+    total = (
+        goals + assists + clean_sheet_pts + goals_conceded_pts + saves_pts
+        + yellow_cards + red_cards + own_goals + penalties_saved + penalties_missed
     )
 
-    return goal_pts + assist_pts + cs_pts + conceded_pts + saves_pts + card_pts + other_pts
+    return {
+        "minutes": stats_row.minutes,
+        "goals": goals,
+        "goals_count": stats_row.goals_scored,
+        "assists": assists,
+        "assists_count": stats_row.assists,
+        "clean_sheet": clean_sheet_pts,
+        "clean_sheet_achieved": clean_sheet,
+        "clean_sheet_eligible": position != "FWD",  # FWD's CLEAN_SHEET_POINTS is always 0
+        "goals_conceded": goals_conceded_pts,
+        "goals_conceded_count": stats_row.goals_conceded,
+        "goals_conceded_eligible": conceded_eligible,
+        "saves": saves_pts,
+        "saves_count": stats_row.saves,
+        "saves_eligible": saves_eligible,
+        "yellow_cards": yellow_cards,
+        "yellow_cards_count": stats_row.yellow_cards,
+        "red_cards": red_cards,
+        "red_cards_count": stats_row.red_cards,
+        "own_goals": own_goals,
+        "own_goals_count": stats_row.own_goals,
+        "penalties_saved": penalties_saved,
+        "penalties_saved_count": stats_row.penalties_saved,
+        "penalties_missed": penalties_missed,
+        "penalties_missed_count": stats_row.penalties_missed,
+        "total": total,
+    }
+
+
+def calculate_dream11_points(stats_row, position: str) -> int:
+    return dream11_points_breakdown(stats_row, position)["total"]
 
 
 def _rank_teams(scored: list[tuple[int, int]]) -> dict[int, int]:

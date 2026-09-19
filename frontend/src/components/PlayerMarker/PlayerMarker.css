@@ -3,6 +3,15 @@
   flex-direction: column;
   align-items: center;
   position: relative;
+  /* When rendered as a <button> (onSelect passed), strip its default
+     browser chrome so a tappable marker looks identical to the plain,
+     non-interactive <div> it was before. */
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
   /* This is a grid item (PitchLineup.css's per-row grid) whose column is
      already sized to exactly 1/row-length of the row -- min-width: 0
      overrides a grid item's default min-width: auto (= its content's
@@ -13,6 +22,14 @@
      nowrap below, and is untouched by this), so this only lets the
      marker's own box shrink, never its text. */
   min-width: 0;
+}
+
+.player-marker--tappable {
+  cursor: pointer;
+}
+
+.player-marker--tappable:active {
+  opacity: 0.75;
 }
 
 .player-marker__badge {
