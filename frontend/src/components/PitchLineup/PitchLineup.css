@@ -26,30 +26,63 @@
   pointer-events: none;
 }
 
+/* Grid, not flex: grid-template-columns is set inline per row (PitchLineup.jsx)
+   from that row's own player count, so 1/3/4/5 players each get an equal
+   1fr share of the row width instead of a fixed-width marker (see
+   PlayerMarker.css) overflowing past the pitch once a legal 5-a-side
+   DEF/MID row doesn't fit at that fixed size -- the bug this replaces. */
 .pitch-lineup__row {
-  display: flex;
+  display: grid;
+  align-items: start;
+  justify-items: center;
   width: 100%;
+  gap: 4px;
   position: relative;
   z-index: 1;
 }
 
-.pitch-lineup__row--gk {
-  justify-content: center;
-}
-
 .pitch-lineup__row--def {
-  justify-content: space-around;
   padding: 0 var(--space-md);
 }
 
 .pitch-lineup__row--mid {
-  justify-content: space-around;
   padding: 0 var(--space-sm);
 }
 
 .pitch-lineup__row--fwd {
-  justify-content: space-around;
   padding: 0 var(--space-lg);
+}
+
+/* 5-a-side rows (DEF/MID's legal maximum) need every marker to shrink into
+   its narrower 1/5th-width column for legibility -- scaled down here
+   rather than letting the row wrap to a second line. */
+.pitch-lineup__row--dense .player-marker__avatar {
+  width: 32px;
+  height: 32px;
+}
+
+.pitch-lineup__row--dense .player-marker--captain .player-marker__avatar {
+  width: 38px;
+  height: 38px;
+}
+
+.pitch-lineup__row--dense .player-marker__tag {
+  min-width: 44px;
+  padding: 2px 4px;
+}
+
+.pitch-lineup__row--dense .player-marker__tag--captain {
+  min-width: 52px;
+  padding: 3px 6px;
+}
+
+.pitch-lineup__row--dense .player-marker__name,
+.pitch-lineup__row--dense .player-marker__points {
+  font-size: 10px;
+}
+
+.pitch-lineup__row--dense .player-marker--captain .player-marker__points {
+  font-size: 14px;
 }
 
 .pitch-lineup__bench {

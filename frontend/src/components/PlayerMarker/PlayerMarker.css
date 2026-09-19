@@ -3,10 +3,16 @@
   flex-direction: column;
   align-items: center;
   position: relative;
-  /* Never let this marker compress below its badge's min-width -- a
-     shrinkable wrapper combined with wrappable text is what let the name
-     and points render as e.g. "RA" / "Y6" instead of "RAY" / "6". */
-  flex-shrink: 0;
+  /* This is a grid item (PitchLineup.css's per-row grid) whose column is
+     already sized to exactly 1/row-length of the row -- min-width: 0
+     overrides a grid item's default min-width: auto (= its content's
+     intrinsic width), which would otherwise force the column wider than
+     that 1fr share and reintroduce the same overflow the grid exists to
+     prevent. The name/points inside still can't WRAP mid-word (that
+     protection lives on .player-marker__name/__points' white-space:
+     nowrap below, and is untouched by this), so this only lets the
+     marker's own box shrink, never its text. */
+  min-width: 0;
 }
 
 .player-marker__badge {

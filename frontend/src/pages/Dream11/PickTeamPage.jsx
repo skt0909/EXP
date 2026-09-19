@@ -74,11 +74,15 @@ function validate(selected, captainId, viceId, budgetCap, teamSize, maxPerClub) 
   return { errors, counts, cost, clubCounts }
 }
 
-function PitchSlot({ player, captainId, viceId, onRemove }) {
+// dense = this row has 5 total slots (players + the Add button, when still
+// showing one) -- DEF/MID's legal maximum. Scales the jersey/label down a
+// notch, matching PitchLineup's read-only equivalent, since the row's grid
+// (below) gives 5 slots a narrower 1/5th-width column than 3-4 get.
+function PitchSlot({ player, captainId, viceId, onRemove, dense = false }) {
   if (!player) return null
   return (
     <button
-      className="flex flex-col items-center gap-1 shrink-0"
+      className="flex flex-col items-center gap-1 min-w-0"
       onClick={() => onRemove(player.id)}
       title={`Remove ${player.name}`}
       type="button"
@@ -87,11 +91,14 @@ function PitchSlot({ player, captainId, viceId, onRemove }) {
         captain={player.id === captainId}
         player={player}
         showName={false}
-        size="sm"
+        size={dense ? 'xs' : 'sm'}
         viceCaptain={player.id === viceId}
       />
       <span className="bg-surface-container-lowest rounded px-1.5 py-0.5 shadow-sm">
-        <span className="font-label-md text-label-md text-on-surface whitespace-nowrap">
+        <span
+          className="font-label-md text-label-md text-on-surface whitespace-nowrap"
+          style={dense ? { fontSize: '10px' } : undefined}
+        >
           {player.name.length > 9 ? `${player.name.slice(0, 9)}…` : player.name}
         </span>
       </span>
@@ -99,11 +106,13 @@ function PitchSlot({ player, captainId, viceId, onRemove }) {
   )
 }
 
-function AddSlot({ position, onClick }) {
+function AddSlot({ position, onClick, dense = false }) {
   return (
     <button
       aria-label={`Browse ${position} players`}
-      className="w-12 h-12 rounded-full border-2 border-dashed border-on-secondary/60 flex items-center justify-center bg-surface/10 shrink-0"
+      className={`rounded-full border-2 border-dashed border-on-secondary/60 flex items-center justify-center bg-surface/10 ${
+        dense ? 'w-9 h-9' : 'w-12 h-12'
+      }`}
       onClick={() => onClick(position)}
       type="button"
     >
@@ -379,18 +388,28 @@ function PickTeamPage({ mode = 'create' }) {
         {ROWS.map((position) => {
           const inRow = selected.filter((p) => p.position === position)
           const showAdd = canAddMore && inRow.length < LIMITS[position].max
+          // The Add button occupies a slot in the row too -- a row showing
+          // 4 players + Add is visually just as tight as 5 real players
+          // (DEF/MID's legal max), so both get the same dense treatment.
+          const rowCount = inRow.length + (showAdd ? 1 : 0)
+          const dense = rowCount >= 5
           return (
-            <div className="flex items-center justify-center gap-1.5 flex-wrap" key={position}>
+            <div
+              className="grid items-start justify-items-center gap-1.5"
+              key={position}
+              style={{ gridTemplateColumns: `repeat(${Math.max(rowCount, 1)}, 1fr)` }}
+            >
               {inRow.map((player) => (
                 <PitchSlot
                   captainId={captainId}
+                  dense={dense}
                   key={player.id}
                   onRemove={toggle}
                   player={player}
                   viceId={viceId}
                 />
               ))}
-              {showAdd && <AddSlot onClick={setFilter} position={position} />}
+              {showAdd && <AddSlot dense={dense} onClick={setFilter} position={position} />}
             </div>
           )
         })}
