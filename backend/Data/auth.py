@@ -47,6 +47,11 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from Shared.db_utils import get_engine
 
+# Imported as a module, not by name, so tests can monkeypatch is_configured
+# and send on it -- the two things worth exercising here are "SMTP off" and
+# "SMTP on but the provider failed", and neither should need a mail server.
+from Shared import mailer
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -419,6 +424,70 @@ class ForgotPasswordResponse(BaseModel):
 # wired in. Swapping it for a real send is a one-function change: replace
 # this log call with a call to whatever provider gets added, the token
 # generation/storage/expiry logic above it doesn't change at all.
+RESET_EMAIL_SUBJECT = "Reset your PitchSide AI password"
+
+RESET_EMAIL_BODY = """\
+Someone asked to reset the password for your PitchSide AI account.
+
+Open this link to choose a new one:
+
+{link}
+
+The link expires in {minutes} minutes and can only be used once.
+
+If this wasn't you, you can ignore this email -- your password has not
+been changed, and nobody can use this link without receiving it.
+"""
+
+
+def _deliver_reset_link(email: str, user_id: int, link: str) -> None:
+    """Email the reset link, falling back to logging it when SMTP is off.
+
+    NEVER RAISES. The token is already committed by the time this runs, and
+    the caller must return the same generic response whatever happens here:
+
+      * raising would turn a provider outage into a 500, telling the caller
+        their address IS registered (the 500 only happens on the branch
+        where a real account was found), which is exactly the enumeration
+        leak the generic response exists to prevent;
+      * it would also strand a perfectly valid token behind an error, when
+        a retry a minute later would have worked.
+
+    So a failed send is logged as an error and the request still succeeds.
+    The user sees "if that email is registered, a link has been sent" and
+    nothing arrives -- which is indistinguishable, from their side, from
+    having typed an address that was never registered.
+    """
+    if not mailer.is_configured():
+        # The original behaviour, and still what local development and the
+        # test suite rely on: no mail server needed anywhere, link goes to
+        # the server log. Logged at WARNING rather than INFO so that a
+        # DEPLOYED server quietly running without SMTP is visible in the
+        # logs rather than blending into normal traffic.
+        logger.warning(
+            "SMTP not configured -- password reset link for user_id=%s not emailed. Link: %s",
+            user_id,
+            link,
+        )
+        return
+
+    try:
+        mailer.send(
+            to=email,
+            subject=RESET_EMAIL_SUBJECT,
+            body=RESET_EMAIL_BODY.format(
+                link=link, minutes=int(RESET_TOKEN_TTL.total_seconds() // 60)
+            ),
+        )
+    except mailer.MailError as e:
+        # Deliberately does not log the link here. On a configured server the
+        # link belongs in the user's inbox, not in a log file that more
+        # people can read than can read their email.
+        logger.error("Could not email password reset to user_id=%s: %s", user_id, e)
+    else:
+        logger.info("Password reset link emailed to user_id=%s", user_id)
+
+
 @router.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
 def forgot_password(req: ForgotPasswordRequest) -> ForgotPasswordResponse:
     engine = get_engine()
@@ -440,11 +509,10 @@ def forgot_password(req: ForgotPasswordRequest) -> ForgotPasswordResponse:
                     INSERT_RESET_TOKEN_STMT,
                     {"user_id": row.id, "token_hash": token_hash, "expires_at": expires_at},
                 )
-                logger.info(
-                    "Password reset requested for user_id=%s: %s/reset-password?token=%s",
+                _deliver_reset_link(
+                    req.email.strip(),
                     row.id,
-                    _frontend_base_url(),
-                    token,
+                    f"{_frontend_base_url()}/reset-password?token={token}",
                 )
     except SQLAlchemyError as e:
         logger.error("Forgot-password lookup failed: %s: %s", type(e).__name__, e)

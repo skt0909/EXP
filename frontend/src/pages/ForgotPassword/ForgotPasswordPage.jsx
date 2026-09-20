@@ -38,16 +38,22 @@ function ForgotPasswordPage() {
         <div className="mb-xl text-center">
           <h1 className="font-display-lg text-display-lg text-primary mb-sm">PitchSide AI</h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant">
-            {submitted ? 'Check the console for your reset link.' : "Forgot your password?"}
+            {submitted ? 'Check your email.' : 'Forgot your password?'}
           </p>
         </div>
 
         {submitted ? (
           <div className="w-full flex flex-col gap-md items-center text-center">
+            {/* Says nothing a probe could learn from. It does not confirm the
+                address exists, and the expiry is worth stating because the
+                window is short enough (30 min) that a user who reads the
+                mail later would otherwise hit a dead link with no idea why. */}
             <p className="font-body-md text-body-md text-on-surface-variant">
-              If that email is registered, a reset link has been sent. (This
-              project has no email sending yet -- for now, check the backend
-              server's log output for the link.)
+              If that email is registered, a reset link is on its way. The link
+              expires in 30 minutes.
+            </p>
+            <p className="font-body-sm text-body-sm text-on-surface-variant opacity-70">
+              Nothing arrived? Check your spam folder, then try again.
             </p>
             <Link
               className="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors"
