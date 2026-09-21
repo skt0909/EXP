@@ -35,6 +35,13 @@ WHAT IS DELIBERATELY NOT HERE:
     configuration, not rules of the game.
 """
 
+# The only import in this file, and deliberately a standard-library one. The
+# zero-import rule above forbids PROJECT modules, connections and environment
+# reads -- the things that would drag a stack behind this module. `decimal` is
+# none of those: it is pure, always available, and required for the creativity
+# tiers to compare exactly (see CREATIVITY_TIERS).
+from decimal import Decimal
+
 # --- rules version ----------------------------------------------------
 #
 # Which generation of the rules in this module is currently in force.
@@ -228,6 +235,74 @@ YELLOW_CARD_POINTS = -1
 RED_CARD_POINTS = -3
 OWN_GOAL_POINTS = -2
 PENALTY_MISSED_POINTS = -2
+
+
+# --- tactical game (Phase 2) ------------------------------------------
+#
+# ADDITIONS ONLY. Nothing above is removed or changed in Phase 2: the live
+# scorer still reads CURRENT_RULES_VERSION, the chip constants and the
+# captaincy multipliers, and it keeps working until Phase 4 replaces it.
+# Deleting them now would break running code for no gain.
+#
+# Two rule sets therefore sit side by side in this file for one phase. They
+# are separated by this banner rather than interleaved, so it stays obvious
+# which game a constant belongs to.
+
+# Which generation the TACTICAL rules are. Decided in Phase 1 and recorded in
+# IMPLEMENTATION_PLAN.md section 2: "rules_version is an INTEGER, not a string
+# ... holding values 1 (869 rows) and 2 (121 rows) ... The next generation is
+# therefore 3."
+#
+# Deliberately a separate name from CURRENT_RULES_VERSION above, which is still
+# 2 and is what today's scorer stamps. Phase 4 points the scorer at this one;
+# until then the two coexist and neither is ambiguous.
+RULES_VERSION = 3
+
+# Unused free transfers bank up to this many (was MAX_BANKED_FREE_TRANSFERS = 5).
+FREE_TRANSFER_BANK_CAP = 2
+
+# How long a fixture occupies, for Tactical Sub timing: a swap is only legal
+# when the incoming player's first kickoff is after the outgoing player's last
+# fixture ENDS, and "ends" means kickoff + this many minutes.
+FIXTURE_DURATION_MIN = 115
+
+TACTICS = ("attack", "defence", "balanced")
+
+# starting_xi.position_slot -> bench role. Slots 1-11 are the XI and are absent
+# here. Mirrors the generated `role` column added by migration d58b3f10a7c2, so
+# the application and the database agree on what a slot means.
+BENCH_SLOT_ROLES = {
+    12: "auto_gk",
+    13: "auto_outfield",
+    14: "tactical",
+    15: "tactical",
+}
+
+# Legal starting XI shape, used when deciding whether an Auto Sub may come on.
+FORMATION_MIN = {"GK": 1, "DEF": 3, "MID": 2, "FWD": 1}
+FORMATION_MAX = {"GK": 1, "DEF": 5, "MID": 5, "FWD": 3}
+
+# --- Tactical Points, ruleset "Q1" ------------------------------------
+#
+# Earned by the 2 Bonus Players only, per fixture, summed across a double
+# gameweek. Adopted in section 9 of IMPLEMENTATION_PLAN.md after Q1 passed
+# T1a, T1b, T2a, T2b and T5.
+#
+# TIER SEMANTICS: each tuple is (minimum, points) and the tiers are NOT
+# stacked -- only the highest tier reached is paid. 10 defensive actions earn
+# 3, not 2 + 3. Ordered ascending; tier_points() relies on that.
+
+ATTACK_POINTS = {"goal": 3, "assist": 2}
+
+DEFENCE_CLEAN_SHEET_POINTS = 2
+DC_TIERS = ((8, 2), (10, 3))
+
+BALANCED_GOAL_OR_ASSIST_POINTS = 1
+# Decimal, not float, and not int. ml.player_gw_stats.creativity is
+# numeric(6,1) and psycopg2 returns Decimal, so the thresholds must be the same
+# type for the comparison to be exact. With floats, whether a creativity of
+# 39.9 clears 40 would depend on binary representation rather than on the rule.
+CREATIVITY_TIERS = ((Decimal("20"), 1), (Decimal("40"), 3))
 
 
 # --- head-to-head league standings ------------------------------------
