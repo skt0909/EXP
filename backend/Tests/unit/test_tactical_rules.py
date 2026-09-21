@@ -337,3 +337,59 @@ def test_a_breakdown_never_lists_a_zero_contribution():
     from Results.tactical_scoring import general_points_breakdown
     for position, row in _matrix():
         assert all(p["points"] != 0 for p in general_points_breakdown(row, position))
+
+
+# ---- B5, B6, B7: the classic-only transfer leftovers are gone -------------
+
+def test_max_transfers_per_gameweek_is_deleted():
+    """B5. The allowance caps at 2, so a 20-per-gameweek cap can never fire.
+    A constant nothing can reach is worse than no constant: it reads as a live
+    rule."""
+    assert not hasattr(rules, "MAX_TRANSFERS_PER_GAMEWEEK")
+
+
+def test_free_chips_is_deleted():
+    """B6. Chips are removed, so nothing bypasses the allowance."""
+    assert not hasattr(rules, "FREE_CHIPS")
+
+
+def test_validate_transfers_requires_the_allowance():
+    """B7. It used to default to 0, so a caller that forgot it got a confusing
+    '0 free transfers available' rejection instead of a crash."""
+    import inspect
+    from Gameplay.transfers import _validate_transfers
+
+    sig = inspect.signature(_validate_transfers)
+    allowance = sig.parameters["allowance"]
+    assert allowance.default is inspect.Parameter.empty, \
+        "allowance must be required, with no default"
+
+
+def test_transfers_no_longer_references_chip_state():
+    """B6, structurally. FREE_CHIPS and the 20-transfer cap are gone entirely.
+
+    `chip_active` SURVIVES as a response key, deliberately: it is client-facing
+    and the frontend is out of scope until Phase 5, so it stays inert rather
+    than disappearing from the payload -- the same stance the dashboard takes
+    with its captaincy keys. What is gone is the placeholder VARIABLE and
+    everything that fed it.
+
+    Counting occurrences would be brittle, since the docstring discusses the
+    behaviour that used to exist. This asserts the two things that matter:
+    nothing computes it, and the response hands back a literal False.
+    """
+    import pathlib as _pathlib
+    import re as _re
+
+    src = _pathlib.Path(r"d:\Exp\backend\Gameplay\transfers.py").read_text(encoding="utf-8")
+    # The IMPORTS, not the bare strings: the module docstring discusses both
+    # by name when explaining what used to exist, and a prose mention is not a
+    # dependency.
+    rules_import = src.split("from Shared.rules import (")[1].split(")")[0]
+    assert "FREE_CHIPS" not in rules_import
+    assert "MAX_TRANSFERS_PER_GAMEWEEK" not in rules_import
+    assert _re.search(r"^\s*chip_active\s*=\s*(?!False)", src, _re.M) is None, \
+        "nothing may COMPUTE chip_active any more -- only the literal False"
+    assert "chip_active=False," in src
+
+

@@ -89,11 +89,6 @@ FIRST_GAMEWEEK = 1
 # Points charged per transfer beyond the free allowance.
 HIT_COST = 4
 
-MAX_TRANSFERS_PER_GAMEWEEK = 20
-
-# Active this gameweek -> every transfer is free, and the per-gameweek
-# cap above does not apply.
-FREE_CHIPS = {"wildcard", "free_hit"}
 
 
 def _free_transfers_available(used_by_gameweek: dict[int, int], gameweek: int) -> int:

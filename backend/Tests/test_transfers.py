@@ -597,42 +597,6 @@ def test_budget_one_over_boundary_fails(engine, make_team, make_player, test_use
     assert any("insufficient budget" in e and "-1" in e for e in errors)
 
 
-def test_wildcard_chip_makes_every_transfer_free(engine, make_team, make_player, test_user):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    gk_ids = squad["by_position"]["GK"]
-    _upsert_gw_selection(
-        engine, test_user, TEST_SEASON, 1, captain_id=gk_ids[0], vice_captain_id=gk_ids[1], chip_used="wildcard"
-    )
-
-    out_def = squad["by_position"]["DEF"][0]
-    out_mid = squad["by_position"]["MID"][0]
-    out_fwd = squad["by_position"]["FWD"][0]
-    cand_def = _add_candidate(make_team, make_player, fpl_id=8100, position="DEF", team_fpl_id=80100, cost=50)
-    cand_mid = _add_candidate(make_team, make_player, fpl_id=8101, position="MID", team_fpl_id=80101, cost=50)
-    cand_fwd = _add_candidate(make_team, make_player, fpl_id=8102, position="FWD", team_fpl_id=80102, cost=50)
-
-    resp = client.post(
-        "/transfers",
-        json={
-            "season": TEST_SEASON,
-            "gameweek": 1,
-            "transfers": [
-                {"player_out_id": out_def, "player_in_id": cand_def},
-                {"player_out_id": out_mid, "player_in_id": cand_mid},
-                {"player_out_id": out_fwd, "player_in_id": cand_fwd},
-            ],
-        }, headers=bearer_headers(test_user)
-    )
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert all(t["is_free"] is True for t in body["transfers"])
-
-    rows = _transfer_rows(engine, test_user, TEST_SEASON, 1)
-    assert len(rows) == 3
-    assert all(r.is_free is True for r in rows)
-
-
 def test_multiple_simultaneous_violations_all_reported_together(engine, make_team, make_player, test_user):
     squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)  # budget_remaining=100
     fwd_self = squad["by_position"]["FWD"][0]
@@ -702,22 +666,6 @@ def test_transfers_used_reflects_committed_transfers(engine, make_team, make_pla
     assert body["free_transfers_remaining"] == 0
     assert body["chip_active"] is False
     assert body["total_transfers_this_gameweek"] == 2
-
-
-def test_transfers_used_wildcard_reports_uncapped_free(engine, make_team, make_player, test_user):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    gk_ids = squad["by_position"]["GK"]
-    _upsert_gw_selection(
-        engine, test_user, TEST_SEASON, 1, captain_id=gk_ids[0], vice_captain_id=gk_ids[1], chip_used="wildcard"
-    )
-
-    resp = client.get("/transfers/used", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["chip_active"] is True
-    assert body["free_transfers_remaining"] == 0
-    assert body["free_transfers_used"] == 0
 
 
 # ---------------------------------------------------------------- free-transfer banking
@@ -941,75 +889,3 @@ def test_five_banked_and_six_made_costs_exactly_four_points(
     assert paid * 4 == 4
 
 
-def test_normal_gameweek_rejects_transfer_after_twenty_already_made(
-    engine, make_team, make_player, test_user
-):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    _add_historical_transfers(engine, test_user, TEST_SEASON, 1, 20)
-    out_def = squad["by_position"]["DEF"][0]
-    cand_def = _add_candidate(make_team, make_player, fpl_id=9400, position="DEF", team_fpl_id=81400, cost=60)
-
-    resp = client.post(
-        "/transfers",
-        json={
-            "season": TEST_SEASON,
-            "gameweek": 1,
-            "transfers": [{"player_out_id": out_def, "player_in_id": cand_def}],
-        }, headers=bearer_headers(test_user)
-    )
-
-    assert resp.status_code == 422
-    assert any("maximum 20 transfers per gameweek exceeded" in e for e in resp.json()["detail"])
-
-
-def test_wildcard_gameweek_allows_more_than_twenty_transfers(
-    engine, make_team, make_player, test_user
-):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    gk_ids = squad["by_position"]["GK"]
-    _upsert_gw_selection(
-        engine, test_user, TEST_SEASON, 1, captain_id=gk_ids[0], vice_captain_id=gk_ids[1], chip_used="wildcard"
-    )
-    _add_historical_transfers(engine, test_user, TEST_SEASON, 1, 20)
-    out_def = squad["by_position"]["DEF"][0]
-    cand_def = _add_candidate(make_team, make_player, fpl_id=9401, position="DEF", team_fpl_id=81401, cost=60)
-
-    resp = client.post(
-        "/transfers",
-        json={
-            "season": TEST_SEASON,
-            "gameweek": 1,
-            "transfers": [{"player_out_id": out_def, "player_in_id": cand_def}],
-        }, headers=bearer_headers(test_user)
-    )
-
-    assert resp.status_code == 200
-    assert resp.json()["transfers"][0]["is_free"] is True
-
-
-def test_a_chip_gameweek_preserves_the_bank(engine, make_team, make_player, test_user):
-    """Wildcard/Free Hit transfers are free, but they do not spend the
-    manager's saved free-transfer bank for the following gameweek."""
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    mids = squad["by_position"]["MID"]
-    gk_ids = squad["by_position"]["GK"]
-    candidates = [
-        _add_candidate(
-            make_team, make_player, fpl_id=9300 + i, position="MID", team_fpl_id=81300 + i, cost=60
-        )
-        for i in range(3)
-    ]
-    _upsert_gw_selection(
-        engine, test_user, TEST_SEASON, 3, captain_id=gk_ids[0], vice_captain_id=gk_ids[1],
-        chip_used="wildcard",
-    )
-
-    # Gameweek 3 would otherwise hold 3 banked transfers.
-    resp = _make_n_transfers(test_user, 3, mids[:3], candidates)
-    assert resp.status_code == 200
-    assert all(t["is_free"] for t in resp.json()["transfers"])
-
-    gw4 = client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 4}, headers=bearer_headers(test_user)
-    ).json()
-    assert gw4["free_transfers_remaining"] == 4

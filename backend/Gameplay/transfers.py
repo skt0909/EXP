@@ -14,31 +14,27 @@ submission path that does not come apart:
 
   1. _validate_transfers is a single ordered pass spanning all three
      categories: transfer rules (duplicates, ownership, position match,
-     club cap, budget), the chip-conditional bypass of the
-     MAX_TRANSFERS_PER_GAMEWEEK cap, and the deadline lock. The
+     club cap, budget), the allowance, and the deadline lock. The
      endpoint's contract is that every failure is reported at once, in
      one list; splitting the function would produce several lists whose
      concatenation changes the ORDER errors appear in the 422 response.
      test_multiple_simultaneous_violations_all_reported_together asserts
      against that array.
 
-  2. Chip state is a DATA dependency, not a code dependency, which is
-     why no file boundary removes it. chip_active is read from
-     gw_selections.chip_used and tested against rules.FREE_CHIPS -- note
-     this module does not import Gameplay/chips.py at all, and still
-     cannot be separated from chip behaviour. That one boolean decides
-     whether the transfer cap applies, how many free slots exist, and
-     what is_free each transfer row is stamped with. The last of those is
-     permanent: is_free goes into an append-only table and is what
-     scoring.py later charges hits from, so a "Transfers" module unable
-     to see chip state could not decide it.
+  2. Budget and the club cap are whole-squad questions. Both are
+     re-checked against the ENTIRE resulting squad rather than the
+     transferred players, because one swap can tip an unrelated club over
+     the limit through cumulative batch effects, so neither can be
+     answered without the squad this module already holds.
 
-Two further things would have to be forced somewhere they do not belong:
-GW_SELECTION_QUERY reads is_locked (engine) and chip_used (chips) from
-one row, so no split of this file splits that row; and the three
-transfer-counting queries encode both the chip-gameweek exclusion and
-the Free Hit cancellation exclusion in SQL, so "banking" cannot be
-lifted out without taking chip rules with it.
+PHASE 4c UPDATE. The second reason this file used to give was chip state:
+chip_active was read from gw_selections.chip_used, tested against
+rules.FREE_CHIPS, and decided whether the 20-transfer cap applied, how
+many free slots existed, and what is_free each row was stamped with.
+None of that exists any more -- there are no chips, no paid transfers and
+no 20-transfer cap, every accepted transfer is free, and anything beyond
+the allowance is rejected. The chip_active RESPONSE key survives as a
+literal False so the current frontend keeps rendering; Phase 5 removes it.
 
 This is a settled decision, not outstanding work.
 
@@ -172,11 +168,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from Shared.db_utils import get_engine
 from Shared.rules import (
     FIRST_GAMEWEEK,
-    FREE_CHIPS,
     FREE_TRANSFER_BANK_CAP,
     RULES_VERSION,
     MAX_PER_CLUB,
-    MAX_TRANSFERS_PER_GAMEWEEK,
     _selling_price,
     _tactical_free_transfers_available,
 )
@@ -344,7 +338,11 @@ class TransfersUsedResponse(BaseModel):
     gameweek: int
     free_transfers_used: int
     free_transfers_remaining: int
-    chip_active: bool
+    # B6: chips are gone. The KEY stays so the current frontend keeps
+    # rendering -- same stance as the dashboard's inert captaincy keys -- but
+    # it is a literal False now, not read from anything. The frontend phase
+    # removes it.
+    chip_active: bool = False
     total_transfers_this_gameweek: int
 
 
@@ -412,9 +410,8 @@ def _validate_transfers(
     gw_selection_row,
     free_used_count: int,
     total_used_count: int,
-    chip_active: bool,
     deadline_passed: bool,
-    allowance: int = 0,
+    allowance: int,
 ) -> tuple[list[str], int]:
     """Collect every validation failure instead of stopping at the first.
 
@@ -428,12 +425,6 @@ def _validate_transfers(
 
     if not req.transfers:
         errors.append("at least one transfer is required")
-
-    if not chip_active and total_used_count + len(req.transfers) > MAX_TRANSFERS_PER_GAMEWEEK:
-        errors.append(
-            f"maximum {MAX_TRANSFERS_PER_GAMEWEEK} transfers per gameweek exceeded "
-            f"({total_used_count} already made, {len(req.transfers)} submitted)"
-        )
 
     # No paid transfers and no hits: anything beyond the free allowance is
     # REJECTED rather than charged 4 points. The allowance banks to
@@ -567,10 +558,9 @@ def get_transfers_used(
         ).scalar()
         allowance = free_transfers_available(conn, user_id, season, gameweek)
 
-    chip_active = gw_selection_row is not None and gw_selection_row.chip_used in FREE_CHIPS
+
     # 0 under a chip means "uncapped", not "none left" -- the client reads
-    # chip_active to tell the two apart.
-    free_remaining = 0 if chip_active else max(0, allowance - free_used)
+    free_remaining = max(0, allowance - free_used)
 
     return TransfersUsedResponse(
         user_id=user_id,
@@ -578,7 +568,7 @@ def get_transfers_used(
         gameweek=gameweek,
         free_transfers_used=free_used,
         free_transfers_remaining=free_remaining,
-        chip_active=chip_active,
+        chip_active=False,
         total_transfers_this_gameweek=total_used,
     )
 
@@ -654,14 +644,9 @@ def submit_transfers(
             ).scalar()
             allowance = free_transfers_available(conn, user_id, req.season, req.gameweek)
 
-            # No chips exist under the tactical rules, so nothing bypasses the
-            # allowance any more. Kept as a name rather than threaded out of
-            # _validate_transfers, whose argument order is asserted by
-            # test_multiple_simultaneous_violations_all_reported_together.
-            chip_active = False
             errors, budget_remaining_after = _validate_transfers(
-                req, user_id, user_squad_row, active_squad, players, gw_selection_row, free_used_count,
-                total_used_count, chip_active, deadline_passed, allowance,
+                req, user_id, user_squad_row, active_squad, players, gw_selection_row,
+                free_used_count, total_used_count, deadline_passed, allowance,
             )
             # Raising here rolls the transaction back, which is what releases
             # the lock -- pg_advisory_xact_lock is transaction-scoped, so it
@@ -669,8 +654,6 @@ def submit_transfers(
             # batch has written nothing and holds nothing.
             if errors:
                 raise HTTPException(status_code=422, detail=errors)
-
-            free_slots_left = 0 if chip_active else max(0, allowance - free_used_count)
 
             transfer_plan = []
             for i, t in enumerate(req.transfers):
