@@ -45,6 +45,19 @@ def test_tactics_are_exactly_the_three_the_check_constraint_allows():
     assert set(rules.TACTICS) == {"attack", "defence", "balanced"}
 
 
+def test_formation_minimums_require_three_midfielders():
+    # D1: 1 GK, >=3 DEF, >=3 MID, >=1 FWD. The MID floor moved from 2 to 3,
+    # which removes exactly one formation: 5-2-3.
+    assert rules.FORMATION_MIN == {"GK": 1, "DEF": 3, "MID": 3, "FWD": 1}
+
+
+def test_there_is_no_separate_maximum_rule():
+    # D1: maxima are implied by the 2/5/5/3 squad, not stated separately. A
+    # cover can never exceed a position's squad count, so nothing needs to
+    # check one -- see the proof in tactical_scoring._formation_is_legal.
+    assert not hasattr(rules, "FORMATION_MAX")
+
+
 def test_bench_slot_map():
     assert rules.BENCH_SLOT_ROLES == {
         12: "auto_gk",

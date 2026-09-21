@@ -31,7 +31,10 @@ below because several of them are only correct in this sequence:
      and the backup did.
   4. Outfield cover: the slot-13 Auto Sub, if he appeared, replaces the
      LOWEST-slot non-appearing outfield starter whose replacement keeps the
-     formation legal. One Auto Sub, so at most one cover.
+     formation legal (1 GK, >=3 DEF, >=3 MID, >=1 FWD). One Auto Sub, so at
+     most one cover. A starter actually replaced in step 3 or 4 is reported
+     with role 'auto_sub_replaced' and stops counting; one who did not play
+     but was NOT replaced stays a plain 'starter' and still counts, at 0.
   5. Tactical Points: for each Bonus Player who appeared HIMSELF, apply the
      tactic's events per fixture and sum. Never inherited by a cover.
   6. Sub Bonus: +1 per executed swap where the incoming player's full-gameweek
@@ -60,7 +63,6 @@ from Shared.rules import (
     DEF_CONTRIBUTION_POINTS,
     DEF_CONTRIBUTION_THRESHOLD,
     DEFENCE_CLEAN_SHEET_POINTS,
-    FORMATION_MAX,
     FORMATION_MIN,
     GOAL_POINTS,
     GOALS_CONCEDED_PER,
@@ -82,6 +84,11 @@ ROLE_STARTER = "starter"
 ROLE_SWAPPED_OUT = "swapped_out"
 ROLE_SWAPPED_IN = "swapped_in"
 ROLE_AUTO_SUB_COVER = "auto_sub_cover"
+# D2, closing ambiguity A1: a starter who did not play AND was replaced by an
+# Auto Sub. Distinct from a plain 'starter' who did not play and was NOT
+# replaced -- that one is still a scoring slot contributing 0, whereas this one
+# has stopped counting entirely. The dashboard needs to tell them apart.
+ROLE_AUTO_SUB_REPLACED = "auto_sub_replaced"
 ROLE_BENCH_UNUSED = "bench_unused"
 
 
@@ -270,8 +277,16 @@ def tactical_points(row, position, tactic):
 
 
 def _formation_is_legal(counts):
-    return all(FORMATION_MIN[p] <= counts.get(p, 0) <= FORMATION_MAX[p]
-               for p in FORMATION_MIN)
+    """Minimums only, per D1: 1 GK, >=3 DEF, >=3 MID, >=1 FWD.
+
+    No upper bound is checked because none can be breached. An Auto Sub of
+    position P is only on the bench when the XI holds fewer than the squad's
+    allocation of P (2 GK / 5 DEF / 5 MID / 3 FWD), so bringing him on reaches
+    that allocation at most -- a 5-defender XI leaves no spare defender to make
+    it 6. An earlier FORMATION_MAX encoded that as a rule and was checked here;
+    it was unreachable, and D1 settles that maxima are implied by the squad
+    rather than stated."""
+    return all(counts.get(p, 0) >= minimum for p, minimum in FORMATION_MIN.items())
 
 
 def score_selection(selection, stats, positions):
@@ -412,6 +427,8 @@ def score_selection(selection, stats, positions):
             role = ROLE_SWAPPED_IN
         elif pid in covers:
             role = ROLE_AUTO_SUB_COVER
+        elif pid in replaced:
+            role = ROLE_AUTO_SUB_REPLACED
         elif slot.position_slot <= STARTING_XI_SIZE:
             role = ROLE_STARTER
         else:

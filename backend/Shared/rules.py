@@ -279,8 +279,18 @@ BENCH_SLOT_ROLES = {
 }
 
 # Legal starting XI shape, used when deciding whether an Auto Sub may come on.
-FORMATION_MIN = {"GK": 1, "DEF": 3, "MID": 2, "FWD": 1}
-FORMATION_MAX = {"GK": 1, "DEF": 5, "MID": 5, "FWD": 3}
+#
+# The MID floor is 3, not 2. That is the ONE difference from the classic game's
+# shape rule and it removes exactly one formation, 5-2-3. The classic
+# constants are deliberately left alone -- Gameplay/starting_xi.py:383 and
+# Results/scoring.py:212 still enforce 2, and they are Phase 3's to change.
+#
+# There is no FORMATION_MAX. Maxima are implied by the 2 GK / 5 DEF / 5 MID /
+# 3 FWD squad rather than being a separate rule, and no check needs them: an
+# Auto Sub of position P can only exist on the bench when the XI holds fewer
+# than the squad's P, so bringing him on lands at the squad count at most. A
+# 5-defender XI leaves no defender on the bench to push it to 6.
+FORMATION_MIN = {"GK": 1, "DEF": 3, "MID": 3, "FWD": 1}
 
 # --- Tactical Points, ruleset "Q1" ------------------------------------
 #

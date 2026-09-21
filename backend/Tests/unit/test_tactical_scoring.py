@@ -168,6 +168,8 @@ def test_the_backup_gk_covers_only_the_starting_gk():
     result = score_selection(_squad(), stats, POSITIONS)
     assert _line(result, 12).role == "auto_sub_cover"
     assert _line(result, 12).general_points == 3
+    assert _line(result, 12).covers_player_id == 1
+    assert _line(result, 1).role == "auto_sub_replaced"
     assert _line(result, 1).counted is False
     assert result.raw_points == 20 + 3
 
@@ -191,10 +193,14 @@ def test_the_outfield_auto_sub_covers_the_lowest_slot_that_keeps_the_formation_l
     result = score_selection(_squad(), stats, POSITIONS)
     assert _line(result, 13).role == "auto_sub_cover"
     assert _line(result, 13).covers_player_id == 5
+    assert _line(result, 5).role == "auto_sub_replaced"
     assert _line(result, 5).counted is False
-    # Only one outfield Auto Sub exists, so slot 9 is NOT covered. He remains a
-    # scoring slot and simply contributes 0.
+    # Only one outfield Auto Sub exists, so slot 9 is NOT covered. He keeps the
+    # plain 'starter' role, remains a scoring slot, and simply contributes 0 --
+    # which is exactly the distinction auto_sub_replaced exists to draw.
     assert _covered(result) == {5}
+    assert _line(result, 9).role == "starter"
+    assert _line(result, 9).counted is True
     assert _line(result, 9).general_points == 0
     assert result.raw_points == 9 * 2 + 8
 
@@ -248,6 +254,98 @@ def test_the_auto_sub_skips_an_illegal_slot_and_covers_a_later_legal_one():
     assert _line(result, 13).covers_player_id == 9
     assert _covered(result) == {9}               # slot 2 was skipped, not covered
     assert result.raw_points == 9 * 2 + 6
+
+
+def test_the_midfield_floor_is_three_so_a_third_midfielder_cannot_be_covered_away():
+    # D1: the minimum is 3 MID, not 2. A 3-MID XI that loses a midfielder
+    # cannot be covered by a non-midfielder -- that would leave 2.
+    positions = {1: "GK",
+                 2: "DEF", 3: "DEF", 4: "DEF", 5: "DEF",
+                 6: "MID", 7: "MID", 8: "MID",
+                 9: "FWD", 10: "FWD", 11: "FWD",
+                 12: "GK", 13: "DEF", 14: "MID", 15: "FWD"}
+    selection = Selection(
+        tactic="balanced",
+        slots=[Slot(position_slot=i, player_id=i, is_bonus=(i in (6, 7)))
+               for i in range(1, 16)],
+        swaps=[],
+    )
+    stats = _stats()
+    stats[8] = [_row(minutes=0)]          # a midfielder, and only 3 were named
+    stats[13] = [_row(goals_scored=1)]    # the Auto Sub is a defender
+    result = score_selection(selection, stats, positions)
+    assert _line(result, 13).role == "bench_unused"
+    assert _covered(result) == set()
+    assert _line(result, 8).role == "starter"     # not replaced
+    assert result.raw_points == 10 * 2
+
+
+def test_five_two_three_is_no_longer_a_legal_shape_to_arrive_at():
+    # D1 removes exactly one formation: 5-2-3. Reaching it by Auto Sub must be
+    # refused -- here a 5-3-2 XI loses a midfielder and the only Auto Sub is a
+    # forward, which would produce 5 DEF / 2 MID / 3 FWD.
+    positions = {1: "GK",
+                 2: "DEF", 3: "DEF", 4: "DEF", 5: "DEF", 6: "DEF",
+                 7: "MID", 8: "MID", 9: "MID",
+                 10: "FWD", 11: "FWD",
+                 12: "GK", 13: "FWD", 14: "MID", 15: "MID"}
+    selection = Selection(
+        tactic="balanced",
+        slots=[Slot(position_slot=i, player_id=i, is_bonus=(i in (7, 8)))
+               for i in range(1, 16)],
+        swaps=[],
+    )
+    stats = _stats()
+    stats[9] = [_row(minutes=0)]
+    stats[13] = [_row(goals_scored=1)]
+    result = score_selection(selection, stats, positions)
+    assert _line(result, 13).role == "bench_unused"
+    assert _covered(result) == set()
+
+
+# ---- D2: the sixth role ----------------------------------------------------
+
+def test_a_replaced_starter_is_labelled_auto_sub_replaced_and_stops_counting():
+    stats = _stats()
+    stats[5] = [_row(minutes=0)]          # DEF no-show
+    stats[13] = [_row(goals_scored=1)]    # DEF Auto Sub: 2 + 6 = 8
+    result = score_selection(_squad(), stats, POSITIONS)
+
+    replaced = _line(result, 5)
+    assert replaced.role == "auto_sub_replaced"
+    assert replaced.general_points == 0
+    assert replaced.counted is False
+
+    cover = _line(result, 13)
+    assert cover.role == "auto_sub_cover"
+    assert cover.covers_player_id == 5
+    assert cover.counted is True
+
+    # The replaced starter contributes nothing; the cover contributes instead.
+    assert result.raw_points == 10 * 2 + 8
+
+
+def test_the_six_roles_are_the_only_ones_the_breakdown_ever_reports():
+    stats = _stats()
+    stats[5] = [_row(minutes=0)]          # will be replaced
+    stats[13] = [_row()]                  # the cover
+    result = score_selection(_squad(swaps=((9, 14),)), stats, POSITIONS)
+    assert {p.role for p in result.players} == {
+        "starter", "swapped_out", "swapped_in", "auto_sub_cover",
+        "auto_sub_replaced", "bench_unused",
+    }
+
+
+def test_only_a_replaced_starter_gets_the_new_role_not_an_uncovered_no_show():
+    # The whole point of A1's fix: "did not play" and "was replaced" are
+    # different states and must be told apart.
+    stats = _stats()
+    stats[5] = [_row(minutes=0)]
+    stats[13] = [_row(minutes=0)]         # the Auto Sub did not play either
+    result = score_selection(_squad(), stats, POSITIONS)
+    assert _line(result, 5).role == "starter"
+    assert _line(result, 5).counted is True
+    assert _line(result, 13).role == "bench_unused"
 
 
 # ---- step 5: tactical points ----------------------------------------------

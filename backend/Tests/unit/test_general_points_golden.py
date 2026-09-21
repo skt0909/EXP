@@ -180,6 +180,10 @@ def test_general_points_matches_the_archive_minus_bonus():
                 examples.append(f"{rec.get('name')} gw{rec.get('GW')} "
                                 f"{position}: got {got}, archive {expected}, row={row}")
 
+    # Printed, not just asserted: "it passed" does not say how much was
+    # actually compared, and a silently-shrinking sample would still pass.
+    print(f"\narchive {season}: {checked} rows checked, {mismatches} mismatches")
+
     assert checked > 1000, f"only {checked} rows parsed -- the CSV shape changed?"
     assert mismatches == 0, (
         f"{mismatches} of {checked} rows disagree with the archive:\n"
