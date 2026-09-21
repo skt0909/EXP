@@ -90,9 +90,9 @@ def main() -> None:
         ("T1b", f"each average within +-{AVG_REL:.0%} of their mean ({centre:.2f})", all(abs(f_mean[t] / centre - 1) <= AVG_REL for t in T)),
         ("T2a", "swing inside each tactic's band", swing_ok),
         ("T2b", f"adjacent swings at least {MIN_SWING_GAP} apart", gaps_ok),
-        ("T3a", f"casual max/min <= {CASUAL_TARGET} (now {cas:.2f})", cas <= CASUAL_TARGET),
-        ("T3b", f"casual max/min <= {CASUAL_LIMIT} hard limit", cas <= CASUAL_LIMIT),
-        ("T3c", f"casual max/min <= {CASUAL_LIMIT} with equal pools (now {cas15:.2f})", cas15 <= CASUAL_LIMIT),
+        ("T3a", f"casual max/min <= {CASUAL_TARGET} (now {cas:.3f})", cas <= CASUAL_TARGET),
+        ("T3b", f"casual max/min <= {CASUAL_LIMIT} hard limit (now {cas:.3f})", cas <= CASUAL_LIMIT),
+        ("T3c", f"casual max/min <= {CASUAL_LIMIT} with equal pools (now {cas15:.3f})", cas15 <= CASUAL_LIMIT),
         ("T4", f"no tactic best in more than {MAX_WIN_SHARE:.0%} of Gameweeks", f_win.max() <= MAX_WIN_SHARE),
         ("T5", f"at most {MAX_THRESHOLDS} thresholds (now {thresholds})", thresholds <= MAX_THRESHOLDS),
     ]

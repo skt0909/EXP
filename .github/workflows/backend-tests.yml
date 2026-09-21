@@ -45,6 +45,11 @@ jobs:
       # matching DATABASE_URL. Points at the redis service above.
       REDIS_URL: redis://localhost:6379/0
       TEST_REDIS_URL: redis://localhost:6379/0
+      # Migration c41a9e27d06b empties the gameplay tables and refuses to run
+      # unless this names the database it is connected to. Both URLs above
+      # point at fpl_game_test, so this unlocks the wipe for the CI database
+      # and nothing else. It must never name fpl_game or pitchside_db.
+      ALLOW_GAMEPLAY_WIPE: fpl_game_test
 
     steps:
       - uses: actions/checkout@v4
