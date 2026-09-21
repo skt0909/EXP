@@ -273,6 +273,93 @@ def tactical_points(row, position, tactic):
             + tier_points(creativity, CREATIVITY_TIERS))
 
 
+# ---- breakdowns, for display -----------------------------------------------
+#
+# The dashboard has to tell a manager WHICH rules produced a player's points,
+# not just the total. These mirror the two functions above rule for rule, and
+# read the same constants, so they cannot drift in VALUE. They can drift in
+# COVERAGE -- a new rule added above and forgotten here -- which is what
+# test_every_breakdown_sums_to_its_total exists to catch: it asserts
+# sum(breakdown) == the function's own answer over a matrix of rows.
+
+
+def general_points_breakdown(row, position):
+    """[{"rule": str, "points": int}, ...] for one player-fixture row.
+
+    Only non-zero contributions are listed: a defender who conceded nothing
+    should not be shown a "goals conceded: 0" line."""
+    minutes = _get(row, "minutes")
+    out = []
+
+    def add(rule, points):
+        if points:
+            out.append({"rule": rule, "points": points})
+
+    if minutes > 0:
+        if minutes >= APPEARANCE_FULL_MINUTES:
+            add("appearance_60_plus", APPEARANCE_FULL_POINTS)
+        else:
+            add("appearance_under_60", APPEARANCE_POINTS)
+
+    add("goals", _get(row, "goals_scored") * GOAL_POINTS[position])
+    add("assists", _get(row, "assists") * ASSIST_POINTS)
+
+    if minutes >= CLEAN_SHEET_MINUTES_THRESHOLD and _get(row, "clean_sheets"):
+        add("clean_sheet", CLEAN_SHEET_POINTS[position])
+
+    if position == "GK":
+        add("saves", (_get(row, "saves") // SAVES_PER) * SAVES_POINTS)
+        add("penalties_saved", _get(row, "penalties_saved") * PENALTY_SAVED_POINTS)
+
+    if position in ("GK", "DEF"):
+        add("goals_conceded",
+            (_get(row, "goals_conceded") // GOALS_CONCEDED_PER) * GOALS_CONCEDED_POINTS)
+
+    if position != "GK":
+        threshold = (DEF_CONTRIBUTION_THRESHOLD if position == "DEF"
+                     else MID_FWD_CONTRIBUTION_THRESHOLD)
+        if _get(row, "defensive_contributions") >= threshold:
+            add("defensive_contribution", DEF_CONTRIBUTION_POINTS)
+
+    add("yellow_card", _get(row, "yellow_cards") * YELLOW_CARD_POINTS)
+    add("red_card", _get(row, "red_cards") * RED_CARD_POINTS)
+    add("own_goal", _get(row, "own_goals") * OWN_GOAL_POINTS)
+    add("penalty_missed", _get(row, "penalties_missed") * PENALTY_MISSED_POINTS)
+
+    return out
+
+
+def tactical_points_breakdown(row, position, tactic):
+    """[{"rule": str, "points": int}, ...] for one player-fixture row under
+    `tactic`. Empty when the tactic pays nothing for this row."""
+    if tactic not in TACTICS:
+        raise ValueError(f"unknown tactic {tactic!r}; expected one of {TACTICS}")
+    out = []
+
+    def add(rule, points):
+        if points:
+            out.append({"rule": rule, "points": points})
+
+    if tactic == "attack":
+        add("attack_goals", _get(row, "goals_scored") * ATTACK_POINTS["goal"])
+        add("attack_assists", _get(row, "assists") * ATTACK_POINTS["assist"])
+        return out
+
+    if tactic == "defence":
+        if (_get(row, "minutes") >= CLEAN_SHEET_MINUTES_THRESHOLD
+                and _get(row, "clean_sheets")):
+            add("defence_clean_sheet", DEFENCE_CLEAN_SHEET_POINTS)
+        add("defence_contribution_tier",
+            tier_points(_get(row, "defensive_contributions"), DC_TIERS))
+        return out
+
+    add("balanced_goal_or_assist",
+        (_get(row, "goals_scored") + _get(row, "assists")) * BALANCED_GOAL_OR_ASSIST_POINTS)
+    add("balanced_creativity_tier",
+        tier_points(_get(row, "creativity", Decimal("0")), CREATIVITY_TIERS))
+    return out
+
+
 # ---- the engine ------------------------------------------------------------
 
 

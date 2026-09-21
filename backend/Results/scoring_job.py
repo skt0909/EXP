@@ -41,6 +41,7 @@ stray float() here would fail loudly rather than silently deciding a boundary.
 """
 import logging
 import re
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -473,3 +474,39 @@ def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, ga
         stats_by_player,
         positions,
     )
+
+
+# ---- single-manager entry point, for the dashboard -------------------------
+
+
+def score_manager(conn, season: str, gameweek: int, gw_selection_id: int, tactic: str):
+    """Score ONE manager and return the engine's full SelectionScore.
+
+    The dashboard calls this per request, so a manager's per-player points are
+    computed rather than stored (decision: no new tables). It reuses the same
+    queries and the same row mapping as the batch job, which is the point --
+    a second mapping here could disagree with the one that wrote gw_scores,
+    and the dashboard would explain a number it did not produce.
+
+    Takes a Connection, not an Engine: the dashboard already holds one open.
+    """
+    slot_rows = conn.execute(SLOTS_QUERY, {"selection_ids": [gw_selection_id]}).all()
+    swap_rows = conn.execute(SWAPS_QUERY, {"selection_ids": [gw_selection_id]}).all()
+
+    player_ids = sorted({r.player_id for r in slot_rows})
+    stats_by_player, positions = {}, {}
+    if player_ids:
+        for r in conn.execute(
+            BATCH_STATS_QUERY,
+            {"season": season, "gameweek": gameweek, "player_ids": player_ids},
+        ):
+            positions[r.player_id] = r.position
+            if r.minutes is None and r.creativity is None and r.goals_scored is None:
+                stats_by_player.setdefault(r.player_id, [])
+                continue
+            stats_by_player.setdefault(r.player_id, []).append(_stat_row(r))
+
+    sel = SimpleNamespace(user_id=None, gw_selection_id=gw_selection_id, tactic=tactic)
+    result = _score_one(sel, slot_rows, swap_rows, stats_by_player, positions,
+                        season, gameweek)
+    return result, stats_by_player, positions

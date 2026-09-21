@@ -42,7 +42,7 @@ for the equivalent case.
 import logging
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 
 from Shared.db_utils import get_engine
@@ -50,9 +50,16 @@ from Data.auth import CurrentUser, get_current_user
 # Shared with scoring.py rather than redeclared here -- this module used to
 # keep its own copies, and the two had to agree or the multiplier shown
 # beside a score would contradict the score itself.
-from Shared.rules import CAPTAIN_MULTIPLIER, TRIPLE_CAPTAIN_MULTIPLIER
 from Shared.deadlines import resolve_gameweek_deadline
-from Results.scoring import resolve_autosubs
+# Phase 4b: per-player points are computed at request time by the TACTICAL
+# engine, for THIS manager and gameweek. The classic scoring.py is no longer
+# imported at all -- resolve_autosubs went with it, because the engine already
+# reports which players were covered and which were replaced.
+from Results.scoring_job import ruleset_first_gameweek, score_manager
+from Results.tactical_scoring import (
+    general_points_breakdown,
+    tactical_points_breakdown,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +73,7 @@ router = APIRouter()
 USER_QUERY = text("SELECT username, team_name FROM users WHERE id = :user_id")
 
 GW_SELECTION_QUERY = text(
-    "SELECT id AS gw_selection_id, chip_used FROM gw_selections "
+    "SELECT id AS gw_selection_id, tactic FROM gw_selections "
     "WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
 )
 
@@ -85,15 +92,11 @@ GW_SELECTION_QUERY = text(
 # it the same way), never a raw numeric id.
 STARTING_XI_ROWS_QUERY = text(
     """
-    SELECT sx.position_slot, sx.is_captain, sx.is_vice_captain,
-           mp.fpl_id AS player_id, mp.web_name, mp.position, t.short_name AS club,
-           COALESCE(pgs.total_points, 0) AS points,
-           COALESCE(pgs.minutes, 0) AS minutes
+    SELECT sx.position_slot, sx.is_bonus,
+           mp.fpl_id AS player_id, mp.web_name, mp.position, t.short_name AS club
     FROM starting_xi sx
     JOIN ml.players mp ON mp.fpl_id = sx.player_id AND mp.season = :season
     JOIN ml.teams t ON t.id = mp.team_id
-    LEFT JOIN ml.player_gw_stats pgs
-        ON pgs.player_id = mp.id AND pgs.season = :season AND pgs.gameweek = :gameweek
     WHERE sx.gw_selection_id = :gw_selection_id
     ORDER BY sx.position_slot
     """
@@ -106,7 +109,7 @@ STARTING_XI_ROWS_QUERY = text(
 # the effective XI at each player's TRUE base value with the captain NOT
 # doubled, so captain_bonus = final_points - raw_points cannot double-count.
 GW_SCORE_QUERY = text(
-    "SELECT raw_points, final_points, transfer_hits, hit_deductions, total_points, season_total "
+    "SELECT raw_points, final_points, tactical_points, sub_bonus, total_points, season_total "
     "FROM gw_scores WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
 )
 
@@ -186,6 +189,29 @@ class PlayerLine(BaseModel):
     # match is played and under bench_boost, which skips autosub entirely.
     is_autosubbed_in: bool = False
     is_autosubbed_out: bool = False
+    # --- added in Phase 4b, all additive ---
+    # One of the six engine roles: starter, swapped_out, swapped_in,
+    # auto_sub_cover, auto_sub_replaced, bench_unused.
+    role: str = "starter"
+    is_bonus: bool = False
+    general_points: int = 0
+    tactical_points: int = 0
+    # [{"rule": "goals", "points": 6}, ...] -- which rules produced the two
+    # numbers above, summed across the player's fixtures this gameweek.
+    general_breakdown: list = Field(default_factory=list)
+    tactical_breakdown: list = Field(default_factory=list)
+    # Whether this player's General Points reached the manager's total. False
+    # for a replaced starter and for an unused bench player.
+    counted: bool = False
+
+
+class SwapLine(BaseModel):
+    """One executed Tactical swap, as the dashboard shows it."""
+    player_out_id: int
+    player_in_id: int
+    general_out: int
+    general_in: int
+    sub_bonus: int
 
 
 class Lineup(BaseModel):
@@ -204,7 +230,7 @@ class TeamDashboardResponse(BaseModel):
     deadline: str | None
     has_lineup: bool
     chip_used: str | None
-    captain_multiplier: int
+    captain_multiplier: int | None
     gw_points: int
     gw_average: float | None
     season_total: int
@@ -228,6 +254,21 @@ class TeamDashboardResponse(BaseModel):
     # for the live/current gameweek, which reads today's live squad state
     # exactly as it always has.
     team_value_available: bool
+    # --- added in Phase 4b, all additive ---
+    tactic: str | None
+    general_points: int
+    tactical_points: int
+    sub_bonus: int
+    total: int
+    swaps: list[SwapLine] = Field(default_factory=list)
+    # True while ANY fixture in this gameweek is not finished. Points and
+    # creativity are only final at full-time, so a client must be able to say
+    # "so far" rather than presenting a settled score.
+    provisional: bool = False
+    # False when this gameweek is not scored under these rules at all -- before
+    # the ruleset epoch, or no selection submitted. `scored_reason` says which.
+    scored: bool = True
+    scored_reason: str | None = None
     team_value: float
     bank: float
     lineup: Lineup
@@ -236,6 +277,22 @@ class TeamDashboardResponse(BaseModel):
 
 def _empty_lineup() -> Lineup:
     return Lineup(GK=[], DEF=[], MID=[], FWD=[])
+
+
+def _merge_breakdown(parts):
+    """Sum a player's per-fixture breakdown rows into one list per rule.
+
+    A double gameweek produces two "goals" rows; a manager wants one line
+    saying 2 goals, not two lines saying one each. Order is preserved so the
+    rules read in the order they are applied."""
+    merged, order = {}, []
+    for part in parts:
+        rule = part["rule"]
+        if rule not in merged:
+            merged[rule] = 0
+            order.append(rule)
+        merged[rule] += part["points"]
+    return [{"rule": r, "points": merged[r]} for r in order if merged[r]]
 
 
 def _resolve_live_status(row) -> str:
@@ -249,36 +306,11 @@ def _resolve_live_status(row) -> str:
     return "live" if row.started_count > 0 else "upcoming"
 
 
-def _autosub_player_ids(rows, chip_used: str | None) -> tuple[set[int], set[int]]:
-    """Returns (subbed_in_player_ids, subbed_out_player_ids).
-
-    Delegates the actual rules to scoring.resolve_autosubs so there is exactly
-    one implementation of them. Returns empty sets whenever autosub can't apply:
-    bench_boost (all 15 count, so nothing is substituted), an incomplete squad,
-    or a gameweek where nobody has played yet.
-    """
-    if chip_used == "bench_boost" or len(rows) != 15:
-        return set(), set()
-
-    starters = {r.position_slot: r for r in rows if r.position_slot <= 11}
-    bench = {r.position_slot: r for r in rows if r.position_slot > 11}
-    try:
-        effective = resolve_autosubs(starters, bench)
-    except StopIteration:
-        # resolve_autosubs assumes exactly one GK on the pitch and one on the
-        # bench. A squad that doesn't satisfy that is a scoring-side problem;
-        # the dashboard should still render, just without autosub badges.
-        logger.warning(
-            "Could not resolve autosubs for display (no GK in starters or bench) -- "
-            "rendering dashboard without autosub indicators."
-        )
-        return set(), set()
-
-    effective_ids = {r.player_id for r in effective}
-    starter_ids = {r.player_id for r in starters.values()}
-    subbed_out = starter_ids - effective_ids
-    subbed_in = effective_ids - starter_ids
-    return subbed_in, subbed_out
+# _autosub_player_ids was removed in Phase 4b. It delegated to the classic
+# scoring.py's resolve_autosubs, which this module no longer imports: the
+# tactical engine already reports who covered whom (role 'auto_sub_cover',
+# with covers_player_id) and who was replaced ('auto_sub_replaced'), so a
+# second implementation of the rules is no longer needed to draw the badge.
 
 
 @router.get("/team", response_model=TeamDashboardResponse)
@@ -302,28 +334,82 @@ def get_team_dashboard(
         ).first()
 
         has_lineup = selection_row is not None
-        chip_used = selection_row.chip_used if has_lineup else None
-        captain_multiplier = TRIPLE_CAPTAIN_MULTIPLIER if chip_used == "triple_captain" else CAPTAIN_MULTIPLIER
+        # Chips are gone. The key stays in the response so the current frontend
+        # keeps rendering; it is always None now, and the frontend phase
+        # removes it. Same for captain_multiplier below.
+        chip_used = None
+        captain_multiplier = None
+        tactic = selection_row.tactic if has_lineup else None
 
         lineup = _empty_lineup()
         bench: list[PlayerLine] = []
+        swap_lines: list[SwapLine] = []
+        general_total = tactical_total = sub_bonus_total = engine_total = 0
+
         if has_lineup:
             rows = conn.execute(
                 STARTING_XI_ROWS_QUERY,
-                {"gw_selection_id": selection_row.gw_selection_id, "season": season, "gameweek": gameweek},
+                {"gw_selection_id": selection_row.gw_selection_id, "season": season},
             ).all()
-            subbed_in, subbed_out = _autosub_player_ids(rows, chip_used)
+
+            # THE change: per-player points now come from the tactical engine,
+            # scored for THIS manager and gameweek, rather than from
+            # ml.player_gw_stats.total_points. Two managers holding the same
+            # player can now legitimately see different numbers, because a
+            # Bonus Player's tactical points depend on the manager's tactic.
+            score, stats_by_player, positions = score_manager(
+                conn, season, gameweek, selection_row.gw_selection_id, tactic
+            )
+            by_player = {p.player_id: p for p in score.players}
+
+            general_total = score.raw_points
+            tactical_total = score.tactical_points
+            sub_bonus_total = score.sub_bonus
+            engine_total = score.total
+
+            swap_lines = [
+                SwapLine(
+                    player_out_id=s.player_out_id, player_in_id=s.player_in_id,
+                    general_out=s.general_out, general_in=s.general_in,
+                    sub_bonus=s.sub_bonus,
+                )
+                for s in score.swaps
+            ]
+
             for r in rows:
+                p = by_player.get(r.player_id)
+                fixtures = stats_by_player.get(r.player_id, [])
+                position = positions.get(r.player_id, r.position)
+
+                gen_parts, tac_parts = [], []
+                for fixture in fixtures:
+                    gen_parts.extend(general_points_breakdown(fixture, position))
+                    if p is not None and p.is_bonus and p.tactical_points:
+                        tac_parts.extend(
+                            tactical_points_breakdown(fixture, position, tactic)
+                        )
+
                 line = PlayerLine(
                     player_id=r.player_id,
                     name=r.web_name,
                     position=r.position,
                     club=r.club,
-                    points=r.points,
-                    is_captain=r.is_captain,
-                    is_vice_captain=r.is_vice_captain,
-                    is_autosubbed_in=r.player_id in subbed_in,
-                    is_autosubbed_out=r.player_id in subbed_out,
+                    # `points` keeps its meaning for the current frontend: the
+                    # player's own points this gameweek. It is now GENERAL
+                    # points from the engine rather than FPL's total_points.
+                    points=p.general_points if p is not None else 0,
+                    # Captaincy is gone; both stay present and always False.
+                    is_captain=False,
+                    is_vice_captain=False,
+                    is_autosubbed_in=(p is not None and p.role == "auto_sub_cover"),
+                    is_autosubbed_out=(p is not None and p.role == "auto_sub_replaced"),
+                    role=p.role if p is not None else "starter",
+                    is_bonus=bool(p.is_bonus) if p is not None else False,
+                    general_points=p.general_points if p is not None else 0,
+                    tactical_points=p.tactical_points if p is not None else 0,
+                    general_breakdown=_merge_breakdown(gen_parts),
+                    tactical_breakdown=_merge_breakdown(tac_parts),
+                    counted=bool(p.counted) if p is not None else False,
                 )
                 if r.position_slot <= 11:
                     getattr(lineup, r.position).append(line)
@@ -337,22 +423,49 @@ def get_team_dashboard(
         season_total = gw_score_row.season_total if gw_score_row is not None else 0
 
         has_score = gw_score_row is not None
-        raw_points = gw_score_row.raw_points if has_score else 0
-        # The captain's extra only. scoring.py stores final_points = raw_points
-        # + (multiplier - 1) * captain's base, so the difference IS the bonus --
-        # deriving it this way makes it structurally impossible for the
-        # breakdown to double-count the captain.
-        captain_bonus = (gw_score_row.final_points - gw_score_row.raw_points) if has_score else 0
-        transfer_hits = gw_score_row.transfer_hits if has_score else 0
-        hit_deductions = gw_score_row.hit_deductions if has_score else 0
-        # Equals raw_points + captain_bonus - hit_deductions by construction;
-        # returned as gw_scores.total_points rather than re-added here so the
-        # table's bottom line is the same number scoring.py committed.
-        final_total = gw_score_row.total_points if has_score else 0
+        raw_points = gw_score_row.raw_points if has_score else general_total
+        # Captaincy is gone, so there is no captain bonus. The key stays at 0
+        # for the current frontend; tactical_points and sub_bonus below are
+        # what actually sit between raw and final now.
+        captain_bonus = 0
+        # Hits are gone. Both keys stay at 0.
+        transfer_hits = 0
+        hit_deductions = 0
+        # gw_scores.total_points when the job has run, the engine's own total
+        # otherwise -- so a gameweek being scored right now still shows a
+        # coherent bottom line instead of 0.
+        final_total = gw_score_row.total_points if has_score else engine_total
 
-        live_status = _resolve_live_status(
-            conn.execute(GW_FIXTURE_STATUS_QUERY, {"season": season, "gameweek": gameweek}).first()
+        fixture_status = conn.execute(
+            GW_FIXTURE_STATUS_QUERY, {"season": season, "gameweek": gameweek}
+        ).first()
+        live_status = _resolve_live_status(fixture_status)
+        # PROVISIONAL while any fixture is unfinished. The source is
+        # ml.fixtures.finished, via GW_FIXTURE_STATUS_QUERY's
+        # "COUNT(*) FILTER (WHERE finished) AS finished_count". Points and
+        # creativity only settle at full-time, so anything short of every
+        # fixture finished is a running figure, not a result.
+        provisional = bool(
+            fixture_status is not None
+            and fixture_status.total > 0
+            and fixture_status.finished_count < fixture_status.total
         )
+
+        # SCORED: is this gameweek scored under these rules at all?
+        scored, scored_reason = True, None
+        epoch_first_gw = ruleset_first_gameweek(conn, season)
+        if gameweek < epoch_first_gw:
+            scored = False
+            scored_reason = (
+                f"gameweek {gameweek} precedes the first gameweek played under "
+                f"these rules ({epoch_first_gw}), so it is not scored"
+            )
+        elif not has_lineup:
+            # Today's behaviour is preserved exactly: has_lineup is
+            # "selection_row is not None" and an unstarted state is not an
+            # error -- the same stance GET /squad and GET /gw_selection take.
+            scored = False
+            scored_reason = "no selection was submitted for this gameweek"
 
         gw_average_raw = conn.execute(GW_AVERAGE_QUERY, {"season": season, "gameweek": gameweek}).scalar()
         gw_average = round(float(gw_average_raw), 1) if gw_average_raw is not None else None
@@ -413,4 +526,14 @@ def get_team_dashboard(
         bank=bank,
         lineup=lineup,
         bench=bench,
+        # --- added in Phase 4b ---
+        tactic=tactic,
+        general_points=general_total,
+        tactical_points=tactical_total,
+        sub_bonus=sub_bonus_total,
+        total=final_total,
+        swaps=swap_lines,
+        provisional=provisional,
+        scored=scored,
+        scored_reason=scored_reason,
     )

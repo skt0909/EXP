@@ -291,3 +291,49 @@ def test_balanced_pays_one_per_goal_or_assist_plus_the_highest_creativity_tier()
 def test_an_unknown_tactic_is_rejected_rather_than_scoring_zero():
     with pytest.raises(ValueError):
         tactical_points(_row(), "MID", "parking_the_bus")
+
+
+# ---- breakdowns must never drift from the totals they explain -------------
+
+def _matrix():
+    """A row per rule, plus combinations, across all four positions."""
+    cases = [
+        dict(), dict(minutes=0), dict(minutes=30), dict(minutes=60),
+        dict(goals_scored=2), dict(assists=3), dict(clean_sheets=1),
+        dict(clean_sheets=1, minutes=59), dict(goals_conceded=5),
+        dict(saves=7), dict(penalties_saved=2), dict(penalties_missed=1),
+        dict(own_goals=1), dict(yellow_cards=1), dict(red_cards=1),
+        dict(defensive_contributions=8), dict(defensive_contributions=10),
+        dict(defensive_contributions=12), dict(defensive_contributions=20),
+        dict(creativity=Decimal("19.9")), dict(creativity=Decimal("20")),
+        dict(creativity=Decimal("39.9")), dict(creativity=Decimal("40")),
+        dict(goals_scored=1, assists=1, clean_sheets=1,
+             defensive_contributions=12, creativity=Decimal("40"),
+             yellow_cards=1, goals_conceded=2, saves=4),
+    ]
+    for position in ("GK", "DEF", "MID", "FWD"):
+        for kw in cases:
+            yield position, _row(**kw)
+
+
+def test_every_general_points_breakdown_sums_to_its_total():
+    from Results.tactical_scoring import general_points_breakdown
+    for position, row in _matrix():
+        parts = general_points_breakdown(row, position)
+        assert sum(p["points"] for p in parts) == general_points(row, position), \
+            (position, row, parts)
+
+
+def test_every_tactical_points_breakdown_sums_to_its_total():
+    from Results.tactical_scoring import tactical_points_breakdown
+    for position, row in _matrix():
+        for tactic in rules.TACTICS:
+            parts = tactical_points_breakdown(row, position, tactic)
+            assert sum(p["points"] for p in parts) == tactical_points(row, position, tactic), \
+                (position, tactic, row, parts)
+
+
+def test_a_breakdown_never_lists_a_zero_contribution():
+    from Results.tactical_scoring import general_points_breakdown
+    for position, row in _matrix():
+        assert all(p["points"] != 0 for p in general_points_breakdown(row, position))
