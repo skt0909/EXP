@@ -234,7 +234,11 @@ def test_a_fresh_user_still_gets_200_and_a_reason(engine, make_user, auth_header
     assert body["scored"] is False
     assert body["scored_reason"] == "no selection was submitted for this gameweek"
     assert body["tactic"] is None
-    assert body["general_points"] == 0
+    # F3: an unscored gameweek returns null points, not 0. A fresh user has no
+    # selection, which is one of the two unscored cases.
+    assert body["general_points"] is None
+    assert body["total"] is None
+    assert body["score_source"] is None
     assert body["lineup"]["GK"] == [] and body["bench"] == []
 
 
@@ -259,7 +263,9 @@ def test_every_legacy_key_is_still_present(
 
     # Captain / vice / chip are present but inert until the frontend phase.
     assert body["chip_used"] is None
-    assert body["captain_multiplier"] is None
+    # F6: an INTEGER 1, not null -- a client doing points * multiplier keeps
+    # working and gets the right answer.
+    assert body["captain_multiplier"] == 1
     assert body["captain_bonus"] == 0
     assert body["transfer_hits"] == 0
     assert body["hit_deductions"] == 0
@@ -307,3 +313,122 @@ def test_report_query_count_and_response_time(
     assert body["has_lineup"] is True
     assert counter["n"] > 0, "the listener attached to the wrong engine"
     assert counter["n"] < 30, "the dashboard should not be issuing dozens of queries"
+
+
+# ---- F2: score_source says where the numbers came from --------------------
+
+def test_score_source_is_live_before_the_job_runs_and_committed_after(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers
+):
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 800,
+                       "balanced", (7, 8), gameweek=GAMEWEEK)
+    _seed_stats(make_gw_stat, pairs, gameweek=GAMEWEEK)
+
+    before = _get(uid, auth_headers)
+    assert before["score_source"] == "live"
+    assert before["has_score"] is False
+
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+
+    after = _get(uid, auth_headers)
+    assert after["score_source"] == "committed"
+    assert after["has_score"] is True
+
+
+# ---- F3: an unscored gameweek returns nulls, not numbers ------------------
+
+def test_a_pre_epoch_gameweek_returns_null_points_but_keeps_the_lineup(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers, epoch
+):
+    """Showing points for a gameweek that will never be scored invites a
+    client to render them as real. The shape stays so the lineup still draws."""
+    epoch(GAMEWEEK + 3)
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 900,
+                       "balanced", (7, 8), gameweek=GAMEWEEK)
+    _seed_stats(make_gw_stat, pairs,
+                {7: dict(minutes=90, goals_scored=1, creativity=40)}, gameweek=GAMEWEEK)
+
+    body = _get(uid, auth_headers)
+    assert body["scored"] is False
+
+    for key in ("general_points", "tactical_points", "sub_bonus", "total",
+                "raw_points", "final_total", "gw_points"):
+        assert body[key] is None, f"{key} should be null for an unscored gameweek"
+
+    # The lineup structure survives: 11 starters and 4 bench, still named.
+    players = _all_players(body)
+    assert len(players) == 15
+    for p in players.values():
+        assert p["points"] is None
+        assert p["general_points"] is None
+        assert p["tactical_points"] is None
+        assert p["name"]                      # still identifiable
+        assert p["position"] in ("GK", "DEF", "MID", "FWD")
+
+
+def test_a_scored_gameweek_still_returns_numbers(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers
+):
+    """The control for the test above."""
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 950,
+                       "balanced", (7, 8), gameweek=GAMEWEEK)
+    _seed_stats(make_gw_stat, pairs, gameweek=GAMEWEEK)
+    body = _get(uid, auth_headers)
+    assert body["scored"] is True
+    assert body["general_points"] == 22
+    assert all(p["points"] is not None for p in _all_players(body).values())
+
+
+# ---- F6: captain_multiplier stays an integer -------------------------------
+
+def test_captain_multiplier_is_the_integer_one_and_is_arithmetically_inert(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers
+):
+    """A null here would break any client doing points * multiplier. 1 keeps
+    that arithmetic correct and captaincy removed at the same time."""
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 1000,
+                       "balanced", (7, 8), gameweek=GAMEWEEK)
+    _seed_stats(make_gw_stat, pairs,
+                {7: dict(minutes=90, goals_scored=1)}, gameweek=GAMEWEEK)
+
+    body = _get(uid, auth_headers)
+    assert body["captain_multiplier"] == 1
+    assert isinstance(body["captain_multiplier"], int)
+    assert not isinstance(body["captain_multiplier"], bool)
+    assert body["chip_used"] is None
+
+    for p in _all_players(body).values():
+        assert p["is_captain"] is False
+        assert p["is_vice_captain"] is False
+        assert p["points"] * body["captain_multiplier"] == p["points"]
+
+
+# ---- H: team_value_available means a finance row exists -------------------
+
+def test_team_value_available_is_false_for_a_fresh_user(engine, make_user, auth_headers):
+    uid = make_user()
+    body = _get(uid, auth_headers)
+    assert body["team_value_available"] is False
+
+
+def test_team_value_available_is_true_once_a_finance_row_exists(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers
+):
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 1100,
+                       "balanced", (7, 8), gameweek=GAMEWEEK)
+    _seed_stats(make_gw_stat, pairs, gameweek=GAMEWEEK)
+
+    assert _get(uid, auth_headers)["team_value_available"] is False
+
+    # The scoring job writes the finance snapshot.
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+
+    body = _get(uid, auth_headers)
+    assert body["team_value_available"] is True
+    assert body["bank"] == 3.5           # budget_remaining 35 tenths
+    assert body["team_value"] == 75.0    # 15 players at 50 tenths

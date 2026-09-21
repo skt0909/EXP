@@ -371,7 +371,7 @@ Find real file names first. Expected areas:
 **Phase 4b. The dashboard read model. — DONE** (`PHASE4B_REPORT.md`). `GET /team` computes each manager's per-player points at request time by calling the tactical engine for that manager and gameweek — no new tables. `resolve_autosubs` is no longer imported from the classic scorer. The response is additive: every existing key is still present (captaincy and chip keys are inert, always null/false/0), plus `tactic`, per-player `role`/`is_bonus`/`general_points`/`tactical_points`/rule breakdowns, per-swap detail, manager totals, `provisional` and `scored`. Suite: 0 pass→fail, 0 removed, 14 fail→pass, 91 EXPECTED / 3 UNEXPECTED. Cost: 14 queries, 162 ms for one manager.
   - **E4 closed:** a failed batch write now falls back to per-manager writes with a SAVEPOINT each, and `refresh_active_gameweeks` no longer discards the scoring summary — a gameweek with failed managers is reported as failed, not refreshed.
   - **E1 closed:** `allow_sim_seasons` is an explicit argument passed only by `Tools/fpl_sim.py`. **No production caller of the classic `score_gameweek` remains.**
-  - Still open from 4a: E2, E3, E5, E6, E7. New in 4b: F1 to F6 in `PHASE4B_REPORT.md`.
+  - **E2, E5, E6, E7 and F1 to F6 are closed** — see section 8. **E3 stays open until Phase 4c.**
 
 **Phase 4c. The classic removals.** Delete `Results/scoring.py` and the chip/hit/captaincy code paths once the tests that still import them are retired (the merge gate). `Gameplay/chips.py`, `GameEngine/free_hit_revert.py`, `Data/scoring_rules.py`'s captain multipliers and `Context_assembler/main.py`'s captain tagging all still reference removed concepts. **GATE: full suite green.**
   - **Re-pin the three `test_transfer_concurrency.py` tests FIRST**, before any other Phase 4 work. They pin the Stage 3 TOCTOU advisory-lock fix, which is a live concurrency guarantee, and they are skipped only because their fixtures assume the old allowance.
@@ -536,6 +536,59 @@ All ten Phase 2 ambiguities are now closed. New ones raised in Phase 3 are in
 
 - B5, B6 and B7 are not ambiguities but cleanup, and have moved to the Phase 4
   task list in section 5.
+
+### Phase 4a and 4b ambiguities
+
+- **E1 — the simulation harness could not drive the new scorer. CLOSED:**
+  `allow_sim_seasons` is an explicit keyword argument, passed only by
+  `Tools/fpl_sim.py`. Never an environment variable.
+- **E2 — swap timing was re-checked at scoring time. CLOSED:**
+  `validate_selection(..., check_timing=False)`, keyword-only. The endpoint
+  keeps the default; the job and the dashboard switch it off, per D4. The
+  notional-fixture workaround is deleted.
+- **E3 — two scorers coexist. OPEN until Phase 4c.** No production module
+  imports `Results/scoring.py` any more, so deleting it is unblocked; the tests
+  that still import it are merge-gate work.
+- **E4 — a batch write was one transaction. CLOSED:** it falls back to
+  per-manager writes with a SAVEPOINT each, and `refresh_active_gameweeks`
+  reports a gameweek with failed managers as failed rather than refreshed.
+- **E5 — `season_total` summed across rule generations. CLOSED:** bounded below
+  by the ruleset epoch and above by the current gameweek. No epoch row means
+  every earlier gameweek, exactly as before.
+- **E6 — a player missing from `ml.players` failed the whole manager.
+  CLOSED:** he scores 0, counts towards **no formation minimum** (so an Auto
+  Sub cover is judged on the other ten, which makes cover stricter rather than
+  looser), and cannot be used **as** a cover — though he can still **be**
+  covered, since a player with no stats row is a no-show. A data-integrity
+  warning names the user, season, gameweek and player ids.
+- **E7 — `total_points` and `final_points` are always equal. CLOSED: keep
+  both.** Hits were the only thing that separated them. A comment and a test
+  pin the equality. **One of the two is dropped after the frontend phase**,
+  since removing a key is a response-shape change.
+- **F1 — `points` changed meaning without changing name. CLOSED: DEPRECATED.**
+  It was FPL's `total_points` and is now the engine's General Points. It stays
+  so the current frontend keeps rendering; clients should use `general_points`.
+  Marked deprecated in the model, removed in the frontend phase.
+- **F2 — `raw_points` / `final_total` had two sources. CLOSED:** the response
+  carries `score_source` — `"committed"` from `gw_scores`, `"live"` from the
+  engine because the job has not run yet, `null` when not scored.
+- **F3 — an unscored gameweek returned populated points. CLOSED:** every points
+  field is `null` when `scored` is false, while the lineup structure (names,
+  positions, clubs, roles) stays so the team still draws.
+- **F4 — 14 queries and 162 ms per dashboard request. NO CHANGE, recorded.**
+  Measured on a near-empty `fpl_game_test`, so a floor. The engine call adds
+  three queries. Nothing is cached between requests.
+- **F5 — `tactical_breakdown` is empty both for a non-Bonus player and for a
+  Bonus Player who earned nothing. NO CHANGE, recorded.** `is_bonus`
+  distinguishes the two.
+- **F6 — `captain_multiplier` type. CLOSED: it stays an INTEGER, always 1.**
+  Null would break any client doing `points * captain_multiplier`; 1 keeps that
+  arithmetic correct while captaincy is removed. `is_captain` and
+  `is_vice_captain` are `false`; the chip keys stay `null`.
+- **`team_value_available`. CLOSED:** true only when a `user_gameweek_finance`
+  row exists for that user and gameweek. It used to be true for any non-final
+  gameweek, which made it true for a fresh user with no squad and presented
+  `0.0` as a real figure.
 - ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
   Phase 0:** both `creativity` (`numeric`) and `defensive_contributions` (`smallint`,
   plural in the database) exist. Evidence quoted in section 3, Phase 0 finding 4.

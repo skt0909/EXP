@@ -269,3 +269,66 @@ both "not a Bonus Player" and "Bonus Player who earned nothing" — the
 not strictly additive. A frontend doing arithmetic on it would now see null.
 The brief specified false-or-null for the captaincy keys, so this follows the
 instruction, but it is the one change here that could break a client.
+
+---
+
+# ADDENDUM — the 4a/4b fix pass
+
+The sections above are left as written. This records what changed afterwards.
+
+| Ambiguity | Outcome |
+|---|---|
+| E2 | **CLOSED.** `validate_selection(..., check_timing=False)`, keyword-only. The endpoint keeps the default; the job and dashboard switch timing off. The notional-fixture workaround is deleted. |
+| E5 | **CLOSED.** `season_total` is bounded below by the ruleset epoch. A test plants rows under `rules_version` 1 and 2 below the epoch and asserts they are ignored. |
+| E6 | **CLOSED.** A player missing from `ml.players` scores 0, counts towards no formation minimum, and cannot be used **as** an Auto Sub cover — but can still **be** covered, since with no stats row he is a no-show. My first version of those tests got that wrong (expected 20 and 25; the real answers are 22 and 27). |
+| E7 | **CLOSED: keep both.** A comment and a test pin `total_points == final_points`. One is dropped after the frontend phase. |
+| F1 | **CLOSED: deprecated.** `points` is marked deprecated in the model with a pointer to `general_points`. |
+| F2 | **CLOSED.** `score_source` is `"committed"`, `"live"`, or `null` when unscored. |
+| F3 | **CLOSED.** Every points field is `null` when `scored` is false; the lineup structure stays. |
+| F4, F5 | **No change**, recorded in the plan. |
+| F6 | **CLOSED.** `captain_multiplier` stays an **integer, always 1**, so `points * captain_multiplier == points`. This reverses the nullable-int change that §6 flagged as the one thing that could break a client. |
+| H | **CLOSED.** `team_value_available` is true only when a `user_gameweek_finance` row exists. It used to be true for any non-final gameweek, so a fresh user saw `0.0` presented as real. |
+
+E3 stays open until Phase 4c: no production module imports `Results/scoring.py`
+any more, so deleting it is unblocked, but the tests that still import it are
+merge-gate work.
+
+Two of my own earlier 4b tests had to be updated because F3 and F6 deliberately
+changed the behaviour they asserted — the fresh user now gets `null` rather
+than `0`, and `captain_multiplier` is `1` rather than `null`.
+
+## Addendum: the corrected comparison
+
+`b9e372f` (pre-fix-pass) against the current tree, by test identity:
+
+| Transition | Count |
+|---|---|
+| pass → pass | 759 |
+| **pass → fail** | **0** |
+| pass → skip | 0 |
+| fail → fail | 94 |
+| skip → skip | 34 |
+| new pass | 17 |
+| **removed** | **0** |
+
+```
+sums to AFTER : 904 (actual 904) OK
+sums to BEFORE: 887 (actual 887) OK
+```
+
+**94 failures — 91 EXPECTED, 3 UNEXPECTED**, the same pre-existing three.
+Method as before: one testcase element per test *phase*, each test counted once
+by precedence `error > failure > skipped > passed`; EXPECTED means the failure
+names a Phase-1-removed column or table, read from the assertion text plus the
+captured log.
+
+**The first run of this comparison showed 4 `pass → fail`**, all in
+`test_team_dashboard.py`, and one of them caught a genuine mistake:
+`test_team_value_unavailable_when_final_gameweek_has_no_snapshot`. My first
+version of H returned today's *live* figures for a finished gameweek with no
+snapshot, under `team_value_available: false`. That is worse than the zeroes it
+replaced — live numbers behind a false flag invite a client to show them as
+history. The final version keeps the original value selection untouched (live
+while in progress, the snapshot when final, zeroes when final and unscored) and
+changes only what the **flag** means. The other three tests were updated to the
+behaviour F3 and H deliberately introduce.

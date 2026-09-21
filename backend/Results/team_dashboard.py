@@ -178,7 +178,14 @@ class PlayerLine(BaseModel):
     # component resolves a real kit graphic from. Same field GET /squad's
     # CurrentSquadPlayerOut already carries for the same purpose.
     club: str
-    points: int
+    # NULLABLE since 4b: an unscored gameweek returns null rather than 0, so a
+    # client cannot render "0 points" for a gameweek that will never be scored.
+    #
+    # DEPRECATED (F1). This key used to be FPL's own total_points and is now
+    # the engine's GENERAL points -- same name, different definition. It is
+    # kept so the current frontend keeps rendering; use `general_points`
+    # instead. Removed in the frontend phase.
+    points: int | None
     is_captain: bool
     is_vice_captain: bool
     # Autosub outcome for THIS gameweek, recomputed for display via
@@ -194,8 +201,8 @@ class PlayerLine(BaseModel):
     # auto_sub_cover, auto_sub_replaced, bench_unused.
     role: str = "starter"
     is_bonus: bool = False
-    general_points: int = 0
-    tactical_points: int = 0
+    general_points: int | None = 0
+    tactical_points: int | None = 0
     # [{"rule": "goals", "points": 6}, ...] -- which rules produced the two
     # numbers above, summed across the player's fixtures this gameweek.
     general_breakdown: list = Field(default_factory=list)
@@ -230,8 +237,8 @@ class TeamDashboardResponse(BaseModel):
     deadline: str | None
     has_lineup: bool
     chip_used: str | None
-    captain_multiplier: int | None
-    gw_points: int
+    captain_multiplier: int
+    gw_points: int | None
     gw_average: float | None
     season_total: int
     # Points breakdown. has_score is False when scoring.py hasn't run for this
@@ -239,11 +246,11 @@ class TeamDashboardResponse(BaseModel):
     # dashboard showing "Raw 0 / Final 0" for an unplayed gameweek would read as
     # a real score rather than "not scored yet", so the UI needs the flag.
     has_score: bool
-    raw_points: int
+    raw_points: int | None
     captain_bonus: int
     transfer_hits: int
     hit_deductions: int
-    final_total: int
+    final_total: int | None
     # 'upcoming' | 'live' | 'final' -- whether this gameweek's fixtures are all
     # done, in progress, or not started. Points shown during 'live' are partial.
     live_status: str
@@ -256,10 +263,14 @@ class TeamDashboardResponse(BaseModel):
     team_value_available: bool
     # --- added in Phase 4b, all additive ---
     tactic: str | None
-    general_points: int
-    tactical_points: int
-    sub_bonus: int
-    total: int
+    general_points: int | None
+    tactical_points: int | None
+    sub_bonus: int | None
+    total: int | None
+    # "committed" when the figures come from gw_scores, "live" when they are
+    # the engine's, computed just now because the job has not run yet, and
+    # None when the gameweek is not scored at all (F2).
+    score_source: str | None
     swaps: list[SwapLine] = Field(default_factory=list)
     # True while ANY fixture in this gameweek is not finished. Points and
     # creativity are only final at full-time, so a client must be able to say
@@ -338,7 +349,11 @@ def get_team_dashboard(
         # keeps rendering; it is always None now, and the frontend phase
         # removes it. Same for captain_multiplier below.
         chip_used = None
-        captain_multiplier = None
+        # An INTEGER, always 1, never null (F6). A client doing
+        # points * captain_multiplier keeps working and gets the right answer;
+        # null would break that arithmetic. Captaincy is removed, and 1 is what
+        # "no multiplier" means.
+        captain_multiplier = 1
         tactic = selection_row.tactic if has_lineup else None
 
         lineup = _empty_lineup()
@@ -486,18 +501,49 @@ def get_team_dashboard(
         # is no snapshot to read -- reported as unavailable rather than
         # falling back to live figures, which would misrepresent today's
         # numbers as historical.
+        # team_value_available now means exactly one thing: a
+        # user_gameweek_finance row exists for THIS user and gameweek. It used
+        # to be True for any non-final gameweek, which made it True for a fresh
+        # user with no squad at all -- reporting 0.0 as a real figure.
+        #
+        # WHICH VALUES are shown is a separate question and is UNCHANGED: a
+        # gameweek still in progress reports today's live squad state, because
+        # that IS its state; a finished one reports the frozen snapshot, and
+        # zeroes if it was never scored. Today's budget has nothing to do with
+        # what a manager's finances were three gameweeks ago.
+        finance_row = conn.execute(
+            GAMEWEEK_FINANCE_SNAPSHOT_QUERY,
+            {"user_id": user_id, "season": season, "gameweek": gameweek},
+        ).first()
+        team_value_available = finance_row is not None
+
         if live_status == "final":
-            finance_row = conn.execute(
-                GAMEWEEK_FINANCE_SNAPSHOT_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
-            ).first()
-            team_value_available = finance_row is not None
             bank = finance_row.bank / 10 if finance_row is not None else 0.0
             team_value = finance_row.team_value / 10 if finance_row is not None else 0.0
         else:
             squad_row = conn.execute(TEAM_VALUE_AND_BANK_QUERY, {"user_id": user_id, "season": season}).first()
-            team_value_available = True
             bank = squad_row.budget_remaining / 10 if squad_row is not None else 0.0
             team_value = squad_row.team_value_tenths / 10 if squad_row is not None else 0.0
+
+    # F2: say where the numbers came from, so "raw_points" is never ambiguous
+    # between a committed figure and one computed a moment ago.
+    score_source = "committed" if has_score else "live"
+
+    # F3: a gameweek that is not scored returns NULL for every points field
+    # rather than 0. Showing 0 invites a client to render it as a real score
+    # for a gameweek that will never be scored. The lineup STRUCTURE stays --
+    # names, positions, clubs, roles -- so the team still draws.
+    if not scored:
+        score_source = None
+        general_total = tactical_total = sub_bonus_total = None
+        raw_points = final_total = gw_points = None
+        for group in (lineup.GK, lineup.DEF, lineup.MID, lineup.FWD, bench):
+            for line in group:
+                line.points = None
+                line.general_points = None
+                line.tactical_points = None
+                line.general_breakdown = []
+                line.tactical_breakdown = []
 
     return TeamDashboardResponse(
         user_id=user_id,
@@ -532,6 +578,7 @@ def get_team_dashboard(
         tactical_points=tactical_total,
         sub_bonus=sub_bonus_total,
         total=final_total,
+        score_source=score_source,
         swaps=swap_lines,
         provisional=provisional,
         scored=scored,

@@ -213,7 +213,8 @@ def test_no_lineup_yet_returns_empty_not_error(test_user):
     assert body["has_lineup"] is False
     assert body["lineup"] == {"GK": [], "DEF": [], "MID": [], "FWD": []}
     assert body["bench"] == []
-    assert body["gw_points"] == 0
+    # F3: not scored (no selection), so the points fields are null.
+    assert body["gw_points"] is None
     assert body["season_total"] == 0
     assert body["team_value"] == 0.0
     assert body["bank"] == 0.0
@@ -368,16 +369,21 @@ def test_points_breakdown_does_not_double_count_captain(engine, test_user):
 
 
 def test_breakdown_zeroed_and_flagged_when_not_scored_yet(test_user):
-    """No gw_scores row: every number is 0, but has_score is False so the UI can
-    say "not scored yet" rather than render a real-looking zero."""
+    """No gw_scores row AND no selection, so the gameweek is not scored at all.
+    Phase 4b (F3) returns NULL for every points field rather than 0, because a
+    zero renders as a real score for a gameweek that will never have one."""
     body = client.get(
         "/team", params={"season": TEST_SEASON, "gameweek": 9102}, headers=bearer_headers(test_user)
     ).json()
 
     assert body["has_score"] is False
-    assert body["raw_points"] == 0
+    assert body["scored"] is False
+    assert body["score_source"] is None
+    assert body["raw_points"] is None
+    assert body["final_total"] is None
+    # captain_bonus is not a points field -- captaincy is gone, so it is a
+    # permanent 0 rather than a nulled figure.
     assert body["captain_bonus"] == 0
-    assert body["final_total"] == 0
 
 
 def test_triple_captain_bonus_is_twice_the_base(engine, test_user):
@@ -558,6 +564,10 @@ def test_team_value_stays_live_when_gameweek_not_final(engine, make_team, make_p
     body = client.get("/team", params={"season": TEST_SEASON, "gameweek": gw}, headers=bearer_headers(test_user)).json()
 
     assert body["live_status"] == "upcoming"
+    # This test plants a snapshot deliberately, so Phase 4b's
+    # team_value_available ("a row exists for this gameweek") is True -- and
+    # the VALUES still come from the live squad, because the gameweek is not
+    # final. Which values are shown did not change; only what the flag means.
     assert body["team_value_available"] is True
     assert body["team_value"] == 90.0
     assert body["bank"] == (1000 - 15 * 60) / 10
