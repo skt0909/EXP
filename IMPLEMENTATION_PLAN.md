@@ -6,6 +6,7 @@ Read this whole file before doing anything. Work one phase at a time and STOP at
 
 Source documents in the repo (read first): `ARCHITECTURE.md`, `ML_LAYERS.md`.
 Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, so trust `./schema_dump.sql`, not the v1.0 script.
+**`schema_dump.sql` is a PRE-MIGRATION snapshot of `fpl_game`,** taken in Phase 0. It is valid only for that database, and only until Phase 4 migrates it. It does **not** describe `fpl_game_test`, which is already at `d58b3f10a7c2`. **Take a fresh dump after Phase 4.**
 
 ---
 
@@ -220,6 +221,17 @@ set in `Shared/rules.py` in a later phase, not in a migration.
 **Nothing in the `ml` schema is changed (lines 232-238)**, on purpose. The game layer
 only ever reads it, and the columns the new scorer needs already exist.
 
+### What neither migration touches: `free_hit_squads`
+
+**Both revisions leave `free_hit_squads` in place.** It is not in the TRUNCATE list, it
+is not dropped, and nothing in either file references it. Phase 1 verified it survives
+the upgrade (it happened to hold 0 rows already).
+
+That is deliberate ordering, not an oversight: `revert_free_hits` still reads the table,
+so dropping it now would break running code. **It is dropped by a small migration in
+Phase 4, after that code is removed** — the same rule the rest of this release follows,
+that the schema change and the code change travel together.
+
 ### Downgrade semantics
 
 **Structure only. Wiped data is NOT restored** — not the truncated tables, and not the
@@ -239,7 +251,7 @@ be located. Name the parent instead, which restores both heads:
 alembic downgrade a06f58d93f5a
 ```
 
-### Phase 0 findings (historical; 1-3 resolved, 4 still open)
+### Phase 0 findings (historical, all four resolved)
 1. Live schema differs from v1.0 (half-season chips, transfer cancellations, transfer
    drafts, `league_h2h_fixtures`, free-hit snapshot); find every live-only table
    referencing one being truncated or altered. — **RESOLVED:** `cancelled_transfers`
@@ -251,8 +263,29 @@ alembic downgrade a06f58d93f5a
 3. Auto-generated constraint names may differ. — **RESOLVED:** the live name is
    `starting_xi_position_slot_check` and it is left untouched; `ck_starting_xi_slot` is
    never created.
-4. Whether `ml.player_gw_stats.creativity` exists. — **NOT VERIFIED.** Still open; see
-   section 8. No migration depends on it, but the Phase 2 scorer does.
+4. Whether `ml.player_gw_stats.creativity` exists. — **RESOLVED: both columns exist.**
+   `PHASE0_REPORT.md` §3 ("`ml.player_gw_stats` columns (step 3) — both present")
+   queried the live database:
+
+   ```
+          column_name       | data_type
+   -------------------------+-----------
+    creativity              | numeric
+    defensive_contributions | smallint
+   ```
+
+   Corroborated by `schema_dump.sql`, inside `CREATE TABLE ml.player_gw_stats (`
+   which opens at line 364:
+
+   ```
+   386:    creativity numeric(6,1),
+   401:    defensive_contributions smallint DEFAULT 0 NOT NULL
+   ```
+
+   `creativity` is `numeric`, so the Balanced tier thresholds compare cleanly without
+   integer rounding — which matters for the 19.9-vs-20 boundary case. The database
+   spelling is the **plural** `defensive_contributions`; the archive CSVs use the
+   singular.
 
 ---
 
@@ -275,7 +308,9 @@ Find real file names first. Expected areas:
   - **Remaining for the server (`pitchside_db`):** untouched and its state unverified. Released in one step with the code, per section 10. The branch is not pushed or merged until Phase 4 is finished.
 **Phase 2. Rules and scoring engine.** Constants plus pure functions with tests first. No DB in the unit tests. **GATE: tests green.**
 **Phase 3. API.** Selection and transfer endpoints with validation, and their tests. **GATE: tests green.**
-**Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite (524 tests plus new ones) including Dream11 and ML tests. **GATE: full suite green.**
+**Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite including Dream11 and ML tests. **GATE: full suite green.**
+  - Migrate `fpl_game` here, with the code, for the reason above.
+  - **Add a small migration dropping `free_hit_squads`.** Both Phase 1 revisions leave it in place because `revert_free_hits` still reads it; it can only go once that code is removed, which happens in this phase. Sequence it after the code change.
 **Phase 5. Frontend.** Screens listed in section 4.
 **Phase 6. Re-tune.** After about 20 Gameweeks of 2026-27, re-run `simulate_tactics.py` (it holds the same tier tables in its CONFIG block) and revisit all three tactics, Defence first.
 
@@ -302,7 +337,7 @@ Validation tests: legal/illegal formations, Attack with fewer than 2 FWD, Bonus 
 
 ## 7. Guardrails for Claude Code
 - Never write to or alter the `ml` schema. Never touch `SIM*` seasons.
-- Never run migrations on `fpl_game` until the scratch dry-run has passed AND the owner has said so.
+- Never run migrations on `fpl_game` until the scratch dry-run has passed AND the owner has said so, **and not before Phase 4, because the migration drops columns today's code still selects.**
 - No `TRUNCATE ... CASCADE`. If a live-only table blocks a truncate, add it to the list and report it.
 - Always back up before a destructive step: `pg_dump -U postgres fpl_game > fpl_game_backup.sql`.
 - Tests first for Phases 2 to 4. Keep the zero-import rule in `Shared/rules.py`.
@@ -322,13 +357,15 @@ Validation tests: legal/illegal formations, Attack with fewer than 2 FWD, Bonus 
 - **Attack managers cannot use forward swaps.** A forward swap needs 2 Bonus forwards + 1 non-Bonus forward starter + 1 bench forward = 4 forwards, and the squad holds 3. Accepted for the MVP; defender and midfielder swaps remain possible.
 - **The app must show each tactic's tier thresholds to managers.** The tiers are not stacked and the boundaries are not guessable: a creativity of 39.9 earns +1, not +3.
 - Cosmetic: `team_value_available` is `True` beside `team_value` `0.0` for a fresh user (found in Phase 1). Fix in Phase 5.
-- `creativity` column existence in `ml.player_gw_stats` is unverified.
+- ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
+  Phase 0:** both `creativity` (`numeric`) and `defensive_contributions` (`smallint`,
+  plural in the database) exist. Evidence quoted in section 3, Phase 0 finding 4.
 - Sub Bonus giveaway when the outgoing player never appeared.
 
 ---
 
 ## 9. Balance specification (acceptance tests)
-Purpose: decide in advance what "balanced" means, so scoring values are judged against fixed tests instead of being nudged until they "look nice". Run `python balance_check.py` (edit values in `simulate_tactics.py` CONFIG, never in the spec). **Never change a band to make a candidate pass without writing down why.**
+Purpose: decide in advance what "balanced" means, so scoring values are judged against fixed tests instead of being nudged until they "look nice". Run `cd tools && python balance_check.py` (edit values in `simulate_tactics.py` CONFIG, never in the spec). **Never change a band to make a candidate pass without writing down why.**
 
 Design principle: the three tactics should have overlapping average returns (so no tactic is the obvious pick) but clearly different swing (that is where the personalities come from): Attack = high risk, Defence = medium, Balanced = most consistent. "Swing" = standard deviation divided by average of the 2 Bonus Players' Tactical Points per Gameweek.
 
