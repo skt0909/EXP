@@ -230,3 +230,34 @@ def test_db_failure_returns_fallback_not_500(monkeypatch):
 
     assert resp.status_code == 200
     assert resp.json()["response"] == main.DB_UNAVAILABLE_MESSAGE
+
+
+# ---- Phase 4d: the captain tagging is gone --------------------------------
+
+def test_captain_query_no_longer_exists():
+    """CAPTAIN_QUERY read gw_selections.captain_id, dropped by migration
+    c41a9e27d06b in Phase 1. POST /chat runs it on every request, so the whole
+    endpoint would 500 the moment fpl_game was migrated."""
+    import main
+
+    assert not hasattr(main, "CAPTAIN_QUERY")
+
+
+def test_the_prompt_builder_no_longer_takes_captain_ids():
+    import inspect
+
+    import main
+
+    params = list(inspect.signature(main._build_prompt).parameters)
+    assert "captain_internal_id" not in params
+    assert "vice_captain_internal_id" not in params
+
+
+def test_the_llm_instructions_no_longer_promise_a_captain_tag():
+    """The prompt told the model a [CURRENT CAPTAIN] tag might appear. Leaving
+    that in while never emitting the tag invites the model to discuss a pick
+    that does not exist."""
+    import main
+
+    assert "CURRENT CAPTAIN" not in main.INSTRUCTIONS
+    assert "CURRENT VICE-CAPTAIN" not in main.INSTRUCTIONS

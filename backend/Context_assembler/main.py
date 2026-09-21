@@ -18,7 +18,7 @@ do have data.
 Pipeline per request:
   chat-availability gate -> starting_xi lookup -> ml.ml_predictions lookup
   -> assemble a tier-only prompt (no raw predicted_points ever reaches
-  Groq, captain/vice-captain flagged) -> call_groq.
+  Groq) -> call_groq.
 
 Read-only against the database.
 
@@ -137,11 +137,6 @@ performances (goals, hauls, clean sheet bonuses) -- treat a tier as a
 FLOOR on expected performance, not a ceiling. A "Strong" player could
 easily have a huge game; an "Elite" player is not guaranteed a big haul,
 just the most likely to perform well among this group.
-
-One player in the context below may be marked [CURRENT CAPTAIN] or
-[CURRENT VICE-CAPTAIN] -- that's who the manager has already picked for
-this gameweek. If asked about captaincy, compare your suggestion against
-that current pick explicitly, don't just rank players in a vacuum.
 
 Never state a specific predicted-points number or invent one, even if
 asked directly -- you were not given one and do not have one.
@@ -304,13 +299,6 @@ STARTING_XI_QUERY = text(
     """
 )
 
-CAPTAIN_QUERY = text(
-    """
-    SELECT captain_id, vice_captain_id
-    FROM gw_selections
-    WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek
-    """
-)
 
 PREDICTIONS_QUERY = text(
     """
@@ -373,23 +361,13 @@ class ChatResponse(BaseModel):
     response: str
 
 
-def _build_prompt(
-    context_df: pd.DataFrame,
-    captain_internal_id: int | None,
-    vice_captain_internal_id: int | None,
-    message: str,
-) -> str:
+def _build_prompt(context_df: pd.DataFrame, message: str) -> str:
     lines = [INSTRUCTIONS, "", "Player context (your current starting XI):"]
     for player_id, row in context_df.iterrows():
         price = f"£{row['price_current']}m" if pd.notna(row["price_current"]) else "price unknown"
-        tag = ""
-        if player_id == captain_internal_id:
-            tag = " [CURRENT CAPTAIN]"
-        elif player_id == vice_captain_internal_id:
-            tag = " [CURRENT VICE-CAPTAIN]"
         lines.append(
             f"- {row['web_name']} (player_id {player_id}, {row['position']}, "
-            f"{price}): {row['tier_or_label']}{tag}"
+            f"{price}): {row['tier_or_label']}"
         )
     lines.append("")
     lines.append(f"User question: {message}")
@@ -425,14 +403,6 @@ def chat(
 
         fpl_to_internal = dict(zip(squad["fpl_id"], squad["internal_id"]))
         player_ids = squad["internal_id"].tolist()
-
-        selection = pd.read_sql(
-            CAPTAIN_QUERY,
-            engine,
-            params={"user_id": user_id, "season": req.season, "gameweek": req.gameweek},
-        )
-        captain_internal_id = fpl_to_internal.get(int(selection.iloc[0]["captain_id"]))
-        vice_captain_internal_id = fpl_to_internal.get(int(selection.iloc[0]["vice_captain_id"]))
 
         predictions = pd.read_sql(
             PREDICTIONS_QUERY,
@@ -477,7 +447,7 @@ def chat(
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
     prompt = _build_prompt(
-        context_df.loc[player_ids], captain_internal_id, vice_captain_internal_id, req.message
+        context_df.loc[player_ids], req.message
     )
 
     logger.info("Assembled prompt:\n%s", prompt)
