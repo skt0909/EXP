@@ -77,17 +77,182 @@ Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, s
 
 ---
 
-## 3. Data model (drafts already written)
-Files: `c41a9e27d06b_drop_classic_only_objects.py` and `d58b3f10a7c2_add_tactical_game_structures.py`. They are DRAFTS built from the v1.0 DDL. They must be reconciled against `schema_dump.sql` before use.
+## 3. Data model (as committed)
 
-Revision 1 (`c41a9e27d06b`, merges both heads): truncate gameplay tables (no CASCADE; **`user_gameweek_finance` is NOT truncated because the dashboard displays bank and team value from it**), reset league points, drop `chips` and its trigger/function, drop captain/vice/chip columns, drop hit columns.
-Revision 2 (`d58b3f10a7c2`): add `gw_selections.tactic`; widen `starting_xi` slots to 1-15, add `is_bonus` and a generated `role` column; add `tactical_swaps`; add triggers (exactly 2 Bonus at commit, swap references valid, child rows locked after the deadline); add `gw_scores.tactical_points`, `sub_bonus`, `rules_version` if missing. **No `ml` changes.**
+Files: `backend/Migrations/versions/c41a9e27d06b_drop_classic_only_objects.py` and
+`d58b3f10a7c2_add_tactical_game_structures.py`.
 
-Known risks to resolve in Phase 0:
-1. Live schema differs from v1.0 (per `ARCHITECTURE.md`: half-season chips, transfer cancellations, transfer drafts, `league_h2h_fixtures`, free-hit snapshot). Find every live-only table that references a table being truncated or altered.
-2. Where the bench is stored today (v1.0 only allows slots 1-11).
-3. Auto-generated constraint names (e.g. `starting_xi_position_slot_check`) may differ.
-4. Whether `ml.player_gw_stats.creativity` exists.
+**Status:** reconciled against the live schema in Phase 0 and fixed in Phase 1
+(commit `2f0a8f8`), rehearsed on a scratch copy of `fpl_game` (guard refusal, upgrade,
+schema verification, downgrade round trip, full test suite), and **applied to
+`fpl_game_test`**. **NOT applied to `fpl_game`** — that happens in Phase 4 — **and not
+to the server.** See section 10.
+
+Every statement below is taken from the committed files and cites its line.
+
+### Revision 1 — `c41a9e27d06b`, "Drop classic-only objects"
+
+**Merges the two heads.** `down_revision = ("a06f58d93f5a", "c2f6a83e91d4")` (line 20);
+the tuple form is what makes this a merge revision.
+
+**The guard, `_refuse_to_wipe_real_data()` (lines 25-60).** Runs before anything else
+(line 64). It sums rows across six tables unconditionally — `gw_selections`,
+`gw_scores`, `transfers`, `leaderboard_snapshots`, `cancelled_transfers`,
+`user_gameweek_finance` (lines 36-47) — then adds a **conditional** seventh count:
+
+```sql
+SELECT COUNT(*) FROM league_h2h_fixtures WHERE result IS NOT NULL   -- line 53
+```
+
+Conditional because this revision only resets that table's derived columns: an unplayed
+row loses nothing and must not trip the guard (lines 48-51). If the total is non-zero
+and `ALLOW_GAMEPLAY_WIPE` does not equal `current_database()`, it raises and nothing is
+changed (lines 55-60).
+
+**The TRUNCATE list (lines 96-107)** — eight tables, `RESTART IDENTITY`, deliberately
+no `CASCADE` (lines 69-72):
+
+```
+leaderboard_snapshots, gw_scores, user_gameweek_finance,
+starting_xi, gw_selections, chips, cancelled_transfers, transfers
+```
+
+- `cancelled_transfers` **must** be in the list: it carries
+  `cancelled_transfers_transfer_id_fkey -> transfers(id)`, and Postgres refuses to
+  truncate a table referenced by an FK from one that is not also being truncated —
+  without it the statement aborts and the revision fails (lines 74-78).
+- `user_gameweek_finance` **is** truncated, reversing the earlier "keep it" note
+  (lines 80-89). `Results/scoring.py` writes one row per scored gameweek, so keeping
+  them while emptying `gw_scores` would show a real bank and team value beside
+  gameweeks that no longer have a score.
+
+**League standings reset (line 108):**
+
+```sql
+UPDATE league_members SET season_points = 0, rank = 0, last_gw_points = 0
+```
+
+**`league_h2h_fixtures` — targeted three-column reset, pairings kept (lines 135-143).**
+This table is **not** truncated (lines 91-95): `_generate_and_insert_h2h_schedule`
+writes the season's **pairings** upfront and regeneration is gated on "no rows for this
+league+season", so truncating would reshuffle who plays whom.
+
+```sql
+UPDATE league_h2h_fixtures
+   SET points_1 = NULL, points_2 = NULL, result = NULL
+ WHERE points_1 IS NOT NULL OR points_2 IS NOT NULL OR result IS NOT NULL
+```
+
+The pairing columns (`league_id, season, gameweek, user_id_1, user_id_2`) are never
+touched. All three reset columns are recomputed by
+`Results/standings.py::_process_h2h_league` from `gw_scores` (lines 114-124), and
+`'bye'` survives because both the writer and the reader derive it from
+`user_id_2 IS NULL`, never from `result` (lines 126-129).
+
+**Chips removed (lines 150-152):** `DROP TRIGGER IF EXISTS enforce_chip_limit ON chips`,
+`DROP FUNCTION IF EXISTS enforce_chip_limit_fn()`, `DROP TABLE IF EXISTS chips`.
+
+**Captaincy columns dropped (lines 157-167):** `gw_selections.captain_id`,
+`vice_captain_id`, `chip_used`; `starting_xi.is_captain`, `is_vice_captain`.
+
+**Hit columns dropped (lines 173-177):** `gw_scores.transfer_hits`, `hit_deductions`.
+`transfers.is_free` is left in place, always TRUE from now on (line 171).
+
+### Revision 2 — `d58b3f10a7c2`, "Add tactical game structures"
+
+**`gw_selections.tactic` — added with a default that is then dropped (lines 40-46):**
+
+```sql
+ALTER TABLE gw_selections
+    ADD COLUMN tactic VARCHAR(10) NOT NULL DEFAULT 'balanced'
+        CONSTRAINT ck_gw_selections_tactic
+        CHECK (tactic IN ('attack', 'defence', 'balanced'));
+ALTER TABLE gw_selections ALTER COLUMN tactic DROP DEFAULT;
+```
+
+The default backfills whatever is present, and dropping it immediately restores the
+intent that every future row states its tactic explicitly. This removes a silent
+order-dependency on the previous revision's truncate (lines 33-39).
+
+**`starting_xi` (lines 59-77):** `is_bonus BOOLEAN NOT NULL DEFAULT FALSE`, and `role`
+as a **generated stored column** derived from `position_slot` (`<= 11` starter, `12`
+auto_gk, `13` auto_outfield, else tactical) so the two can never disagree. Then two
+constraints:
+
+- `ck_starting_xi_bonus_is_starter CHECK (NOT is_bonus OR position_slot <= 11)` —
+  Bonus only on starters.
+- `uq_starting_xi_sel_slot UNIQUE (gw_selection_id, position_slot)` — **this was
+  genuinely added.** Phase 1 confirmed no equivalent existed; the pre-existing
+  `uq_starting_xi_sel_player` is on `(gw_selection_id, player_id)`, a different pair.
+
+**No slot widening happens (lines 51-57).** Phase 0 verified the live
+`starting_xi_position_slot_check` is *already*
+`CHECK (position_slot >= 1 AND position_slot <= 15)` — the bench already lives at slots
+12-15. An earlier draft dropped and re-added it as `ck_starting_xi_slot` believing the
+live check was 1-11; that was a rename of an equivalent constraint. Left exactly as it
+is.
+
+**`tactical_swaps` (lines 84-94):** `gw_selection_id` FK with `ON DELETE CASCADE`,
+`player_out_id`, `player_in_id`, plus `ck_swaps_distinct`, `uq_swaps_sel_out` and
+`uq_swaps_sel_in`. At most 2 rows per selection follows from `player_in` having to be
+one of the two tactical bench slots.
+
+**Three trigger functions, four triggers:**
+
+| Function | Trigger(s) | Enforces |
+|---|---|---|
+| `enforce_bonus_count_fn` (101-127) | `enforce_bonus_count` on `starting_xi`, `DEFERRABLE INITIALLY DEFERRED` (128-133) | exactly 2 Bonus Players, checked at COMMIT so the app can delete-and-reinsert the XI in one transaction; skipped when the selection has no rows |
+| `enforce_swap_refs_fn` (141-166) | `enforce_swap_refs` on `tactical_swaps`, deferred (167-172) | outgoing player is a non-Bonus starter; incoming is a Tactical Sub on the same selection |
+| `enforce_child_lock_fn` (179-203) | `enforce_starting_xi_lock` and `enforce_tactical_swaps_lock`, created in a loop over both tables (204-209) | child rows cannot change once `gw_selections.is_locked`; a missing parent counts as unlocked so `ON DELETE CASCADE` keeps working |
+
+**`gw_scores` score columns (lines 226-230):** `tactical_points SMALLINT NOT NULL
+DEFAULT 0` and `sub_bonus SMALLINT NOT NULL DEFAULT 0`. Convention going forward
+(lines 212-215): `raw_points` = General Points, `final_points` = `raw_points +
+tactical_points + sub_bonus`, `total_points` = `final_points` (no hits any more).
+
+**`rules_version` is NOT added (lines 217-224).** It already exists as `smallint NOT
+NULL`, added by `c9a04e7b53d1`, with live values 1 and 2. The draft carried
+`ADD COLUMN IF NOT EXISTS rules_version VARCHAR(20)`, which was a silent no-op against
+that column — the migration would pass and the scorer would then fail at runtime trying
+to store a string in a smallint. The version stays an integer; the next generation is 3,
+set in `Shared/rules.py` in a later phase, not in a migration.
+
+**Nothing in the `ml` schema is changed (lines 232-238)**, on purpose. The game layer
+only ever reads it, and the columns the new scorer needs already exist.
+
+### Downgrade semantics
+
+**Structure only. Wiped data is NOT restored** — not the truncated tables, and not the
+H2H results, which are data rather than schema. Recovery is the backup taken before the
+run.
+
+Revision 2's downgrade drops exactly what it added, and deliberately **keeps the bench
+rows**: slots 12-15 were legal before it ran and remain legal after it is undone
+(lines 241-275). An earlier draft deleted every `starting_xi` row above slot 11 and
+restored a 1-11 check; both were wrong and are gone.
+
+**Working syntax past the merge revision.** `alembic downgrade -1` works once, to the
+mergepoint; a second `-1` fails with `ERROR: Ambiguous walk`, and `c41a9e27d06b^` cannot
+be located. Name the parent instead, which restores both heads:
+
+```
+alembic downgrade a06f58d93f5a
+```
+
+### Phase 0 findings (historical; 1-3 resolved, 4 still open)
+1. Live schema differs from v1.0 (half-season chips, transfer cancellations, transfer
+   drafts, `league_h2h_fixtures`, free-hit snapshot); find every live-only table
+   referencing one being truncated or altered. — **RESOLVED:** `cancelled_transfers`
+   found blocking the TRUNCATE and added to the list; `league_h2h_fixtures` handled by
+   the targeted column reset.
+2. Where the bench is stored today (v1.0 only allows slots 1-11). — **RESOLVED:** it is
+   already at slots 12-15 and the live check already allows 1-15, so no widening is
+   needed and the draft's downgrade would have destroyed the bench.
+3. Auto-generated constraint names may differ. — **RESOLVED:** the live name is
+   `starting_xi_position_slot_check` and it is left untouched; `ck_starting_xi_slot` is
+   never created.
+4. Whether `ml.player_gw_stats.creativity` exists. — **NOT VERIFIED.** Still open; see
+   section 8. No migration depends on it, but the Phase 2 scorer does.
 
 ---
 
@@ -104,8 +269,10 @@ Find real file names first. Expected areas:
 ---
 
 ## 5. Phases and gates
-**Phase 0. Verify (read-only).** Backup, schema review of the two drafts against `schema_dump.sql`, dependency scan for every use of columns being dropped, ML dependency scan. Deliver a mismatch list. **GATE: owner confirms.**
-**Phase 1. Migrations.** Fix the drafts from the mismatch list. Dry-run on a scratch copy of `fpl_game`: `upgrade head`, `downgrade -2`, `upgrade head`. Run the full test suite on the scratch DB. **GATE: owner confirms before touching `fpl_game`.**
+**Phase 0. Verify (read-only). — DONE.** Backup, schema review of the two drafts against `schema_dump.sql`, dependency scan for every use of columns being dropped, ML dependency scan. Delivered `PHASE0_REPORT.md` with 2 blockers and 3 mismatches. **GATE passed.**
+**Phase 1. Migrations. — DONE** (commit `2f0a8f8`, `PHASE1_REPORT.md`). Both drafts fixed. Rehearsed on a scratch copy of `fpl_game`: guard refusal, `upgrade head`, schema verification, downgrade round trip (`alembic downgrade a06f58d93f5a`, then `upgrade head`), full test suite. Applied to **`fpl_game_test` only**; 179 of 182 failures are EXPECTED (they use a removed column or table), the other 3 fail identically before the migration.
+  - **Remaining for `fpl_game`:** still on `a06f58d93f5a` + `c2f6a83e91d4`. It is migrated in **Phase 4**, alongside the code that needs the new columns — not before, because the migration drops columns today's code still selects.
+  - **Remaining for the server (`pitchside_db`):** untouched and its state unverified. Released in one step with the code, per section 10. The branch is not pushed or merged until Phase 4 is finished.
 **Phase 2. Rules and scoring engine.** Constants plus pure functions with tests first. No DB in the unit tests. **GATE: tests green.**
 **Phase 3. API.** Selection and transfer endpoints with validation, and their tests. **GATE: tests green.**
 **Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite (524 tests plus new ones) including Dream11 and ML tests. **GATE: full suite green.**
