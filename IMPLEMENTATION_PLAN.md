@@ -367,6 +367,9 @@ Find real file names first. Expected areas:
   - **Two-swap validation (D7).** Reject more than two Tactical swaps at the endpoint. The database limits it (`uq_swaps_sel_in`, and only slots 14/15 carry `role = 'tactical'`) and the scoring engine deliberately does not check it — hand the engine three swaps and it returns a Sub Bonus of 3. The endpoint is the place this is caught.
 **Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite including Dream11 and ML tests. **GATE: full suite green.**
   - **Re-pin the three `test_transfer_concurrency.py` tests FIRST**, before any other Phase 4 work. They pin the Stage 3 TOCTOU advisory-lock fix, which is a live concurrency guarantee, and they are skipped only because their fixtures assume the old allowance.
+  - **B5. Delete `MAX_TRANSFERS_PER_GAMEWEEK` and its dead check.** The allowance caps at 2, so the 20-transfer cap can never fire. Remove the constant from `Shared/rules.py` and the check from `Gameplay/transfers.py::_validate_transfers`.
+  - **B6. Delete the `chip_active` placeholder and the `FREE_CHIPS` import** from `Gameplay/transfers.py`. `chip_active` is bound to a literal `False` and reads as though chips might return.
+  - **B7. Make `allowance` a REQUIRED parameter of `_validate_transfers`**, with no default. The default of 0 means a caller that forgets it gets a confusing "0 free transfers available" rejection instead of a crash. Update any test that depends on the current parameter order — `test_multiple_simultaneous_violations_all_reported_together` asserts the error array's order, so check it after the signature change.
   - **Filter out non-real seasons** — anything not matching `^[0-9]{4}-[0-9]{2}$` — in the scoring job and in **every** season lookup. `SIM38OK`, `SIM38TST` and `SIMSMOKE` belong to the `simulation/` harness and must never be treated as game data. As of Phase 3 **nothing in `backend/**/*.py` filtered them**: the guardrail existed only in this document, and migration `e7c4d81b3a95` is the first code to apply it.
   - Migrate `fpl_game` here, with the code, for the reason above.
   - **Add a small migration dropping `free_hit_squads`.** Both Phase 1 revisions leave it in place because `revert_free_hits` still reads it; it can only go once that code is removed, which happens in this phase. Sequence it after the code change.
@@ -508,7 +511,23 @@ All ten Phase 2 ambiguities are now closed. New ones raised in Phase 3 are in
   other ruleset, so the answer is Gameweek 1. Transfers recorded before the
   epoch are ignored by the recurrence and logged as a data-integrity warning.
 
-- B2 to B7 remain open; see `PHASE3_REPORT.md`.
+- **B2 — strictly-after, or at-the-instant, for swap timing? CLOSED: a kickoff
+  exactly at the end instant is REFUSED.** The incoming player's first kickoff
+  must be *strictly* after the outgoing player's last fixture ends
+  (`kickoff + FIXTURE_DURATION_MIN`); a tie is not "after". Already implemented
+  and pinned by the 114/115/116-minute boundary test.
+- **B3 — must every squad player be given a slot? CLOSED: yes**, and the
+  "missing player" error is reported only when 15 distinct ids were submitted,
+  so a manager who submits 14 gets one count error rather than a count error
+  plus a spurious missing-player error for the same mistake. As implemented.
+- **B4 — a blank-gameweek player can be named but not swapped. CLOSED: as
+  implemented.** Having no fixture is not an error for a starter; it is one for
+  a swap, because the timing rule has nothing to compare against. Consistent
+  with D4: swaps are validated once at submission and never re-validated, so a
+  later fixture change cannot retrospectively invalidate one.
+
+- B5, B6 and B7 are not ambiguities but cleanup, and have moved to the Phase 4
+  task list in section 5.
 - ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
   Phase 0:** both `creativity` (`numeric`) and `defensive_contributions` (`smallint`,
   plural in the database) exist. Evidence quoted in section 3, Phase 0 finding 4.
