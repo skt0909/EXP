@@ -76,7 +76,8 @@ def _last_fixture_end(kickoffs):
     return max(kickoffs) + timedelta(minutes=FIXTURE_DURATION_MIN)
 
 
-def validate_selection(sel, squad_ids, positions, fixtures_by_player):
+def validate_selection(sel, squad_ids, positions, fixtures_by_player,
+                       *, check_timing: bool = True):
     """Returns a list of human-readable errors; empty means valid.
 
     sel               : SelectionInput
@@ -85,7 +86,26 @@ def validate_selection(sel, squad_ids, positions, fixtures_by_player):
     fixtures_by_player: {player_id: [kickoff datetime, ...]} for this gameweek.
                         An empty list means no fixture, which is what blocks a
                         swap and is NOT an error on its own -- a manager may
-                        field a player whose club is blank."""
+                        field a player whose club is blank.
+    check_timing      : KEYWORD-ONLY. False drops the two fixture-dependent
+                        swap rules -- "both players have a fixture" and the
+                        kickoff ordering -- and nothing else.
+
+    WHY check_timing EXISTS (ambiguity E2, now closed). Decision D4: a swap is
+    validated once at submission and NEVER re-validated, so a fixture that moved
+    afterwards must not retrospectively invalidate it. The scoring job and the
+    dashboard re-run this validator for its OTHER rules -- bonus count,
+    formation, swap references -- and must not re-run the timing one. They pass
+    check_timing=False and an empty fixture map.
+
+    Both fixture rules go together because both read the same data the
+    re-validating caller does not have. The previous workaround fabricated a
+    notional fixture per player, with each swap's incoming player given a later
+    one, purely to make the timing rule pass. That was inventing input to dodge
+    a check; this states the intent instead.
+
+    Keyword-only on purpose: a positional boolean in the fifth slot is exactly
+    the kind of argument that gets passed in the wrong position."""
     errors = []
 
     # ---- the 15 -----------------------------------------------------------
@@ -226,6 +246,9 @@ def validate_selection(sel, squad_ids, positions, fixtures_by_player):
                 f"swap: {out_id} ({positions[out_id]}) and {in_id} ({positions[in_id]}) "
                 f"must be the same position"
             )
+
+        if not check_timing:
+            continue
 
         out_fixtures = fixtures_by_player.get(out_id) or []
         in_fixtures = fixtures_by_player.get(in_id) or []

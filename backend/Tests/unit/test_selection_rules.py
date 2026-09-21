@@ -318,3 +318,53 @@ def test_every_error_is_collected_in_one_response():
 def test_errors_are_plain_strings_so_the_endpoint_can_return_them_as_a_422_detail():
     errors = _errors(_sel(tactic="nonsense"))
     assert errors and all(isinstance(e, str) for e in errors)
+
+
+# ---- E2: swap timing can be switched off for re-validation ----------------
+#
+# Decision D4: a swap is validated once at submission and NEVER re-validated,
+# so a fixture that moved afterwards must not retrospectively invalidate it.
+# The scoring job and the dashboard re-run this validator for its OTHER rules
+# (bonus count, formation, swap references) and must not re-run the timing one.
+
+def test_timing_is_enforced_by_default():
+    fixtures = _fixtures()
+    fixtures[9] = [T0]
+    fixtures[14] = [T0 + timedelta(minutes=10)]      # far too early
+    errors = _errors(_sel(swaps=[SwapInput(9, 14)]), fixtures=fixtures)
+    assert _has(errors, "kickoff")
+
+
+def test_timing_is_skipped_when_check_timing_is_false():
+    fixtures = _fixtures()
+    fixtures[9] = [T0]
+    fixtures[14] = [T0 + timedelta(minutes=10)]
+    errors = validate_selection(
+        _sel(swaps=[SwapInput(9, 14)]), SQUAD, POSITIONS, fixtures, check_timing=False
+    )
+    assert errors == []
+
+
+def test_check_timing_false_also_drops_the_has_a_fixture_requirement():
+    # Both live on the same fixture data, which the re-validating caller does
+    # not have and must not fabricate. Switching timing off drops both.
+    errors = validate_selection(
+        _sel(swaps=[SwapInput(9, 14)]), SQUAD, POSITIONS, {}, check_timing=False
+    )
+    assert errors == []
+
+
+def test_check_timing_false_still_checks_every_other_swap_rule():
+    # Wrong position, and the outgoing player is a Bonus Player: neither has
+    # anything to do with timing, so both must still be reported.
+    errors = validate_selection(
+        _sel(swaps=[SwapInput(6, 15)]), SQUAD, POSITIONS, {}, check_timing=False
+    )
+    assert _has(errors, "Bonus")
+    assert _has(errors, "same position")
+
+
+def test_check_timing_is_keyword_only():
+    # Positional would be easy to pass by accident in the wrong slot.
+    with pytest.raises(TypeError):
+        validate_selection(_sel(), SQUAD, POSITIONS, FIXTURES, False)

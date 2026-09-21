@@ -42,7 +42,6 @@ stray float() here would fail loudly rather than silently deciding a boundary.
 import logging
 import re
 from types import SimpleNamespace
-from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import text
@@ -193,32 +192,6 @@ def _stat_row(row) -> dict:
     creativity = row.creativity
     out["creativity"] = Decimal("0") if creativity is None else creativity
     return out
-
-
-# A fixed instant. Only the ORDER of these matters, never the values.
-_T0 = datetime(2000, 1, 1, tzinfo=timezone.utc)
-
-
-def _timing_satisfying_fixtures(player_ids, swaps):
-    """Fixtures that satisfy the swap-timing rule by construction.
-
-    Swap timing must NOT be re-checked at scoring time. Decision D4: a swap is
-    validated once at submission and never again, so a fixture that moved
-    afterwards must not retrospectively invalidate it. But validate_selection
-    checks timing unconditionally, and it is the same function the endpoint
-    uses -- which is the point, because everything ELSE it checks (bonus count,
-    formation, swap references) is exactly what we want to hear about.
-
-    So each player is given one fixture, and each swap's INCOMING player is
-    given a later one, which makes the timing rule pass for every swap while
-    leaving every other rule live. Passing `[None]` instead would crash:
-    _last_fixture_end does max(kickoffs) + timedelta.
-    """
-    incoming = {s.player_in_id for s in swaps}
-    return {
-        pid: [_T0 + timedelta(days=1) if pid in incoming else _T0]
-        for pid in player_ids
-    }
 
 
 def _chunks(items, size):
@@ -459,7 +432,8 @@ def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, ga
         ),
         set(xi) | set(bench),
         positions,
-        _timing_satisfying_fixtures(set(xi) | set(bench), swaps),
+        {},
+        check_timing=False,
     )
     if errors:
         logger.warning(
