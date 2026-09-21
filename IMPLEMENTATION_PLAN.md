@@ -277,6 +277,21 @@ database** — dev, test and the server are released at different moments, so
 each computes its own. `downgrade()` drops the table; the stored epoch is data
 and is not recoverable from the schema.
 
+### Revision 4 — `f2b9c05e7a41`, "Drop free_hit_squads"
+
+Added in Phase 4c. `down_revision = "e7c4d81b3a95"`.
+
+Drops `free_hit_squads`, the Free Hit snapshot table. Chips went in Phase 1;
+this table survived because `revert_free_hits` still read it, and dropping a
+table out from under running code turns a dead feature into an outage. Phase 4c
+deleted the task, the Beat entry, `GameEngine/free_hit_revert.py` and the last
+dead `text()` statements naming the table, and only then dropped it.
+
+Checked and quoted in the migration: **no triggers, no incoming foreign keys**.
+Its three indexes belong to the table and go with it. `downgrade()` recreates
+the shape only, reproduced from `c4e1a7b92f30`; the snapshots are data and are
+not recoverable, and would be meaningless if they were.
+
 ### Downgrade semantics
 
 **Structure only. Wiped data is NOT restored** — not the truncated tables, and not the
@@ -373,7 +388,10 @@ Find real file names first. Expected areas:
   - **E1 closed:** `allow_sim_seasons` is an explicit argument passed only by `Tools/fpl_sim.py`. **No production caller of the classic `score_gameweek` remains.**
   - **E2, E5, E6, E7 and F1 to F6 are closed** — see section 8. **E3 stays open until Phase 4c.**
 
-**Phase 4c. The classic removals.** Delete `Results/scoring.py` and the chip/hit/captaincy code paths once the tests that still import them are retired (the merge gate). `Gameplay/chips.py`, `GameEngine/free_hit_revert.py`, `Data/scoring_rules.py`'s captain multipliers and `Context_assembler/main.py`'s captain tagging all still reference removed concepts. **GATE: full suite green.**
+**Phase 4c. The classic removals. — DONE** (`PHASE4C_REPORT.md`). `Results/scoring.py` is deleted; no module imports it anywhere. `GameEngine/free_hit_revert.py`, the `revert_free_hits` task and its Beat entry are gone, and migration `f2b9c05e7a41` drops `free_hit_squads`. `MAX_TRANSFERS_PER_GAMEWEEK`, the `FREE_CHIPS` import and the `chip_active` placeholder are gone from `transfers.py`, and `_validate_transfers`' `allowance` is required. Suite: 0 pass→fail, 26 tests removed (all classic-only), 71 EXPECTED / 3 UNEXPECTED.
+  - **Still outstanding, reported in `PHASE4C_REPORT.md` §G:** `Gameplay/chips.py` is **still routed** at `Context_assembler/main.py:174`, so `GET /chips/used` is a live endpoint querying the dropped `chips` table. Removing a route is client-facing, so it is grouped with Phase 5 rather than done blind.
+
+**Phase 5. Frontend.** Screens listed in section 4, plus the inert keys the backend is still returning for compatibility: `chip_used`, `captain_multiplier`, `captain_bonus`, `transfer_hits`, `hit_deductions`, per-player `is_captain` / `is_vice_captain`, the deprecated `points`, and `chip_active` on `GET /transfers/used`. Remove `GET /chips/used` with the UI that calls it.
   - **Re-pin the three `test_transfer_concurrency.py` tests FIRST**, before any other Phase 4 work. They pin the Stage 3 TOCTOU advisory-lock fix, which is a live concurrency guarantee, and they are skipped only because their fixtures assume the old allowance.
   - **B5. Delete `MAX_TRANSFERS_PER_GAMEWEEK` and its dead check.** The allowance caps at 2, so the 20-transfer cap can never fire. Remove the constant from `Shared/rules.py` and the check from `Gameplay/transfers.py::_validate_transfers`.
   - **B6. Delete the `chip_active` placeholder and the `FREE_CHIPS` import** from `Gameplay/transfers.py`. `chip_active` is bound to a literal `False` and reads as though chips might return.
@@ -536,6 +554,21 @@ All ten Phase 2 ambiguities are now closed. New ones raised in Phase 3 are in
 
 - B5, B6 and B7 are not ambiguities but cleanup, and have moved to the Phase 4
   task list in section 5.
+
+### Phase 4c closures
+
+- **E3 — two scorers coexisted. CLOSED:** `Results/scoring.py` is deleted. The
+  behaviour the tactical engine must still have (Auto Sub logic, formation
+  legality, appearance points, the finance snapshot) was migrated into the
+  tactical test files; the captain/chip/hit tests were deleted with the rules
+  they encoded.
+- **B5 — `MAX_TRANSFERS_PER_GAMEWEEK` was unreachable. CLOSED: deleted**, with
+  the two tests that existed only to exercise it.
+- **B6 — the `chip_active` placeholder and `FREE_CHIPS` import. CLOSED:
+  deleted.** The `chip_active` **response key** survives as a literal `False`,
+  because it is client-facing; Phase 5 removes it.
+- **B7 — `_validate_transfers`' `allowance` defaulted to 0. CLOSED: required**,
+  with no default.
 
 ### Phase 4a and 4b ambiguities
 
