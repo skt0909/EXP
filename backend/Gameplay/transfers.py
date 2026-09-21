@@ -171,6 +171,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from Shared.db_utils import get_engine
 from Shared.rules import (
+    FIRST_GAMEWEEK,
     FREE_CHIPS,
     FREE_TRANSFER_BANK_CAP,
     MAX_PER_CLUB,
@@ -357,7 +358,16 @@ def free_transfers_available(conn, user_id: int, season: str, gameweek: int) -> 
         PRIOR_FREE_TRANSFERS_USED_QUERY,
         {"user_id": user_id, "season": season, "gameweek": gameweek},
     ).all()
-    return _tactical_free_transfers_available({r.gameweek: r.used for r in rows}, gameweek)
+    # PENDING: the start gameweek is the anchor decision B1 settles the RULE
+    # for but not the DERIVATION of -- "the earliest gameweek with a
+    # gw_selections row" turned out to be unsafe (the row is freely deletable
+    # and cascades from users, so the anchor can move backwards in time; see
+    # PHASE3B_REPORT.md). Until that is chosen, this passes FIRST_GAMEWEEK,
+    # which is exactly what the recurrence already assumed -- so this line
+    # changes no behaviour and encodes no new guess.
+    return _tactical_free_transfers_available(
+        {r.gameweek: r.used for r in rows}, gameweek, FIRST_GAMEWEEK
+    )
 
 
 def _validate_transfers(

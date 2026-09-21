@@ -262,20 +262,36 @@ RULES_VERSION = 3
 FREE_TRANSFER_BANK_CAP = 2
 
 
-def _tactical_free_transfers_available(used_by_gameweek: dict, gameweek: int) -> int:
-    """The banking recurrence under the tactical rules, capped at 2.
+def _tactical_free_transfers_available(
+    used_by_gameweek: dict, gameweek: int, start_gameweek: int
+) -> int:
+    """The banking recurrence under the tactical rules (decision B1).
+
+    At `start_gameweek` -- the first gameweek played under these rules --
+    EVERY manager has exactly 1, however long the season has been running.
+    After that: +1 per gameweek, unused ones bank, capped at
+    FREE_TRANSFER_BANK_CAP, minus what was spent. There are no paid transfers,
+    so an over-spend is rejected at the endpoint rather than charged.
+
+    A manager who joins later replays the same recurrence from the same start,
+    so an empty history accumulates to the cap. That is the only available
+    reading: this app has no "joined at gameweek N" concept, and with the cap
+    at 2 the gift is one transfer rather than the classic rules' four.
+
+    ANCHORED, not hard-coded. start_gameweek is a parameter precisely so this
+    function states the rule and nothing else -- how the anchor is DERIVED is a
+    separate question, and an open one (see PHASE3B_REPORT.md).
 
     A SEPARATE function rather than a parameter on _free_transfers_available,
-    which is left exactly as it was: that one is still what the classic scorer
-    and the classic endpoints replay, and changing its cap would silently
-    restate every historical gameweek's allowance. Two rule sets coexist for
-    one phase; Phase 4 removes the classic one.
+    which is left exactly as it was: that one is still what the classic code
+    replays, and changing it would silently restate every historical
+    gameweek's allowance. Two rule sets coexist until Phase 4.
 
-    Same shape as the original -- max(0, ...) first, so overspending a gameweek
-    costs points rather than leaving a debt for the next one.
+    max(0, ...) first, same as the classic one: over-spending a gameweek never
+    leaves a debt for the next to pay off.
     """
     available = min(FREE_TRANSFER_BANK_CAP, FREE_TRANSFERS_EARNED_PER_GAMEWEEK)
-    for gw in range(FIRST_GAMEWEEK, gameweek):
+    for gw in range(start_gameweek, gameweek):
         carried = max(0, available - used_by_gameweek.get(gw, 0))
         available = min(
             FREE_TRANSFER_BANK_CAP, carried + FREE_TRANSFERS_EARNED_PER_GAMEWEEK

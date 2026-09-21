@@ -61,7 +61,7 @@ A starter who did not play and was **not** replaced (no Auto Sub was available, 
 | General Points | Appearance 60+ min +2, 1-59 min +1. Goals GK +10 / DEF +6 / MID +5 / FWD +4. Assist +3. Clean sheet (60+ min) GK/DEF +4, MID +1, FWD 0. Defensive Contribution +2 (DEF 10 actions, MID/FWD 12). Goals conceded -1 per 2 (GK/DEF). Yellow -1, Red -3, Own goal -2, Penalty missed -2. Saves +1 per 3, Penalty saved +5. **No FPL bonus points, no captain, no chips.** Validated: this table reproduces the FPL archive totals (minus bonus) on 100% of rows. |
 | Tactical Points (Bonus Players only, per fixture, summed across a double Gameweek) | **Attack:** goal +3, assist +2. **Defence:** clean sheet (60+ min) +2, plus Defensive Contribution tiers: 8+ actions +2, 10+ +3. **Balanced:** goal or assist +1 each, plus creativity tiers: 20+ +1, 40+ +3. **Tiers are NOT stacked: only the highest tier reached counts** (10 actions = +3, not +2 +3; creativity 39.9 = +1, not +3). These are rules **"Q1"**, judged against the balance spec in section 9. Values chosen so the three tactics have distinct personalities: Attack swingiest, Defence middle, Balanced steadiest, with average returns within about 3% for a form-based manager. They are tuned on 2025-26 only (35 Gameweeks) and MUST be re-tuned after about 20 Gameweeks of 2026-27. |
 | Gameweek total | General Points of all scoring slots + Tactical Points + Sub Bonus. Resets each Gameweek; completed totals accumulate into the Season Total. |
-| Transfers | 1 free per Gameweek. Unused ones bank, **cap 2** (was 5). **No paid transfers, no hits**: transfers beyond the balance are rejected. `transfers.is_free` stays (always true). |
+| Transfers | **At the first Gameweek under these rules every manager has exactly 1 free transfer**, however long the season has been running. After that: **+1 per Gameweek, unused ones bank, cap 2** (was 5), minus transfers made. A manager who joins later replays the same recurrence from that same start Gameweek, so an empty history accumulates to the cap — there is no "joined at Gameweek N" concept. **No paid transfers, no hits**: transfers beyond the balance are rejected, not charged. `transfers.is_free` stays (always true). Creating the initial 15 is **not** a transfer and consumes no allowance — `Gameplay/squad_selection.py` writes only `user_squads` and `squad_players` and never touches the `transfers` table. |
 | Removed | Chips (all four), captain / vice-captain, transfer hits, FPL bonus points. |
 
 ### Scoring timing
@@ -428,6 +428,25 @@ Six more are settled by Phase 3's owner decisions:
 
 All ten Phase 2 ambiguities are now closed. New ones raised in Phase 3 are in
 `PHASE3_REPORT.md`.
+
+### Phase 3 ambiguities
+
+- **B1 — the banking recurrence hands a new manager the full cap. RULE CLOSED;
+  ANCHOR STILL OPEN.** The rule is decided and implemented: 1 free transfer at
+  the first Gameweek under these rules, then +1 per Gameweek banking to a cap of
+  2, minus transfers made, with a later joiner replaying the same recurrence
+  from the same start. `_tactical_free_transfers_available` takes that start
+  Gameweek as a **parameter** and is covered by nine tests.
+
+  What is **not** settled is how the start Gameweek is DERIVED. The proposed
+  definition — the earliest Gameweek with a `gw_selections` row — was checked
+  against the live schema and is unsafe: those rows are freely deletable and
+  cascade from `users`, so the anchor can move and silently restate every
+  manager's allowance. Alternatives are in `PHASE3B_REPORT.md`; until one is
+  chosen, `transfers.py` passes `FIRST_GAMEWEEK`, which is exactly what the
+  recurrence already assumed, so no new guess is encoded.
+
+- B2 to B7 remain open; see `PHASE3_REPORT.md`.
 - ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
   Phase 0:** both `creativity` (`numeric`) and `defensive_contributions` (`smallint`,
   plural in the database) exist. Evidence quoted in section 3, Phase 0 finding 4.

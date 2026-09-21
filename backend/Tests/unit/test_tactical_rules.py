@@ -13,7 +13,69 @@ from decimal import Decimal
 import pytest
 
 from Shared import rules
+from Shared.rules import _tactical_free_transfers_available as tactical_ft
 from Results.tactical_scoring import general_points, tactical_points, tier_points
+
+
+# ---- the free-transfer recurrence (decision B1) ----------------------------
+#
+# Anchored on a START GAMEWEEK rather than on gameweek 1: the tactical rules
+# begin mid-season, and every manager gets exactly 1 free transfer in that
+# first gameweek however long the season has been running.
+#
+# The classic _free_transfers_available is deliberately NOT touched by any of
+# these -- it still replays from gameweek 1 with a cap of 5 for the classic
+# code, and test_the_classic_recurrence_is_untouched below pins that.
+
+START = 6  # an arbitrary mid-season start, to prove nothing keys off gw 1
+
+
+def test_at_the_start_gameweek_everyone_has_exactly_one():
+    assert tactical_ft({}, START, START) == 1
+
+
+def test_the_next_gameweek_with_nothing_used_gives_two():
+    assert tactical_ft({}, START + 1, START) == 2
+
+
+def test_a_further_unused_gameweek_stays_at_the_cap():
+    assert tactical_ft({}, START + 2, START) == 2
+    assert tactical_ft({}, START + 9, START) == rules.FREE_TRANSFER_BANK_CAP == 2
+
+
+def test_one_used_at_the_start_gameweek_leaves_one_for_the_next():
+    assert tactical_ft({START: 1}, START + 1, START) == 1
+
+
+def test_two_used_across_consecutive_gameweeks():
+    # Spend the single allowance at START, then the single allowance at
+    # START+1: the bank never gets a chance to build.
+    assert tactical_ft({START: 1, START + 1: 1}, START + 2, START) == 1
+
+
+def test_a_joiner_three_gameweeks_after_the_start_accumulates_to_the_cap():
+    # No "joined at gameweek N" concept exists, so an empty history replays
+    # the same recurrence and arrives at the cap -- capped at 2, not 5.
+    assert tactical_ft({}, START + 3, START) == 2
+
+
+def test_overspending_never_leaves_a_debt():
+    # max(0, ...) first: going beyond the allowance costs the manager the
+    # transfer (it is rejected), it does not make the next gameweek negative.
+    assert tactical_ft({START: 5}, START + 1, START) == 1
+
+
+def test_a_gameweek_before_the_start_is_treated_as_the_start():
+    # Nothing under the new rules happens before the start gameweek; asking
+    # about one is a caller error rather than a rule, and 1 is the safe answer.
+    assert tactical_ft({}, START - 3, START) == 1
+
+
+def test_the_classic_recurrence_is_untouched():
+    # Phase 3 added a separate function precisely so this one could stay put.
+    # It still replays from gameweek 1 and still caps at 5.
+    assert rules._free_transfers_available({}, 6) == 5
+    assert rules.MAX_BANKED_FREE_TRANSFERS == 5
 
 
 # ---- constants exist and carry the Q1 values -------------------------------
