@@ -174,6 +174,7 @@ from Shared.rules import (
     FIRST_GAMEWEEK,
     FREE_CHIPS,
     FREE_TRANSFER_BANK_CAP,
+    RULES_VERSION,
     MAX_PER_CLUB,
     MAX_TRANSFERS_PER_GAMEWEEK,
     _selling_price,
@@ -347,6 +348,31 @@ class TransfersUsedResponse(BaseModel):
     total_transfers_this_gameweek: int
 
 
+RULESET_EPOCH_QUERY = text(
+    "SELECT first_gameweek FROM ruleset_epochs "
+    "WHERE season = :season AND rules_version = :rules_version"
+)
+
+
+def ruleset_first_gameweek(conn, season: str) -> int:
+    """The first gameweek played under the current ruleset, from ruleset_epochs.
+
+    STORED, never derived. See migration e7c4d81b3a95 for why: every candidate
+    derived from gameplay data (gw_selections, gw_scores) sits on rows that can
+    be deleted, and deleting one could move the anchor and silently restate
+    every manager's allowance.
+
+    A MISSING ROW IS NOT AN ERROR. It means this database has never known any
+    other ruleset -- a fresh CI database, or a season that began under these
+    rules -- so the answer is FIRST_GAMEWEEK. That is also what keeps every
+    existing test working without an epoch fixture.
+    """
+    stored = conn.execute(
+        RULESET_EPOCH_QUERY, {"season": season, "rules_version": RULES_VERSION}
+    ).scalar()
+    return FIRST_GAMEWEEK if stored is None else int(stored)
+
+
 def free_transfers_available(conn, user_id: int, season: str, gameweek: int) -> int:
     """How many free transfers this manager has for this gameweek.
 
@@ -358,16 +384,23 @@ def free_transfers_available(conn, user_id: int, season: str, gameweek: int) -> 
         PRIOR_FREE_TRANSFERS_USED_QUERY,
         {"user_id": user_id, "season": season, "gameweek": gameweek},
     ).all()
-    # PENDING: the start gameweek is the anchor decision B1 settles the RULE
-    # for but not the DERIVATION of -- "the earliest gameweek with a
-    # gw_selections row" turned out to be unsafe (the row is freely deletable
-    # and cascades from users, so the anchor can move backwards in time; see
-    # PHASE3B_REPORT.md). Until that is chosen, this passes FIRST_GAMEWEEK,
-    # which is exactly what the recurrence already assumed -- so this line
-    # changes no behaviour and encodes no new guess.
-    return _tactical_free_transfers_available(
-        {r.gameweek: r.used for r in rows}, gameweek, FIRST_GAMEWEEK
-    )
+    first_gameweek = ruleset_first_gameweek(conn, season)
+
+    # Transfers made BEFORE the ruleset began cannot consume an allowance that
+    # did not exist yet, so they are dropped from the recurrence. They should
+    # not be there at all -- the release happens between gameweeks -- so each
+    # one is a data-integrity signal worth a warning rather than a silent skip.
+    stale = {r.gameweek: r.used for r in rows if r.gameweek < first_gameweek}
+    if stale:
+        logger.warning(
+            "user_id=%s season=%s: %s transfer(s) recorded in gameweek(s) %s, "
+            "before the ruleset epoch (first_gameweek=%s). Ignored by the free-transfer "
+            "recurrence. This should not happen: the ruleset starts between gameweeks.",
+            user_id, season, sum(stale.values()), sorted(stale), first_gameweek,
+        )
+
+    used = {r.gameweek: r.used for r in rows if r.gameweek >= first_gameweek}
+    return _tactical_free_transfers_available(used, gameweek, first_gameweek)
 
 
 def _validate_transfers(

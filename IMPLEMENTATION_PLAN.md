@@ -246,6 +246,37 @@ so dropping it now would break running code. **It is dropped by a small migratio
 Phase 4, after that code is removed** — the same rule the rest of this release follows,
 that the schema change and the code change travel together.
 
+### Revision 3 — `e7c4d81b3a95`, "Add ruleset_epochs"
+
+Added in Phase 3 to anchor the free-transfer recurrence (decision B1, option B).
+`down_revision = "d58b3f10a7c2"`.
+
+Creates `ruleset_epochs (season VARCHAR(9), rules_version SMALLINT,
+first_gameweek SMALLINT, created_at TIMESTAMPTZ DEFAULT now(),
+PRIMARY KEY (season, rules_version))`, plus
+`enforce_ruleset_epochs_immutability`, a `BEFORE UPDATE OR DELETE` trigger that
+raises — the same append-only pattern `transfers` uses. **No foreign keys**, so
+nothing cascades into it and no other table's deletions can move the anchor.
+
+It then inserts **one row for this database**, `ON CONFLICT DO NOTHING`:
+
+- **Current season**, database-side: the season holding the next kickoff still
+  to come, restricted to real season codes with
+  `season ~ '^[0-9]{4}-[0-9]{2}$'` (which excludes `SIM38OK`, `SIM38TST` and
+  `SIMSMOKE`). The application's own `current_live_season()`
+  (`Data/fpl_ingest.py:187`) asks the FPL API, which a migration must not do.
+- **First Gameweek**, rule D5: the first Gameweek whose deadline —
+  `MIN(kickoff_time) - interval '90 minutes'`, the same expression
+  `Shared/deadlines.py` builds — is still in the future at migration time.
+- **Nothing to insert is a normal outcome**, not a failure: a fresh CI database
+  has no fixtures, and between seasons there is no future kickoff. Both print a
+  notice and insert nothing.
+
+The computed row is printed in the migration output. **The epoch is per
+database** — dev, test and the server are released at different moments, so
+each computes its own. `downgrade()` drops the table; the stored epoch is data
+and is not recoverable from the schema.
+
 ### Downgrade semantics
 
 **Structure only. Wiped data is NOT restored** — not the truncated tables, and not the
@@ -431,20 +462,31 @@ All ten Phase 2 ambiguities are now closed. New ones raised in Phase 3 are in
 
 ### Phase 3 ambiguities
 
-- **B1 — the banking recurrence hands a new manager the full cap. RULE CLOSED;
-  ANCHOR STILL OPEN.** The rule is decided and implemented: 1 free transfer at
-  the first Gameweek under these rules, then +1 per Gameweek banking to a cap of
-  2, minus transfers made, with a later joiner replaying the same recurrence
-  from the same start. `_tactical_free_transfers_available` takes that start
-  Gameweek as a **parameter** and is covered by nine tests.
+- **B1 — the free-transfer recurrence and its anchor. CLOSED, rule and anchor.**
 
-  What is **not** settled is how the start Gameweek is DERIVED. The proposed
-  definition — the earliest Gameweek with a `gw_selections` row — was checked
-  against the live schema and is unsafe: those rows are freely deletable and
-  cascade from `users`, so the anchor can move and silently restate every
-  manager's allowance. Alternatives are in `PHASE3B_REPORT.md`; until one is
-  chosen, `transfers.py` passes `FIRST_GAMEWEEK`, which is exactly what the
-  recurrence already assumed, so no new guess is encoded.
+  **The rule:** 1 free transfer at the first Gameweek under these rules, then
+  +1 per Gameweek banking to a cap of 2, minus transfers made. A later joiner
+  replays the same recurrence from the same start, so an empty history reaches
+  the cap. No paid transfers.
+
+  **The anchor (option B): stored, never derived.** The first new-rules
+  Gameweek lives in `ruleset_epochs`, one row per (season, rules_version),
+  written by migration `e7c4d81b3a95` at release time using rule D5 — the first
+  Gameweek whose deadline was still in the future when that database was
+  migrated. The table is **append-only** (a `BEFORE UPDATE OR DELETE` trigger
+  raises, following the `transfers` pattern) and has **no foreign keys**, so
+  nothing cascades into it.
+
+  The rejected alternative was "the earliest Gameweek with a `gw_selections`
+  row". It was checked against the live schema and is unsafe: those rows carry
+  no DELETE guard and cascade from `users`, so deleting one account could move
+  the anchor forward and silently restate every manager's allowance.
+  `test_deleting_a_user_does_not_move_any_other_managers_allowance` is the test
+  that would have failed.
+
+  **A missing row is not an error** — it means the database has never known any
+  other ruleset, so the answer is Gameweek 1. Transfers recorded before the
+  epoch are ignored by the recurrence and logged as a data-integrity warning.
 
 - B2 to B7 remain open; see `PHASE3_REPORT.md`.
 - ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
@@ -537,6 +579,18 @@ the new code needs columns only the migration adds. Deploy as one step:
    one-off act, and a stored copy turns the guard into decoration.
 5. Restart the app processes.
 6. Smoke check.
+7. **Check the epoch.** After migrating each database run:
+
+   ```sql
+   SELECT * FROM ruleset_epochs;
+   ```
+
+   Confirm `first_gameweek` is the first Gameweek whose deadline was still
+   ahead. **Migrate INSIDE the release window** — between the end of one
+   Gameweek's last fixture and the next deadline — because the epoch is computed
+   from `now()` at migration time. Migrate outside it and the epoch is a
+   Gameweek that is already under way, which cannot be corrected in place: the
+   table is append-only, so fixing it means a new `rules_version`.
 
 ### Server rules
 - **Never run tests against `pitchside_db`.** `ALLOW_GAMEPLAY_WIPE` must never name it in
