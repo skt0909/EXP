@@ -16,7 +16,7 @@ Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, s
 | Area | Rule |
 |---|---|
 | Squad | 15 players: 2 GK / 5 DEF / 5 MID / 3 FWD. Budget £100.0m (existing half-profit selling rule kept). Max 3 per club. |
-| Starting XI | 1 GK, at least 3 DEF, at least 2 MID, at least 1 FWD. |
+| Starting XI | 1 GK, at least 3 DEF, **at least 3 MID**, at least 1 FWD. The MID floor is 3, not the classic game's 2, which removes **exactly one formation: 5-2-3**. Maxima are implied by the 2/5/5/3 squad and are not a separate rule. |
 | Bench | 4 players in fixed slots: **12 backup GK (Auto Sub)**, **13 outfield Auto Sub**, **14 and 15 Tactical Subs**. No player holds two roles. The bench is always exactly 1 GK + 3 outfield. |
 | Deadline | Unchanged: one per Gameweek, first kickoff minus 90 minutes. Everything (XI, tactic, Bonus Players, bench roles, swaps) locks at the deadline. |
 
@@ -36,10 +36,24 @@ Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, s
 | Auto Subs | Cover a starter with no appearance (0 minutes across all their fixtures that Gameweek). Backup GK covers only the starting GK. The outfield Auto Sub covers the **lowest slot number** whose replacement keeps the formation legal. An Auto Sub covering a Bonus Player earns General Points only. |
 | Tactical Subs | 0, 1 or 2 planned swaps, set before the deadline. A Tactical Sub with no planned swap stays on the bench and scores 0. |
 | Swap validity | Outgoing = a non-Bonus starter. Incoming = a Tactical Sub slot (14/15). **Same position** as outgoing. Both players must have a fixture that Gameweek. |
-| Swap timing | Incoming player's first kickoff must be after the outgoing player's LAST fixture ends. "Ends" = kickoff + `FIXTURE_DURATION_MIN` (115). In a double Gameweek each player's fixtures are treated as one block. Validated once at submission. |
+| Swap timing | Incoming player's first kickoff must be after the outgoing player's LAST fixture ends. "Ends" = kickoff + `FIXTURE_DURATION_MIN` (115). In a double Gameweek each player's fixtures are treated as one block. **Validated once at submission and locked at the deadline. Never re-validated if a kickoff later moves.** |
+| Postponements | A fixture that is postponed or rescheduled is **not** re-validated against the swap it was part of. Points follow the Gameweek in which the fixture is **actually played**, as reported by the external API. A player whose fixture was postponed earns nothing that Gameweek and **counts as not having appeared** — so he can be Auto Sub covered, and if he was a Bonus Player he loses Bonus status. The 15-minute scoring job recomputes the active window, so a moved fixture corrects itself without manual intervention. |
 | Swap scoring | Outgoing player's points are banked. The incoming player scores his own points. Both count. Up to 13 players can score in a Gameweek. |
 | Swap edge cases | Outgoing never appeared: swap still happens, he scores 0. Incoming never appeared: the slot scores 0, no cover. **A slot involved in a swap is never Auto Sub covered.** |
-| Sub Bonus | +1 per executed swap where the incoming player's full-Gameweek General Points are strictly greater than the outgoing player's. Max +2. Shown separately. Note: if the outgoing player never appeared, the incoming player needs to score above 0 (accepted small giveaway). |
+| Sub Bonus | +1 per executed swap where the incoming player's full-Gameweek General Points are strictly greater than the outgoing player's. Max +2, which follows structurally from there being two Tactical Sub slots. **The engine does not enforce the cap** — the database already limits a team to two swaps, and Phase 3 validation must reject more than two. Shown separately. Note: if the outgoing player never appeared, the incoming player needs to score above 0 (accepted small giveaway). |
+
+**The six roles** a scored selection reports per player. The dashboard renders these directly, and the last two are the ones easily confused:
+
+| Role | Meaning | Counts towards the total? |
+|---|---|---|
+| `starter` | named in the XI and not otherwise disturbed | yes |
+| `swapped_out` | the outgoing player of an executed Tactical swap; his points are banked | yes |
+| `swapped_in` | the incoming Tactical Sub | yes |
+| `auto_sub_cover` | a bench player who came on to cover a no-show; carries `covers_player_id` | yes |
+| `auto_sub_replaced` | a starter who did not play **and was replaced** by an Auto Sub | **no** |
+| `bench_unused` | a bench player who never came on | no |
+
+A starter who did not play and was **not** replaced (no Auto Sub was available, or covering him would have broken the formation) stays `starter` and still counts, contributing 0. That is a different state from `auto_sub_replaced` and the two must not be collapsed.
 
 ### Points
 | Area | Rule |
@@ -308,6 +322,18 @@ Find real file names first. Expected areas:
   - **Remaining for the server (`pitchside_db`):** untouched and its state unverified. Released in one step with the code, per section 10. The branch is not pushed or merged until Phase 4 is finished.
 **Phase 2. Rules and scoring engine.** Constants plus pure functions with tests first. No DB in the unit tests. **GATE: tests green.**
 **Phase 3. API.** Selection and transfer endpoints with validation, and their tests. **GATE: tests green.**
+  - **Formation rule (D1).** Enforce 1 GK, >=3 DEF, **>=3 MID**, >=1 FWD. The classic code still enforces a 2-MID minimum and Phase 2 deliberately did not touch it. Every place that encodes the old minimum, to change here:
+
+    | File | Line | What it encodes |
+    |---|---|---|
+    | `backend/Gameplay/starting_xi.py` | 383-384 | `if not (2 <= mid_count <= 5)` and the message `"MID count must be between 2 and 5, got {mid_count}"` — the live validation |
+    | `backend/Results/scoring.py` | 212 | `2 <= counts.get("MID", 0) <= 5` in `_formation_legal`, used by the classic autosub |
+    | `backend/Results/scoring.py` | 30 | docstring: "the resulting formation (DEF 3-5, MID 2-5, FWD 1-3)" |
+    | `frontend/src/pages/StartingXI/StartingXIPage.jsx` | 33 | `{ label: '5-2-3', counts: { DEF: 5, MID: 2, FWD: 3 } }` — the formation this decision removes; delete the option |
+    | `frontend/src/pages/StartingXI/StartingXIPage.jsx` | 75 | `counts.MID < 2 \|\| counts.MID > 5` and the message "Midfielders must be between 2 and 5" |
+
+    Not in the list, checked and excluded: `backend/Game_logic/dream11.py:893` already requires 3-5 MID but is **Dream11 and out of scope**; `backend/Tests/test_starting_xi.py:177` builds a 2-MID XI only to assert a *DEF* error; `backend/Tests/test_scoring.py:200` exercises formation legality with 4 MID and does not encode the floor.
+  - **Two-swap validation (D7).** Reject more than two Tactical swaps at the endpoint. The database limits it (`uq_swaps_sel_in`, and only slots 14/15 carry `role = 'tactical'`) and the scoring engine deliberately does not check it — hand the engine three swaps and it returns a Sub Bonus of 3. The endpoint is the place this is caught.
 **Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite including Dream11 and ML tests. **GATE: full suite green.**
   - Migrate `fpl_game` here, with the code, for the reason above.
   - **Add a small migration dropping `free_hit_squads`.** Both Phase 1 revisions leave it in place because `revert_free_hits` still reads it; it can only go once that code is removed, which happens in this phase. Sequence it after the code change.
@@ -325,7 +351,7 @@ Order of operations:
 1. Per-fixture General Points; sum per player. A player "appeared" if total minutes > 0.
 2. Resolve Tactical swaps first. Each swapped slot yields outgoing points + incoming points. Mark those slots as not eligible for Auto Sub cover.
 3. GK cover: if the starting GK did not appear (and is not in a swap), the backup GK takes the slot if he appeared.
-4. Outfield cover: the outfield Auto Sub (slot 13), if he appeared, replaces the lowest-slot non-appearing outfield starter (not in a swap) whose replacement keeps the formation legal (1 GK, >=3 DEF, >=2 MID, >=1 FWD).
+4. Outfield cover: the outfield Auto Sub (slot 13), if he appeared, replaces the lowest-slot non-appearing outfield starter (not in a swap) whose replacement keeps the formation legal (1 GK, >=3 DEF, **>=3 MID**, >=1 FWD). A starter actually replaced in step 3 or 4 is reported with the sixth role, `auto_sub_replaced`, and stops counting; a non-appearing starter who was **not** replaced stays `starter` and still counts, at 0. No maximum is checked: an Auto Sub of a position is only on the bench when the XI holds fewer than the squad's allocation, so a cover can never exceed it.
 5. Tactical Points: for each Bonus Player who appeared himself (not an Auto Sub replacement), apply the tactic's events **per fixture** and sum. Tier events pay the highest tier reached in that fixture (not stacked). Defence's Defensive Contribution tiers apply only when the stat exists for the season.
 6. Sub Bonus: for each executed swap, +1 if General(incoming) > General(outgoing) using full-Gameweek sums.
 7. Total = General of all scoring slots + Tactical + Sub Bonus.
@@ -357,6 +383,30 @@ Validation tests: legal/illegal formations, Attack with fewer than 2 FWD, Bonus 
 - **Attack managers cannot use forward swaps.** A forward swap needs 2 Bonus forwards + 1 non-Bonus forward starter + 1 bench forward = 4 forwards, and the squad holds 3. Accepted for the MVP; defender and midfielder swaps remain possible.
 - **The app must show each tactic's tier thresholds to managers.** The tiers are not stacked and the boundaries are not guessable: a creativity of 39.9 earns +1, not +3.
 - Cosmetic: `team_value_available` is `True` beside `team_value` `0.0` for a fresh user (found in Phase 1). Fix in Phase 5.
+
+### Phase 2 ambiguities now closed by owner decision
+
+`PHASE2_REPORT.md` section 7 lists ten. Three are settled:
+
+- **A1 — the role vocabulary had no name for a replaced starter. CLOSED by D2.**
+  A sixth role, `auto_sub_replaced`, is added. A starter who did not play and
+  was replaced carries it and stops counting; one who did not play and was not
+  replaced stays `starter` and still counts, at 0. Implemented and tested in
+  commit `ef7bcb0`.
+- **A3 — formation maxima were inferred rather than stated. CLOSED by D1.**
+  Maxima are implied by the 2/5/5/3 squad and are **not** a separate rule, so
+  `FORMATION_MAX` is gone. It had been read in logic, but the check was
+  unreachable: an Auto Sub of a position is only on the bench when the XI holds
+  fewer than the squad's allocation, so a cover lands at that allocation at
+  most. The MID **minimum** moved 2 → 3 in the same decision.
+- **A10 — "Defensive Contribution" names two different rules. CLOSED as
+  "keep, distinguish in UI labels".** Nothing is renamed in code. The General
+  Points rule (flat +2 at 10 actions for DEF, 12 for MID/FWD) is labelled
+  **"Defensive Contribution"** in the UI; the Defence tactic's tiers (2 at 8+,
+  3 at 10+) are labelled **"Defence tactic bonus"**. A Phase 5 task, not a
+  refactor.
+
+A2 and A4 to A9 remain open; see `PHASE2_REPORT.md`.
 - ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
   Phase 0:** both `creativity` (`numeric`) and `defensive_contributions` (`smallint`,
   plural in the database) exist. Evidence quoted in section 3, Phase 0 finding 4.
@@ -452,6 +502,28 @@ the new code needs columns only the migration adds. Deploy as one step:
 - **Never run tests against `pitchside_db`.** `ALLOW_GAMEPLAY_WIPE` must never name it in
   a stored file, and no test configuration may point at it.
 - **The branch is not pushed or merged until Phase 4 is finished.**
+
+### Which Gameweek is scored first, and when to release (D5)
+
+**The first Gameweek scored under the new rules is the first one whose deadline
+is still in the future at release time.** Earlier Gameweeks stay blank — they
+are not back-scored, and the Phase 1 migration has already emptied `gw_scores`,
+so there is nothing to convert.
+
+**Release in the window between the end of one Gameweek's last fixture and the
+next deadline.** That window is the only time when no Gameweek is mid-flight:
+release during a Gameweek and managers would have picked a team under one set
+of rules and be scored under another.
+
+### Tactic-pick monitoring (D6)
+
+**No monitoring is being built now.** The section 9 post-launch check — "if any
+tactic is chosen by more than 50% of managers for 3 consecutive Gameweeks,
+investigate" — is run by hand:
+
+```sql
+SELECT gameweek, tactic, COUNT(*) FROM gw_selections GROUP BY gameweek, tactic ORDER BY gameweek, tactic;
+```
 
 ### Operational notes
 - The scoring job must process managers in **batches of a few hundred**. The e2-micro has
