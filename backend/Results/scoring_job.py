@@ -45,6 +45,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from Gameplay.selection_rules import SelectionInput, SwapInput, validate_selection
 from Results.tactical_scoring import Selection, Slot, Swap, score_selection
@@ -354,12 +355,68 @@ def _score_batch(engine, season: str, gameweek: int, batch):
         scored.append(sel.user_id)
 
     if writes:
-        with engine.begin() as conn:
-            conn.execute(UPSERT_GW_SCORE_STMT, writes)
-            if finance_writes:
-                conn.execute(UPSERT_GW_FINANCE_STMT, finance_writes)
+        _written, write_failures = _persist(engine, writes, finance_writes)
+        if write_failures:
+            lost = {uid for uid, _ in write_failures}
+            scored = [uid for uid in scored if uid not in lost]
+            failed.extend(write_failures)
 
     return scored, failed
+
+
+def _execute_writes(conn, writes, finance_writes):
+    """The actual statements. A seam, so the fallback below and the tests can
+    drive exactly one write at a time."""
+    conn.execute(UPSERT_GW_SCORE_STMT, writes)
+    if finance_writes:
+        conn.execute(UPSERT_GW_FINANCE_STMT, finance_writes)
+
+
+def _persist(engine, writes, finance_writes):
+    """Write a batch, falling back to one manager at a time if that fails.
+
+    AMBIGUITY E4, now closed. The 4a job wrote the whole batch in one
+    transaction, so a single bad row took all 200 managers with it -- worse
+    than the per-manager job it replaced, whose blast radius was one. The batch
+    write is still tried first because it is one round trip for 200 managers;
+    only when it fails does this degrade to the old behaviour.
+
+    The retry uses a SAVEPOINT per manager inside ONE transaction
+    (begin_nested), so a manager who fails again rolls back alone and the rest
+    still commit -- rather than opening 200 transactions.
+
+    Returns (written_user_ids, [(user_id, error), ...]).
+    """
+    finance_by_user = {f["user_id"]: f for f in finance_writes}
+    try:
+        with engine.begin() as conn:
+            _execute_writes(conn, writes, finance_writes)
+        return [w["user_id"] for w in writes], []
+    except SQLAlchemyError as exc:
+        logger.error(
+            "score_gameweek_tactical: batch write of %s manager(s) failed, "
+            "falling back to one at a time: %s: %s",
+            len(writes), type(exc).__name__, exc,
+        )
+
+    written, failures = [], []
+    with engine.begin() as conn:
+        for w in writes:
+            fin = finance_by_user.get(w["user_id"])
+            savepoint = conn.begin_nested()
+            try:
+                _execute_writes(conn, [w], [fin] if fin else [])
+                savepoint.commit()
+                written.append(w["user_id"])
+            except SQLAlchemyError as exc:
+                savepoint.rollback()
+                logger.error(
+                    "score_gameweek_tactical: write failed for user_id=%s "
+                    "(season=%s, gameweek=%s): %s: %s",
+                    w["user_id"], w["season"], w["gameweek"], type(exc).__name__, exc,
+                )
+                failures.append((w["user_id"], str(exc)))
+    return written, failures
 
 
 def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, gameweek):

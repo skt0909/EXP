@@ -148,8 +148,24 @@ def refresh_active_gameweeks(engine, window_days: int = DEFAULT_ACTIVE_WINDOW_DA
     failed = []
     for season, gameweek in active:
         try:
-            score_gameweek(engine, season, gameweek)
+            summary = score_gameweek(engine, season, gameweek)
             compute_league_standings(engine, season, gameweek)
+            # The summary used to be DISCARDED here, so a gameweek where some
+            # managers failed to score was still reported as refreshed -- a run
+            # with failures looked fully successful. Standings still run (the
+            # managers who DID score must appear), but the gameweek is reported
+            # as failed so the caller and the heartbeat see it.
+            if summary and summary.get("failed"):
+                detail = "; ".join(f"user_id={uid}: {err}" for uid, err in summary["failed"])
+                logger.error(
+                    "refresh_active_gameweeks: season=%s gameweek=%s scored %d, "
+                    "%d manager(s) FAILED: %s",
+                    season, gameweek, len(summary.get("scored", [])),
+                    len(summary["failed"]), detail,
+                )
+                failed.append((season, gameweek,
+                               f"{len(summary['failed'])} manager(s) failed to score: {detail}"))
+                continue
             refreshed.append((season, gameweek))
         except Exception as e:
             logger.error(
