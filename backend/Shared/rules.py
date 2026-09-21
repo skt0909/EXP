@@ -261,6 +261,27 @@ RULES_VERSION = 3
 # Unused free transfers bank up to this many (was MAX_BANKED_FREE_TRANSFERS = 5).
 FREE_TRANSFER_BANK_CAP = 2
 
+
+def _tactical_free_transfers_available(used_by_gameweek: dict, gameweek: int) -> int:
+    """The banking recurrence under the tactical rules, capped at 2.
+
+    A SEPARATE function rather than a parameter on _free_transfers_available,
+    which is left exactly as it was: that one is still what the classic scorer
+    and the classic endpoints replay, and changing its cap would silently
+    restate every historical gameweek's allowance. Two rule sets coexist for
+    one phase; Phase 4 removes the classic one.
+
+    Same shape as the original -- max(0, ...) first, so overspending a gameweek
+    costs points rather than leaving a debt for the next one.
+    """
+    available = min(FREE_TRANSFER_BANK_CAP, FREE_TRANSFERS_EARNED_PER_GAMEWEEK)
+    for gw in range(FIRST_GAMEWEEK, gameweek):
+        carried = max(0, available - used_by_gameweek.get(gw, 0))
+        available = min(
+            FREE_TRANSFER_BANK_CAP, carried + FREE_TRANSFERS_EARNED_PER_GAMEWEEK
+        )
+    return available
+
 # How long a fixture occupies, for Tactical Sub timing: a swap is only legal
 # when the incoming player's first kickoff is after the outgoing player's last
 # fixture ENDS, and "ends" means kickoff + this many minutes.

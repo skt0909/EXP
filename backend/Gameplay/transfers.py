@@ -172,10 +172,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from Shared.db_utils import get_engine
 from Shared.rules import (
     FREE_CHIPS,
+    FREE_TRANSFER_BANK_CAP,
     MAX_PER_CLUB,
     MAX_TRANSFERS_PER_GAMEWEEK,
-    _free_transfers_available,
     _selling_price,
+    _tactical_free_transfers_available,
 )
 from Data.auth import CurrentUser, get_current_user
 from Shared.deadlines import deadline_has_passed
@@ -206,7 +207,7 @@ PLAYERS_LOOKUP_QUERY = text(
 )
 
 GW_SELECTION_QUERY = text(
-    "SELECT is_locked, chip_used FROM gw_selections "
+    "SELECT is_locked FROM gw_selections "
     "WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
 )
 
@@ -239,11 +240,6 @@ PRIOR_FREE_TRANSFERS_USED_QUERY = text(
     "SELECT t.gameweek, COUNT(*) AS used FROM transfers t "
     "WHERE t.user_id = :user_id AND t.season = :season AND t.gameweek < :gameweek "
     f"AND t.is_free = TRUE AND {NOT_CANCELLED} "
-    "AND NOT EXISTS ("
-    "    SELECT 1 FROM gw_selections gs "
-    "    WHERE gs.user_id = t.user_id AND gs.season = t.season AND gs.gameweek = t.gameweek "
-    "      AND gs.chip_used IN ('wildcard', 'free_hit')"
-    ") "
     "GROUP BY t.gameweek"
 )
 
@@ -361,7 +357,7 @@ def free_transfers_available(conn, user_id: int, season: str, gameweek: int) -> 
         PRIOR_FREE_TRANSFERS_USED_QUERY,
         {"user_id": user_id, "season": season, "gameweek": gameweek},
     ).all()
-    return _free_transfers_available({r.gameweek: r.used for r in rows}, gameweek)
+    return _tactical_free_transfers_available({r.gameweek: r.used for r in rows}, gameweek)
 
 
 def _validate_transfers(
@@ -375,6 +371,7 @@ def _validate_transfers(
     total_used_count: int,
     chip_active: bool,
     deadline_passed: bool,
+    allowance: int = 0,
 ) -> tuple[list[str], int]:
     """Collect every validation failure instead of stopping at the first.
 
@@ -393,6 +390,18 @@ def _validate_transfers(
         errors.append(
             f"maximum {MAX_TRANSFERS_PER_GAMEWEEK} transfers per gameweek exceeded "
             f"({total_used_count} already made, {len(req.transfers)} submitted)"
+        )
+
+    # No paid transfers and no hits: anything beyond the free allowance is
+    # REJECTED rather than charged 4 points. The allowance banks to
+    # FREE_TRANSFER_BANK_CAP (2), so this is the whole cost model.
+    free_left = max(0, allowance - free_used_count)
+    if req.transfers and len(req.transfers) > free_left:
+        errors.append(
+            f"only {free_left} free transfer(s) available this gameweek "
+            f"({allowance} allowance, {free_used_count} already used), "
+            f"{len(req.transfers)} submitted -- there are no paid transfers, "
+            f"so transfers beyond the allowance are rejected"
         )
 
     # Two independent lock sources, deliberately OR'd into ONE error so the
@@ -602,10 +611,14 @@ def submit_transfers(
             ).scalar()
             allowance = free_transfers_available(conn, user_id, req.season, req.gameweek)
 
-            chip_active = gw_selection_row is not None and gw_selection_row.chip_used in FREE_CHIPS
+            # No chips exist under the tactical rules, so nothing bypasses the
+            # allowance any more. Kept as a name rather than threaded out of
+            # _validate_transfers, whose argument order is asserted by
+            # test_multiple_simultaneous_violations_all_reported_together.
+            chip_active = False
             errors, budget_remaining_after = _validate_transfers(
                 req, user_id, user_squad_row, active_squad, players, gw_selection_row, free_used_count,
-                total_used_count, chip_active, deadline_passed,
+                total_used_count, chip_active, deadline_passed, allowance,
             )
             # Raising here rolls the transaction back, which is what releases
             # the lock -- pg_advisory_xact_lock is transaction-scoped, so it
@@ -622,7 +635,9 @@ def submit_transfers(
                 in_row = players[t.player_in_id]
                 out_player = players[t.player_out_id]
                 price_out = _selling_price(out_row.purchase_price, out_player.now_cost)
-                is_free = chip_active or i < free_slots_left
+                # No paid transfers: anything beyond the allowance was rejected
+                # in validation above, so every row that reaches here is free.
+                is_free = True
                 transfer_plan.append(
                     {
                         "player_out_id": t.player_out_id,

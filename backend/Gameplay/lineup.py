@@ -36,13 +36,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 GW_SELECTION_ROW_QUERY = text(
-    "SELECT id AS gw_selection_id, captain_id, vice_captain_id, chip_used FROM gw_selections "
+    "SELECT id AS gw_selection_id, tactic FROM gw_selections "
     "WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
 )
 
 STARTING_XI_SLOTS_QUERY = text(
-    "SELECT player_id, position_slot FROM starting_xi WHERE gw_selection_id = :gw_selection_id ORDER BY position_slot"
+    "SELECT player_id, position_slot, is_bonus FROM starting_xi "
+    "WHERE gw_selection_id = :gw_selection_id ORDER BY position_slot"
 )
+
+TACTICAL_SWAPS_QUERY = text(
+    "SELECT player_out_id, player_in_id FROM tactical_swaps "
+    "WHERE gw_selection_id = :gw_selection_id ORDER BY id"
+)
+
+
+class SwapPayload(BaseModel):
+    player_out_id: int
+    player_in_id: int
 
 
 class CurrentSelectionResponse(BaseModel):
@@ -50,11 +61,11 @@ class CurrentSelectionResponse(BaseModel):
     season: str
     gameweek: int
     has_selection: bool
+    tactic: str | None
     player_ids: list[int]
     bench_order: list[int]
-    captain_id: int | None
-    vice_captain_id: int | None
-    chip_used: str | None
+    bonus_player_ids: list[int]
+    swaps: list[SwapPayload]
 
 
 @router.get("/gw_selection", response_model=CurrentSelectionResponse)
@@ -77,14 +88,15 @@ def get_current_selection(
                 season=season,
                 gameweek=gameweek,
                 has_selection=False,
+                tactic=None,
                 player_ids=[],
                 bench_order=[],
-                captain_id=None,
-                vice_captain_id=None,
-                chip_used=None,
+                bonus_player_ids=[],
+                swaps=[],
             )
 
         slot_rows = conn.execute(STARTING_XI_SLOTS_QUERY, {"gw_selection_id": sel_row.gw_selection_id}).all()
+        swap_rows = conn.execute(TACTICAL_SWAPS_QUERY, {"gw_selection_id": sel_row.gw_selection_id}).all()
 
     # Slots 1-11 are the XI, 12-15 the bench in substitution priority
     # order -- the split is the slot number, never the player's position.
@@ -93,9 +105,12 @@ def get_current_selection(
         season=season,
         gameweek=gameweek,
         has_selection=True,
+        tactic=sel_row.tactic,
         player_ids=[r.player_id for r in slot_rows if r.position_slot <= STARTING_XI_SIZE],
         bench_order=[r.player_id for r in slot_rows if r.position_slot > STARTING_XI_SIZE],
-        captain_id=sel_row.captain_id,
-        vice_captain_id=sel_row.vice_captain_id,
-        chip_used=sel_row.chip_used,
+        # Bonus Players are always starters, but the flag is read from the row
+        # rather than inferred from the slot -- the database is the authority.
+        bonus_player_ids=[r.player_id for r in slot_rows if r.is_bonus],
+        swaps=[SwapPayload(player_out_id=r.player_out_id, player_in_id=r.player_in_id)
+               for r in swap_rows],
     )

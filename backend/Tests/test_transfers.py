@@ -191,6 +191,7 @@ def _user_squad_row(engine, user_id, season):
         ).first()
 
 
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_valid_multi_transfer_batch_succeeds_and_updates_state(engine, make_team, make_player, test_user):
     squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)  # budget_remaining=100
     out_def = squad["by_position"]["DEF"][0]
@@ -673,6 +674,7 @@ def test_transfers_used_no_transfers_yet_reports_full_free_slot(test_user):
     assert body["total_transfers_this_gameweek"] == 0
 
 
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_transfers_used_reflects_committed_transfers(engine, make_team, make_player, test_user):
     squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
     out_def = squad["by_position"]["DEF"][0]
@@ -771,6 +773,7 @@ def test_banking_reaches_exactly_five_and_never_exceeds_it_across_a_season():
     assert all(v == 5 for v in values[4:])
 
 
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_unused_gameweeks_bank_through_the_api(engine, make_team, make_player, test_user):
     """Three consecutive gameweeks with no transfers made, read back
     through GET /transfers/used rather than the pure function."""
@@ -784,6 +787,7 @@ def test_unused_gameweeks_bank_through_the_api(engine, make_team, make_player, t
         assert body["free_transfers_remaining"] == expected, f"gameweek {gameweek}"
 
 
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_spending_the_bank_rolls_the_remainder_not_a_flat_reset(
     engine, make_team, make_player, test_user
 ):
@@ -847,6 +851,7 @@ def _make_n_transfers(test_user, gameweek, out_ids, in_ids):
         (5, 3, 12),
     ],
 )
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_worked_hit_examples_with_two_free_transfers(
     engine, make_team, make_player, test_user, transfers_made, expected_paid, expected_points_cost
 ):
@@ -881,6 +886,7 @@ def test_worked_hit_examples_with_two_free_transfers(
     assert paid * HIT_COST == expected_points_cost  # -4 / -8 / -12
 
 
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_five_banked_and_five_made_costs_nothing(engine, make_team, make_player, test_user):
     squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
     mids = squad["by_position"]["MID"]
@@ -909,6 +915,7 @@ def test_five_banked_and_five_made_costs_nothing(engine, make_team, make_player,
     ).json()["free_transfers_remaining"] == 1
 
 
+@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
 def test_five_banked_and_six_made_costs_exactly_four_points(
     engine, make_team, make_player, test_user
 ):

@@ -183,6 +183,11 @@ from Shared.rules import BENCH_SIZE, STARTING_XI_SIZE, VALID_CHIPS
 from Shared.deadlines import deadline_has_passed
 from GameEngine.free_hit_revert import restore_free_hit_snapshot
 
+# The rules themselves. Phase 3 moved them out of this file into a pure module
+# so they can be tested without a database -- this module now only reads the
+# rows the rules need and translates the request into their input.
+from Gameplay.selection_rules import SelectionInput, SwapInput, validate_selection
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -216,12 +221,10 @@ PLAYERS_LOOKUP_QUERY = text(
 
 UPSERT_GW_SELECTION_STMT = text(
     """
-    INSERT INTO gw_selections (user_id, season, gameweek, captain_id, vice_captain_id, chip_used, submitted_at)
-    VALUES (:user_id, :season, :gameweek, :captain_id, :vice_captain_id, :chip_used, now())
+    INSERT INTO gw_selections (user_id, season, gameweek, tactic, submitted_at)
+    VALUES (:user_id, :season, :gameweek, :tactic, now())
     ON CONFLICT (user_id, season, gameweek) DO UPDATE SET
-        captain_id = EXCLUDED.captain_id,
-        vice_captain_id = EXCLUDED.vice_captain_id,
-        chip_used = EXCLUDED.chip_used,
+        tactic = EXCLUDED.tactic,
         submitted_at = now()
     RETURNING id
     """
@@ -231,8 +234,35 @@ DELETE_STARTING_XI_STMT = text("DELETE FROM starting_xi WHERE gw_selection_id = 
 
 INSERT_STARTING_XI_STMT = text(
     """
-    INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_captain, is_vice_captain)
-    VALUES (:gw_selection_id, :player_id, :position_slot, :is_captain, :is_vice_captain)
+    INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_bonus)
+    VALUES (:gw_selection_id, :player_id, :position_slot, :is_bonus)
+    """
+)
+
+DELETE_TACTICAL_SWAPS_STMT = text(
+    "DELETE FROM tactical_swaps WHERE gw_selection_id = :gw_selection_id"
+)
+
+INSERT_TACTICAL_SWAP_STMT = text(
+    """
+    INSERT INTO tactical_swaps (gw_selection_id, player_out_id, player_in_id)
+    VALUES (:gw_selection_id, :player_out_id, :player_in_id)
+    """
+)
+
+# Which fixtures each of the submitted players has this gameweek, for swap
+# timing. A player's club plays a fixture when it is either side of it, so the
+# OR is the whole join condition; a double gameweek simply returns two rows.
+PLAYER_FIXTURES_QUERY = text(
+    """
+    SELECT p.fpl_id AS player_id, f.kickoff_time
+    FROM ml.players p
+    JOIN ml.fixtures f
+      ON f.season = p.season
+     AND (f.home_team_id = p.team_id OR f.away_team_id = p.team_id)
+    WHERE p.season = :season
+      AND f.gameweek = :gameweek
+      AND p.fpl_id = ANY(:player_ids)
     """
 )
 
@@ -305,14 +335,21 @@ INSERT_FREE_HIT_SNAPSHOT_STMT = text(
     """
 )
 
+class SwapPayload(BaseModel):
+    player_out_id: int
+    player_in_id: int
+
+
 class GwSelectionRequest(BaseModel):
     season: str
     gameweek: int
-    player_ids: list[int]  # exactly 11 raw FPL ids, starting XI
-    bench_order: list[int]  # exactly 4 raw FPL ids, sub-priority order
-    captain_id: int
-    vice_captain_id: int
-    chip_used: str | None = None
+    tactic: str
+    player_ids: list[int]  # exactly 11 raw FPL ids, slots 1-11
+    # exactly 4 raw FPL ids, and the ORDER is the meaning: slot 12 backup GK,
+    # 13 outfield Auto Sub, 14 and 15 Tactical Subs.
+    bench_order: list[int]
+    bonus_player_ids: list[int]  # exactly 2, both starters, both the tactic's position
+    swaps: list[SwapPayload] = []
 
 
 class GwSelectionResponse(BaseModel):
@@ -320,125 +357,36 @@ class GwSelectionResponse(BaseModel):
     user_id: int
     season: str
     gameweek: int
+    tactic: str
     player_ids: list[int]
     bench_order: list[int]
-    captain_id: int
-    vice_captain_id: int
-    chip_used: str | None
+    bonus_player_ids: list[int]
+    swaps: list[SwapPayload]
 
 
-def _validate_selection(
-    req: GwSelectionRequest,
-    active_squad_ids: set[int],
-    positions: dict[int, str],
-    chip_usage_rows,
-    cancelling_free_hit: bool = False,
-) -> list[str]:
-    """Collect every validation failure instead of stopping at the first.
+def _validate_selection(req, squad_ids, positions, fixtures_by_player) -> list[str]:
+    """Adapter: turn the request into the pure validator's input and call it.
 
-    active_squad_ids is whatever squad this submission is authoritative
-    against -- normally the currently-active 15, but the Free Hit
-    snapshot's 15 when this request cancels a pending Free Hit, since
-    that is what the manager will own once it commits. cancelling_free_hit
-    only changes how the two squad-membership errors are WORDED, so a
-    manager who submits their (now reverted) free-hit XI is told why the
-    squad they can see isn't the squad being checked.
+    The rules themselves live in Gameplay/selection_rules.py so they can be
+    tested on hand-built data with no database (decision A7). This function
+    exists only to translate, and deliberately holds no rule of its own -- the
+    old body it replaces had the 2-MID minimum and the captain/vice/chip checks
+    inline, which is exactly why they could not be tested without Postgres.
     """
-    errors: list[str] = []
-    squad_label = (
-        "the squad restored by cancelling this gameweek's Free Hit"
-        if cancelling_free_hit
-        else f"the user's active squad for season {req.season}"
+    return validate_selection(
+        SelectionInput(
+            season=req.season,
+            gameweek=req.gameweek,
+            tactic=req.tactic,
+            player_ids=list(req.player_ids),
+            bench_order=list(req.bench_order),
+            bonus_player_ids=list(req.bonus_player_ids),
+            swaps=[SwapInput(s.player_out_id, s.player_in_id) for s in req.swaps],
+        ),
+        squad_ids,
+        positions,
+        fixtures_by_player,
     )
-
-    if len(req.player_ids) != STARTING_XI_SIZE:
-        errors.append(f"starting XI must contain exactly {STARTING_XI_SIZE} players, got {len(req.player_ids)}")
-
-    seen: set[int] = set()
-    duplicates = sorted({pid for pid in req.player_ids if pid in seen or seen.add(pid)})
-    if duplicates:
-        errors.append(f"duplicate player_id(s): {duplicates}")
-
-    unique_ids = list(dict.fromkeys(req.player_ids))
-
-    not_in_squad = sorted(pid for pid in unique_ids if pid not in active_squad_ids)
-    if not_in_squad:
-        errors.append(f"player_id(s) not in {squad_label}: {not_in_squad}")
-
-    resolvable_ids = [pid for pid in unique_ids if pid in active_squad_ids]
-    missing_position = sorted(pid for pid in resolvable_ids if pid not in positions)
-    if missing_position:
-        errors.append(f"player_id(s) in squad but not found in ml.players for season {req.season}: {missing_position}")
-
-    position_counts = Counter(positions[pid] for pid in resolvable_ids if pid in positions)
-    gk_count = position_counts.get("GK", 0)
-    if gk_count != 1:
-        errors.append(f"expected exactly 1 GK, got {gk_count}")
-
-    def_count = position_counts.get("DEF", 0)
-    if not (3 <= def_count <= 5):
-        errors.append(f"DEF count must be between 3 and 5, got {def_count}")
-
-    mid_count = position_counts.get("MID", 0)
-    if not (2 <= mid_count <= 5):
-        errors.append(f"MID count must be between 2 and 5, got {mid_count}")
-
-    fwd_count = position_counts.get("FWD", 0)
-    if not (1 <= fwd_count <= 3):
-        errors.append(f"FWD count must be between 1 and 3, got {fwd_count}")
-
-    outfield_total = def_count + mid_count + fwd_count
-    if outfield_total != 10:
-        errors.append(f"outfield players (DEF+MID+FWD) must sum to 10, got {outfield_total}")
-
-    if len(req.bench_order) != BENCH_SIZE:
-        errors.append(f"bench_order must contain exactly {BENCH_SIZE} players, got {len(req.bench_order)}")
-
-    bench_seen: set[int] = set()
-    bench_duplicates = sorted({pid for pid in req.bench_order if pid in bench_seen or bench_seen.add(pid)})
-    if bench_duplicates:
-        errors.append(f"duplicate player_id(s) in bench_order: {bench_duplicates}")
-
-    bench_overlap = sorted(set(req.bench_order) & set(req.player_ids))
-    if bench_overlap:
-        errors.append(f"player_id(s) cannot appear in both player_ids and bench_order: {bench_overlap}")
-
-    combined_ids = set(req.player_ids) | set(req.bench_order)
-    missing_from_squad = sorted(active_squad_ids - combined_ids)
-    extra_beyond_squad = sorted(combined_ids - active_squad_ids)
-    if missing_from_squad or extra_beyond_squad:
-        errors.append(
-            f"player_ids + bench_order must exactly match {squad_label} "
-            f"-- missing from submission: {missing_from_squad}, not in squad: {extra_beyond_squad}"
-        )
-
-    bench_position_counts = Counter(positions[pid] for pid in req.bench_order if pid in positions)
-    bench_gk_count = bench_position_counts.get("GK", 0)
-    if bench_gk_count != 1:
-        errors.append(f"bench_order must contain exactly 1 GK, got {bench_gk_count}")
-
-    if req.captain_id == req.vice_captain_id:
-        errors.append("captain_id and vice_captain_id must be different players")
-    if req.captain_id not in req.player_ids:
-        errors.append(f"captain_id {req.captain_id} is not in the submitted starting XI")
-    if req.vice_captain_id not in req.player_ids:
-        errors.append(f"vice_captain_id {req.vice_captain_id} is not in the submitted starting XI")
-
-    if req.chip_used is not None:
-        period = chip_period(req.gameweek)
-        chip_usage = chip_usage_by_period(chip_usage_rows)[period]
-        if req.chip_used not in VALID_CHIPS:
-            errors.append(f"chip_used must be one of {sorted(VALID_CHIPS)} or null, got {req.chip_used!r}")
-        elif chip_usage.get(req.chip_used, 0) >= 1:
-            half = "first" if period == 1 else "second"
-            errors.append(f"chip '{req.chip_used}' has already been used in the {half} half of this season")
-
-        if req.chip_used == "free_hit":
-            consecutive = adjacent_free_hit_gameweeks(chip_usage_rows, req.gameweek)
-            if consecutive:
-                errors.append(f"free_hit cannot be used in consecutive gameweeks: {consecutive}")
-
-    return errors
 
 
 def _is_lock_violation(exc: SQLAlchemyError) -> bool:
@@ -462,38 +410,35 @@ def select_starting_xi(
         raise HTTPException(status_code=422, detail=LOCKED_DETAIL)
 
     unique_ids = list(dict.fromkeys(req.player_ids + req.bench_order))
-    chip_params = {"user_id": user_id, "season": req.season, "gameweek": req.gameweek}
     with engine.connect() as conn:
-        active_squad_ids = {
+        squad_ids = {
             row.player_id
             for row in conn.execute(ACTIVE_SQUAD_QUERY, {"user_id": user_id, "season": req.season})
         }
         positions = {
             row.fpl_id: row.position
-            for row in conn.execute(PLAYERS_LOOKUP_QUERY, {"season": req.season, "player_ids": unique_ids})
+            for row in conn.execute(
+                PLAYERS_LOOKUP_QUERY, {"season": req.season, "player_ids": unique_ids}
+            )
         }
-        chip_usage_rows = conn.execute(
-            CHIP_USAGE_QUERY, {"user_id": user_id, "season": req.season, "gameweek": req.gameweek}
-        ).all()
-        pending_free_hit_ids = {
-            row.player_id for row in conn.execute(PENDING_FREE_HIT_SNAPSHOT_QUERY, chip_params)
-        }
+        fixtures_by_player: dict[int, list] = {}
+        for row in conn.execute(
+            PLAYER_FIXTURES_QUERY,
+            {"season": req.season, "gameweek": req.gameweek, "player_ids": unique_ids},
+        ):
+            fixtures_by_player.setdefault(row.player_id, []).append(row.kickoff_time)
 
-    # A pending snapshot means Free Hit is already live for this gameweek.
-    # Keeping it selected is an ordinary resubmit; anything else cancels
-    # the chip, which restores that snapshot below -- so it, not the
-    # currently-active squad, is what this submission must match.
-    has_pending_free_hit = bool(pending_free_hit_ids)
-    cancelling_free_hit = has_pending_free_hit and req.chip_used != "free_hit"
-    squad_ids_for_validation = pending_free_hit_ids if cancelling_free_hit else active_squad_ids
-
-    errors = _validate_selection(
-        req, squad_ids_for_validation, positions, chip_usage_rows, cancelling_free_hit
-    )
+    errors = _validate_selection(req, squad_ids, positions, fixtures_by_player)
     if errors:
         raise HTTPException(status_code=422, detail=errors)
 
+    bonus_ids = set(req.bonus_player_ids)
+
     try:
+        # ONE transaction. The child triggers are DEFERRABLE INITIALLY
+        # DEFERRED, so delete-and-reinsert is legal inside it: the bonus count
+        # and the swap references are checked once at COMMIT, against the final
+        # state, not against each intermediate row.
         with engine.begin() as conn:
             gw_selection_id = conn.execute(
                 UPSERT_GW_SELECTION_STMT,
@@ -501,78 +446,55 @@ def select_starting_xi(
                     "user_id": user_id,
                     "season": req.season,
                     "gameweek": req.gameweek,
-                    "captain_id": req.captain_id,
-                    "vice_captain_id": req.vice_captain_id,
-                    "chip_used": req.chip_used,
+                    "tactic": req.tactic,
                 },
             ).scalar()
 
+            # Swaps first: they reference starting_xi rows, so clearing them
+            # before the XI is deleted keeps the intermediate state sane even
+            # though the trigger would not look until commit.
+            conn.execute(DELETE_TACTICAL_SWAPS_STMT, {"gw_selection_id": gw_selection_id})
             conn.execute(DELETE_STARTING_XI_STMT, {"gw_selection_id": gw_selection_id})
-            starting_rows = [
-                {
-                    "gw_selection_id": gw_selection_id,
-                    "player_id": pid,
-                    "position_slot": slot,
-                    "is_captain": pid == req.captain_id,
-                    "is_vice_captain": pid == req.vice_captain_id,
-                }
-                for slot, pid in enumerate(req.player_ids, start=1)
-            ]
-            bench_rows = [
-                {
-                    "gw_selection_id": gw_selection_id,
-                    "player_id": pid,
-                    "position_slot": slot,
-                    "is_captain": False,
-                    "is_vice_captain": False,
-                }
-                for slot, pid in enumerate(req.bench_order, start=STARTING_XI_SIZE + 1)
-            ]
-            conn.execute(INSERT_STARTING_XI_STMT, starting_rows + bench_rows)
 
-            conn.execute(
-                DELETE_CHIP_FOR_GW_STMT,
-                {"user_id": user_id, "season": req.season, "gameweek": req.gameweek},
-            )
-            if req.chip_used is not None:
-                conn.execute(
-                    INSERT_CHIP_STMT,
-                    {
-                        "user_id": user_id,
-                        "season": req.season,
-                        "chip_type": req.chip_used,
-                        "gameweek": req.gameweek,
-                    },
+            rows = [
+                {
+                    "gw_selection_id": gw_selection_id,
+                    "player_id": pid,
+                    "position_slot": slot,
+                    "is_bonus": pid in bonus_ids,
+                }
+                for slot, pid in enumerate(
+                    list(req.player_ids) + list(req.bench_order), start=1
                 )
+            ]
+            conn.execute(INSERT_STARTING_XI_STMT, rows)
 
-            # Free Hit is the only chip that has to remember anything: the
-            # squad it replaces. Three cases, see the module docstring --
-            # take the snapshot once at activation, leave it strictly
-            # alone while the chip is live, and restore-then-drop it if
-            # the chip is cancelled before the deadline.
-            if req.chip_used == "free_hit":
-                if not has_pending_free_hit:
-                    conn.execute(INSERT_FREE_HIT_SNAPSHOT_STMT, chip_params)
-            elif has_pending_free_hit:
-                restore_free_hit_snapshot(conn, user_id, req.season, req.gameweek)
-                # Order matters: this reads the snapshot's created_at, so
-                # it has to happen before the snapshot is dropped.
-                conn.execute(CANCEL_FREE_HIT_TRANSFERS_STMT, chip_params)
-                conn.execute(DELETE_FREE_HIT_SNAPSHOT_STMT, chip_params)
-    except SQLAlchemyError as e:
-        if _is_lock_violation(e):
-            raise HTTPException(status_code=422, detail=LOCKED_DETAIL) from e
-        logger.error("Database write failed: %s: %s", type(e).__name__, e)
-        raise HTTPException(status_code=500, detail="Internal server error") from e
+            if req.swaps:
+                conn.execute(
+                    INSERT_TACTICAL_SWAP_STMT,
+                    [
+                        {
+                            "gw_selection_id": gw_selection_id,
+                            "player_out_id": s.player_out_id,
+                            "player_in_id": s.player_in_id,
+                        }
+                        for s in req.swaps
+                    ],
+                )
+    except SQLAlchemyError as exc:
+        if _is_lock_violation(exc):
+            raise HTTPException(status_code=422, detail=LOCKED_DETAIL)
+        logger.error("Database write failed: %s: %s", type(exc).__name__, exc)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
     return GwSelectionResponse(
         gw_selection_id=gw_selection_id,
         user_id=user_id,
         season=req.season,
         gameweek=req.gameweek,
-        player_ids=req.player_ids,
-        bench_order=req.bench_order,
-        captain_id=req.captain_id,
-        vice_captain_id=req.vice_captain_id,
-        chip_used=req.chip_used,
+        tactic=req.tactic,
+        player_ids=list(req.player_ids),
+        bench_order=list(req.bench_order),
+        bonus_player_ids=list(req.bonus_player_ids),
+        swaps=list(req.swaps),
     )

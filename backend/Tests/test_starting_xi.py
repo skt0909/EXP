@@ -107,6 +107,7 @@ def _base_payload(user_id, xi_ids, bench_ids, gameweek=1, chip_used=None):
     }
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_valid_selection_succeeds_and_persists(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
@@ -307,6 +308,7 @@ def test_vice_captain_not_in_submitted_xi_rejected(engine, make_team, make_playe
     assert f"vice_captain_id {bogus_vice} is not in the submitted starting XI" in errors
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_locked_gameweek_resubmission_returns_clean_422_not_500(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
@@ -358,6 +360,7 @@ def test_passed_deadline_rejects_first_ever_submission(engine, make_team, make_p
     assert count == 0
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_future_deadline_still_allows_submission(engine, make_team, make_player, make_fixture, test_user):
     """The fix's other direction -- an upcoming kickoff must stay open."""
     xi_ids, bench_ids = _seed_squad(
@@ -381,6 +384,7 @@ def _free_hit_snapshot(engine, user_id, gameweek=1):
         ).all()
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_activating_free_hit_snapshots_the_current_squad(engine, make_team, make_player, test_user):
     """Without this snapshot the Free Hit has nothing to revert to, and
     Gameplay/transfers.py's uncapped free transfers make it a
@@ -399,6 +403,7 @@ def test_activating_free_hit_snapshots_the_current_squad(engine, make_team, make
     assert all(r.reverted_at is None for r in snapshot)
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_switching_away_from_free_hit_drops_the_snapshot(engine, make_team, make_player, test_user):
     """An unplayed chip must leave no trace -- otherwise the revert task
     would later restore a squad for a Free Hit that was never used."""
@@ -414,6 +419,7 @@ def test_switching_away_from_free_hit_drops_the_snapshot(engine, make_team, make
     assert _free_hit_snapshot(engine, test_user) == []
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_non_free_hit_chip_takes_no_snapshot(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
@@ -426,6 +432,7 @@ def test_non_free_hit_chip_takes_no_snapshot(engine, make_team, make_player, tes
     assert _free_hit_snapshot(engine, test_user) == []
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_resubmitting_same_wildcard_does_not_consume_second_use(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
@@ -448,6 +455,7 @@ def test_resubmitting_same_wildcard_does_not_consume_second_use(engine, make_tea
     assert rows[0].gameweek_used == 1
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_second_wildcard_in_same_half_rejected_but_second_half_allowed(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
@@ -469,6 +477,7 @@ def test_second_wildcard_in_same_half_rejected_but_second_half_allowed(engine, m
     assert sorted(r.gameweek_used for r in rows) == [1, 20]
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_switching_chip_from_bench_boost_to_null_frees_the_row(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS
@@ -544,6 +553,7 @@ def test_get_current_selection_no_selection_yet_returns_empty_not_error(test_use
     assert body["chip_used"] is None
 
 
+@pytest.mark.skip(reason="Phase 3 replaced POST /gw_selection: captain/vice/chip are gone and the payload is tactic + bonus_player_ids + swaps. Covered now by backend/Tests/test_gw_selection_tactical.py")
 def test_get_current_selection_reflects_last_saved_submission(engine, make_team, make_player, test_user):
     xi_ids, bench_ids = _seed_squad(
         engine, make_team, make_player, test_user, TEST_SEASON, VALID_XI_POSITIONS, DEFAULT_BENCH_POSITIONS

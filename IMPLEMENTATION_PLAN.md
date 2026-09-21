@@ -406,7 +406,28 @@ Validation tests: legal/illegal formations, Attack with fewer than 2 FWD, Bonus 
   3 at 10+) are labelled **"Defence tactic bonus"**. A Phase 5 task, not a
   refactor.
 
-A2 and A4 to A9 remain open; see `PHASE2_REPORT.md`.
+Six more are settled by Phase 3's owner decisions:
+
+- **A2 — does a 0-minute player still take his deductions? CLOSED: KEEP.**
+  A player with 0 minutes still takes deductions; the golden test matched
+  29,757 rows.
+- **A4 — is the goalkeeper identified by slot or by position? CLOSED: by
+  POSITION, never by slot.** Validation must also require exactly 1 GK among
+  slots 1-11 and a GK in slot 12.
+- **A5 — may the outfield Auto Sub cover a goalkeeper? CLOSED: no.** The
+  outfield Auto Sub never covers a GK; if both GKs miss, the slot scores 0.
+- **A7 — the engine validates nothing. CLOSED: that is the design.** The engine
+  stays pure and validates nothing. Validation is a separate pure function
+  (`Gameplay/selection_rules.py`). In Phase 4 the scoring job logs a
+  data-integrity warning for an invalid stored selection and **still scores
+  it**, so a data bug never leaves a manager with no score.
+- **A8 — a Bonus Player can never be swapped in either direction. CLOSED:
+  accepted, informational.**
+- **A9 — what does Sub Bonus compare? CLOSED:** General Points only, over the
+  full Gameweek.
+
+All ten Phase 2 ambiguities are now closed. New ones raised in Phase 3 are in
+`PHASE3_REPORT.md`.
 - ~~`creativity` column existence in `ml.player_gw_stats` is unverified.~~ **Resolved in
   Phase 0:** both `creativity` (`numeric`) and `defensive_contributions` (`smallint`,
   plural in the database) exist. Evidence quoted in section 3, Phase 0 finding 4.
