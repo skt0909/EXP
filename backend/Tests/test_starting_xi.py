@@ -347,7 +347,30 @@ def test_passed_deadline_rejects_first_ever_submission(engine, make_team, make_p
     make_fixture(fpl_id=96010, gameweek=1, home_team_id=home, away_team_id=away,
                  kickoff_time="2000-01-01T12:00:00+00:00")
 
-    resp = client.post("/gw_selection", json=_base_payload(test_user, xi_ids, bench_ids), headers=bearer_headers(test_user))
+    # The TACTICAL payload, deliberately a fully VALID one. Phase 3 replaced
+    # this endpoint's schema, and the old captain/vice/chip body was rejected
+    # by Pydantic for a missing `tactic` BEFORE the handler ran -- so the
+    # request never reached the deadline check and this test was asserting a
+    # field-required error while appearing to assert the lock. A valid body is
+    # what makes the assertion mean what it says: the 422 below can only come
+    # from the deadline, because nothing else about this request is wrong.
+    #
+    # VALID_XI_POSITIONS is GK, DEF x4, MID x4, FWD x2, so xi_ids[5] and [6]
+    # are midfielders -- the two Bonus Players the `balanced` tactic requires.
+    # DEFAULT_BENCH_POSITIONS is DEF, MID, GK, FWD with the keeper third, so
+    # the bench is reordered here to put him in slot 12, which the new rules
+    # require. Both are read from the position layout rather than assumed.
+    payload = {
+        "season": TEST_SEASON,
+        "gameweek": 1,
+        "tactic": "balanced",
+        "player_ids": xi_ids,
+        "bench_order": [bench_ids[2], bench_ids[0], bench_ids[1], bench_ids[3]],
+        "bonus_player_ids": [xi_ids[5], xi_ids[6]],
+        "swaps": [],
+    }
+
+    resp = client.post("/gw_selection", json=payload, headers=bearer_headers(test_user))
 
     assert resp.status_code == 422
     assert resp.json()["detail"] == "This gameweek's selection is locked and can no longer be changed"

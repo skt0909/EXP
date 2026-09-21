@@ -291,3 +291,93 @@ confusing rejection rather than a crash. There is only one call site today.
 - No constant was removed; `CURRENT_RULES_VERSION` is still 2 and
   `_free_transfers_available` is unchanged.
 - No database but `fpl_game_test` was touched, and only by the test suite.
+
+---
+
+# ADDENDUM (added later) — correcting §6's "no new failures" claim
+
+**The original text above is left exactly as it was written. This addendum
+corrects it; it does not replace it.**
+
+## What §6 got wrong
+
+§6 said *"No new UNEXPECTED"* and the commit message said *"no new failures"*.
+**One test did regress**, and I did not find it because I compared summary
+totals rather than test identities:
+
+`backend/Tests/test_starting_xi.py::test_passed_deadline_rejects_first_ever_submission`
+passed before Phase 3 and failed after it. It was an **11th superseded test**
+that belonged in §7's list and was missed.
+
+It sent the old captain/vice/chip payload. Phase 3's new schema requires
+`tactic`, so Pydantic rejected the body with a field-required 422 **before the
+handler ran** — the request never reached the deadline check, and the test was
+asserting a validation error while appearing to assert the lock. The status code
+was still 422, which is why nothing in the totals stood out.
+
+## What was done about it
+
+**It was rewritten, not skipped.** It now sends a valid tactical payload
+(`tactic`, `bonus_player_ids`, slots 1-15, `swaps`), so the request reaches the
+deadline check and the assertion means what it says: the 422 can only come from
+the deadline, because nothing else about the request is wrong. The bench is
+reordered to put the goalkeeper in slot 12 and the Bonus Players are read from
+the XI's position layout rather than assumed by index.
+
+## The corrected comparison
+
+Test-by-test, by identity, `45c0107` (the commit before Phase 3) against HEAD:
+
+| Transition | Count |
+|---|---|
+| pass → pass | 606 |
+| pass → skip | 0 |
+| **pass → fail** | **0** |
+| fail → fail | 108 |
+| fail → skip | 31 |
+| fail → pass | 18 |
+| skip → skip | 6 |
+| new pass | 84 |
+| new skip / new fail / removed | 0 |
+
+```
+sums to AFTER : 853 (actual 853) OK
+sums to BEFORE: 769 (actual 769) OK
+```
+
+**After-run failures: 108 total — 105 EXPECTED, 3 UNEXPECTED.**
+
+| EXPECTED cause | Count |
+|---|---|
+| removed column `captain_id` | 37 |
+| removed column `transfer_hits` | 22 |
+| removed table `chips` | 19 |
+| removed column `chip_used` | 16 |
+| new NOT NULL column `tactic` | 10 |
+| removed column `vice_captain_id` | 1 |
+
+The 3 UNEXPECTED are the same pre-existing ones as in Phase 1 and Phase 2:
+
+- `test_auth_enforcement::test_the_endpoint_table_covers_every_route_in_the_app`
+- `test_auth_enforcement::test_every_dream11_route_is_in_the_authenticated_table`
+- `test_fpl_live_polling::test_ignores_fixtures_whose_kickoff_is_already_past`
+
+## Method
+
+Both runs used `fpl_game_test` and the same interpreter; only the code differed.
+`45c0107` was checked out into a `git worktree` so the working tree was never
+modified, and HEAD was run in place.
+
+**Counting.** pytest emits one `<testcase>` element per test *phase* that
+produced an outcome, so a test that fails in its call and then errors in
+teardown yields two elements with the same id. Each test is counted **once**, by
+the precedence `error > failure > skipped > passed`, with `error` and `failure`
+then collapsed into one `fail` bucket. That partitions the unique-id set exactly,
+which is why the columns sum to each run's total. This is also why §6's
+"collected" figures were wrong: they were element counts (794 / 846), not unique
+tests (769 / 853).
+
+**EXPECTED** means the failure names a column or table the Phase 1 migration
+removed, read from the assertion text **plus the captured log** — the app turns
+a `ProgrammingError` into a generic 500, so the cause appears only in the log.
+Anything else is UNEXPECTED.
