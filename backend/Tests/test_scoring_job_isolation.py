@@ -203,3 +203,42 @@ def test_refresh_active_gameweeks_surfaces_per_manager_failures(
         "a gameweek with failed managers must not be reported as refreshed"
     assert any(season == TEST_SEASON and gw == GAMEWEEK
                for season, gw, _ in result["failed"])
+
+
+# ---- E1: the simulation escape hatch, and that production cannot reach it --
+
+def test_the_production_task_never_allows_sim_seasons(engine, monkeypatch):
+    """The escape hatch is an ARGUMENT, not an environment variable, so the
+    only way to reach it is to type it at a call site. This proves the
+    production entry point does not."""
+    from Worker import tasks
+
+    captured = {}
+
+    def spy(engine_, season, gameweek, *args, **kwargs):
+        captured["args"] = args
+        captured["kwargs"] = kwargs
+        return {"scored": [], "failed": [], "skipped_reason": None}
+
+    monkeypatch.setattr(tasks, "score_gameweek", spy)
+    tasks.compute_gw_scores.run(season="SIM38OK", gameweek=1)
+
+    assert captured["kwargs"].get("allow_sim_seasons") in (None, False)
+    assert True not in captured["args"]
+
+
+def test_a_sim_season_is_still_refused_by_default(engine):
+    summary = score_gameweek_tactical(engine, "SIM38OK", 1)
+    assert summary["scored"] == []
+    assert "season" in (summary["skipped_reason"] or "")
+
+
+def test_the_harness_can_opt_in_and_the_filter_steps_aside(engine, caplog):
+    """allow_sim_seasons=True gets past the season filter. It reaches the
+    epoch/selection stage and simply finds nothing, which is the correct
+    outcome for an unseeded SIM season -- the point is that it is no longer
+    refused by the filter."""
+    with caplog.at_level(logging.WARNING):
+        summary = score_gameweek_tactical(engine, "SIM38OK", 1, allow_sim_seasons=True)
+    assert summary["skipped_reason"] is None
+    assert any("NON-REAL season" in r.getMessage() for r in caplog.records)

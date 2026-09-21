@@ -66,7 +66,11 @@ sys.path.insert(0, str(_ROOT))
 from sqlalchemy import text
 
 from Shared.db_utils import get_engine, safe_url
-from Results.scoring import score_gameweek
+# Phase 4b: the simulation harness drives the NEW scorer, passing
+# allow_sim_seasons=True because its seasons (SIM38OK, SIM38TST, SIMSMOKE)
+# are exactly the ones the production filter refuses. This is the only
+# caller in the repo that passes it.
+from Results.scoring_job import score_gameweek_tactical
 from Results.standings import compute_league_standings
 from GameEngine.free_hit_revert import revert_expired_free_hits
 from GameEngine.gameweek_finalize import refresh_active_gameweeks
@@ -259,7 +263,9 @@ def cmd_unlock(args) -> None:
 
 def cmd_score(args) -> None:
     engine = get_engine()
-    score_summary = score_gameweek(engine, args.season, args.gw)
+    score_summary = score_gameweek_tactical(
+        engine, args.season, args.gw, allow_sim_seasons=True
+    )
     print(f"score_gameweek: scored {len(score_summary['scored'])} user(s) {score_summary['scored']}")
     for user_id, err in score_summary["failed"]:
         print(f"  FAILED user_id={user_id}: {err}")

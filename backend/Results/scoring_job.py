@@ -226,7 +226,8 @@ def _chunks(items, size):
 
 
 def score_gameweek_tactical(engine, season: str, gameweek: int,
-                            batch_size: int = SCORING_BATCH_SIZE) -> dict:
+                            batch_size: int = SCORING_BATCH_SIZE,
+                            allow_sim_seasons: bool = False) -> dict:
     """Score every manager with a gw_selections row for (season, gameweek).
 
     Returns {"scored": [...], "failed": [(user_id, msg), ...],
@@ -234,8 +235,24 @@ def score_gameweek_tactical(engine, season: str, gameweek: int,
 
     Never raises for one manager's bad data; only a failure before any
     per-manager work (the driving query itself) propagates.
+
+    allow_sim_seasons (ambiguity E1, now closed) exists for ONE caller:
+    Tools/fpl_sim.py, whose whole purpose is to drive the SIM38OK / SIM38TST /
+    SIMSMOKE seasons the filter otherwise refuses. It is an explicit ARGUMENT
+    rather than an environment variable on purpose -- an env var is ambient and
+    could be set on the production worker by accident, where an argument has to
+    be typed at the one call site that wants it. The production entry points
+    never pass it, and test_the_production_task_never_allows_sim_seasons pins
+    that.
     """
-    if not REAL_SEASON_RE.match(season or ""):
+    if allow_sim_seasons and not REAL_SEASON_RE.match(season or ""):
+        logger.warning(
+            "score_gameweek_tactical: scoring NON-REAL season %r because "
+            "allow_sim_seasons=True. This is the simulation harness; production "
+            "must never reach this line.",
+            season,
+        )
+    elif not REAL_SEASON_RE.match(season or ""):
         reason = (f"not a real season: {season!r} does not match "
                   f"{REAL_SEASON_RE.pattern} -- simulation seasons are never scored")
         logger.info("score_gameweek_tactical: %s", reason)
