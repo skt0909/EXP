@@ -366,12 +366,32 @@ Find real file names first. Expected areas:
     Not in the list, checked and excluded: `backend/Game_logic/dream11.py:893` already requires 3-5 MID but is **Dream11 and out of scope**; `backend/Tests/test_starting_xi.py:177` builds a 2-MID XI only to assert a *DEF* error; `backend/Tests/test_scoring.py:200` exercises formation legality with 4 MID and does not encode the floor.
   - **Two-swap validation (D7).** Reject more than two Tactical swaps at the endpoint. The database limits it (`uq_swaps_sel_in`, and only slots 14/15 carry `role = 'tactical'`) and the scoring engine deliberately does not check it — hand the engine three swaps and it returns a Sub Bonus of 3. The endpoint is the place this is caught.
 **Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite including Dream11 and ML tests. **GATE: full suite green.**
+  - **Re-pin the three `test_transfer_concurrency.py` tests FIRST**, before any other Phase 4 work. They pin the Stage 3 TOCTOU advisory-lock fix, which is a live concurrency guarantee, and they are skipped only because their fixtures assume the old allowance.
+  - **Filter out non-real seasons** — anything not matching `^[0-9]{4}-[0-9]{2}$` — in the scoring job and in **every** season lookup. `SIM38OK`, `SIM38TST` and `SIMSMOKE` belong to the `simulation/` harness and must never be treated as game data. As of Phase 3 **nothing in `backend/**/*.py` filtered them**: the guardrail existed only in this document, and migration `e7c4d81b3a95` is the first code to apply it.
   - Migrate `fpl_game` here, with the code, for the reason above.
   - **Add a small migration dropping `free_hit_squads`.** Both Phase 1 revisions leave it in place because `revert_free_hits` still reads it; it can only go once that code is removed, which happens in this phase. Sequence it after the code change.
 **Phase 5. Frontend.** Screens listed in section 4.
 **Phase 6. Re-tune.** After about 20 Gameweeks of 2026-27, re-run `simulate_tactics.py` (it holds the same tier tables in its CONFIG block) and revisit all three tactics, Defence first.
 
 Separate housekeeping (own confirmation, not part of any phase): delete only the 2 stray rows in `ml.player_gw_stats` (`2026-27`, gameweek 38, fixture 1381, player ids 45830 and 45819).
+
+### MERGE GATE
+
+**The branch does not merge until every newly skipped test is either rewritten
+or deleted, each with a written reason.** A skip is a deferral, not a decision:
+Phase 3 skipped 31 test cases (29 functions) whose endpoints were rewritten, and
+`PHASE3_RECONCILIATION.md` found a 32nd that should have been in that set. Left
+alone they become permanent silent gaps, and the count only grows each phase.
+
+Specifically, before merge:
+
+1. **The three `test_transfer_concurrency.py` tests are re-pinned FIRST** in
+   Phase 4 — see above. They guard a concurrency property that is still live in
+   the code.
+2. Every other skipped test from `PHASE3_REPORT.md` §7 is rewritten against the
+   new endpoints, or deleted with its reason recorded in the commit.
+3. `test_starting_xi.py::test_passed_deadline_rejects_first_ever_submission`
+   (the `pass->fail` in `PHASE3_RECONCILIATION.md` §0) is resolved the same way.
 
 ---
 
