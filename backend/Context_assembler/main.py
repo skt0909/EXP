@@ -58,7 +58,6 @@ from Data.scoring_rules import router as scoring_rules_router
 from Game_logic.fixtures import router as fixtures_router
 from Gameplay.squad_selection import router as squad_router
 from Gameplay.starting_xi import router as starting_xi_router
-from Gameplay.chips import router as chips_router
 from Gameplay.lineup import router as lineup_router
 from Gameplay.transfers import router as transfers_router
 from Gameplay.transfer_drafts import router as transfer_drafts_router
@@ -171,7 +170,6 @@ app.include_router(scoring_rules_router)
 app.include_router(fixtures_router)
 app.include_router(squad_router)
 app.include_router(starting_xi_router)
-app.include_router(chips_router)
 app.include_router(lineup_router)
 app.include_router(transfers_router)
 app.include_router(transfer_drafts_router)

@@ -80,7 +80,6 @@ ENDPOINTS = [
     ("GET", "/auth/me", None, None),
     ("DELETE", "/auth/me", None, None),
     # --- classic FPL
-    ("GET", "/chips/used", {"season": TEST_SEASON, "gameweek": GAMEWEEK}, None),
     ("GET", "/fixtures", {"season": TEST_SEASON}, None),
     ("GET", "/leagues", {"season": TEST_SEASON}, None),
     ("POST", "/leagues", None, {"name": "X", "league_type": "classic", "scoring_type": "total"}),
@@ -514,3 +513,31 @@ def test_a_foreign_user_id_in_the_body_cannot_submit_a_team_as_someone_else(
         f"/dream11/contests/{cid}/team", params={"user_id": b}, headers=bearer_headers(b)
     )
     assert b_team.status_code == 404, b_team.text
+
+
+# ---- Phase 4d: the chip endpoint is gone ----------------------------------
+
+def test_no_chip_route_is_registered():
+    """GET /chips/used queried the `chips` table, which migration c41a9e27d06b
+    dropped in Phase 1. It stayed registered for three phases and would have
+    returned 500 for every caller the moment fpl_game was migrated."""
+    # _app_routes(), not app.routes. FastAPI 0.141 stores an included router as
+    # a single _IncludedRouter entry holding the real routes on
+    # .original_router, so reading app.routes flat CANNOT SEE an included
+    # route -- it returns 8 entries instead of 43. The first draft of this test
+    # did exactly that and passed while /chips/used was still registered.
+    routes = _app_routes()
+    assert ("GET", "/team") in routes and len(routes) > 20, \
+        f"route enumeration is broken -- only {len(routes)} found"
+    chip_routes = sorted(r for r in routes if "chip" in r[1])
+    assert not chip_routes, f"a chip route is still registered: {chip_routes}"
+
+
+def test_the_chips_module_is_deleted():
+    import importlib
+
+    try:
+        importlib.import_module("Gameplay.chips")
+    except ImportError:
+        return
+    raise AssertionError("Gameplay/chips.py should be deleted")

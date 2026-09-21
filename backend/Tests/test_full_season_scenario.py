@@ -494,11 +494,6 @@ def test_full_season_scenario(engine, make_user, make_team, make_player, make_fi
     )
     assert xi1_b.status_code == 200, xi1_b.json()
 
-    chips_a = client.get(
-        "/chips/used", params={"season": TEST_SEASON, "gameweek": 2}, headers=bearer_headers(manager_a)
-    ).json()
-    assert chips_a["triple_captain_available"] is False
-
     # ---------------------------------------------------------------- Phase 4: transfer with a hit
 
     # 9604's price rises 60 -> 90 before the transfer, so price_out exercises

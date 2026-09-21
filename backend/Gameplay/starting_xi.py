@@ -172,12 +172,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from Shared.db_utils import get_engine
-from Gameplay.chips import (
-    CHIP_USAGE_QUERY,
-    adjacent_free_hit_gameweeks,
-    chip_period,
-    chip_usage_by_period,
-)
 from Data.auth import CurrentUser, get_current_user
 from Shared.rules import BENCH_SIZE, STARTING_XI_SIZE, VALID_CHIPS
 from Shared.deadlines import deadline_has_passed
