@@ -62,11 +62,17 @@ Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, s
 - **The `ml` schema is read-only for the game layer.** `ml.player_gw_stats` also feeds the ML pipeline. No migration or game code may write to it or alter it. The scorer reads existing columns only: `minutes, goals_scored, assists, clean_sheets, goals_conceded, saves, penalties_saved, penalties_missed, own_goals, yellow_cards, red_cards, defensive_contributions` (plural in the DATABASE; the archive CSVs call it `defensive_contribution`, singular), `creativity` (verify it exists).
 - **Do not delete** seasons `SIM38OK`, `SIM38TST`, `SIMSMOKE`. They belong to the `simulation/` harness. Game queries must filter to real seasons.
 - Scoring reads per-fixture rows and sums them (double Gameweeks). Keys and ids stay in fpl-id space on the classic side.
-- `Shared/rules.py` keeps its zero-import rule. New constants go there: `FREE_TRANSFER_BANK_CAP = 2`, `FIXTURE_DURATION_MIN = 115`, bench slot map, tactic definitions, `RULES_VERSION = "tactical-v1"`, and the Tactical Points tables as pure data:
+- `Shared/rules.py` keeps its zero-import rule. New constants go there: `FREE_TRANSFER_BANK_CAP = 2`, `FIXTURE_DURATION_MIN = 115`, bench slot map, tactic definitions, `CURRENT_RULES_VERSION = 3`, and the Tactical Points tables as pure data:
   - Attack: goal 3, assist 2.
   - Defence: clean_sheet 3, `DC_TIERS = ((6, 1), (10, 2), (14, 3))`.
   - Balanced: goal_or_assist 1, `CREATIVITY_TIERS = ((15, 1), (30, 2), (50, 3))`.
   - Tier semantics: `(minimum, points)`, the HIGHEST tier reached counts (not stacked).
+  - **`rules_version` is an INTEGER, not a string.** Phase 0 verified the live column
+    is `gw_scores.rules_version smallint NOT NULL` (added by `c9a04e7b53d1`), holding
+    values 1 (869 rows) and 2 (121 rows). The earlier `"tactical-v1"` would have raised
+    at runtime in the scorer. The next generation is therefore **3**. It is stamped from
+    `Shared/rules.py`'s `CURRENT_RULES_VERSION` (currently `= 2`, line 66) and written by
+    `Results/scoring.py:398`; bump it to 3 in Phase 2/4, not in a migration.
 - The live Alembic history has TWO heads: `a06f58d93f5a` and `c2f6a83e91d4`. Revision `c41a9e27d06b` merges them.
 
 ---
@@ -102,7 +108,7 @@ Find real file names first. Expected areas:
 **Phase 1. Migrations.** Fix the drafts from the mismatch list. Dry-run on a scratch copy of `fpl_game`: `upgrade head`, `downgrade -2`, `upgrade head`. Run the full test suite on the scratch DB. **GATE: owner confirms before touching `fpl_game`.**
 **Phase 2. Rules and scoring engine.** Constants plus pure functions with tests first. No DB in the unit tests. **GATE: tests green.**
 **Phase 3. API.** Selection and transfer endpoints with validation, and their tests. **GATE: tests green.**
-**Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = "tactical-v1"`), remove chips/hits/`revert_free_hits`, run the full suite (524 tests plus new ones) including Dream11 and ML tests. **GATE: full suite green.**
+**Phase 4. Integration.** Wire the engine into `score_gameweek` (idempotent upsert, `rules_version = 3`), remove chips/hits/`revert_free_hits`, run the full suite (524 tests plus new ones) including Dream11 and ML tests. **GATE: full suite green.**
 **Phase 5. Frontend.** Screens listed in section 4.
 **Phase 6. Re-tune.** After about 20 Gameweeks of 2026-27, re-run `simulate_tactics.py` (it holds the same tier tables in its CONFIG block) and revisit all three tactics, Defence first.
 

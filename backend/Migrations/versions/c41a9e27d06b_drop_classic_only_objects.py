@@ -33,8 +33,25 @@ def _refuse_to_wipe_real_data() -> None:
     conn = op.get_bind()
     db = conn.execute(sa.text("SELECT current_database()")).scalar()
     rows = 0
-    for table in ("gw_selections", "gw_scores", "transfers", "leaderboard_snapshots"):
+    for table in (
+        "gw_selections",
+        "gw_scores",
+        "transfers",
+        "leaderboard_snapshots",
+        # Added in Phase 1: both are now wiped, so both must count towards the
+        # guard. Leaving them out would let a database holding only finance or
+        # cancellation rows pass the check and then lose them.
+        "cancelled_transfers",
+        "user_gameweek_finance",
+    ):
         rows += conn.execute(sa.text(f"SELECT COUNT(*) FROM {table}")).scalar() or 0
+    # league_h2h_fixtures is counted CONDITIONALLY, unlike the tables above:
+    # this revision resets only its three derived columns and leaves the
+    # pairings alone, so an unplayed row loses nothing and must not trip the
+    # guard. A resolved row (result IS NOT NULL) does lose data, so it counts.
+    rows += conn.execute(
+        sa.text("SELECT COUNT(*) FROM league_h2h_fixtures WHERE result IS NOT NULL")
+    ).scalar() or 0
     if rows and os.environ.get("ALLOW_GAMEPLAY_WIPE") != db:
         raise RuntimeError(
             f"Refusing to run: database '{db}' holds {rows} gameplay rows and this "
@@ -54,19 +71,76 @@ def upgrade() -> None:
     #    these, Postgres will error and name it. Add that table to the
     #    list below instead of cascading blindly.
     # ------------------------------------------------------------------
-    # user_gameweek_finance is deliberately NOT truncated: the dashboard shows
-    # bank and team value from it, and neither is affected by the rule change.
+    # cancelled_transfers is in this list because it MUST be: it carries
+    # cancelled_transfers_transfer_id_fkey -> transfers(id), and Postgres
+    # refuses to truncate a table referenced by a foreign key from a table
+    # that is not also being truncated. Without it this statement aborts and
+    # the whole revision fails. (Verified in Phase 0 against the live schema.)
+    #
+    # user_gameweek_finance IS truncated, reversing the earlier "keep it"
+    # note. Results/scoring.py writes one row per scored gameweek, so keeping
+    # its rows while emptying gw_scores would leave a real bank and team value
+    # displayed beside 0 points for gameweeks that no longer have a score.
+    # Confirmed safe in Phase 1: GET /team for a user with no gw_scores and no
+    # finance row returns HTTP 200 with has_lineup=false, bank=0.0,
+    # team_value=0.0, gw_points=0, overall_rank=null -- it degrades to zeroes
+    # rather than erroring or showing a stale bank. (It does report
+    # team_value_available=true alongside team_value=0.0, which is cosmetic,
+    # not a crash; noted for Phase 2.)
+    #
+    # league_h2h_fixtures is deliberately NOT in the TRUNCATE list -- see the
+    # targeted UPDATE below. It does not hold only derived results:
+    # _generate_and_insert_h2h_schedule writes the season's PAIRINGS upfront
+    # and regeneration is gated on "no rows for this league+season", so
+    # truncating would reshuffle who plays whom.
     op.execute("""
         TRUNCATE TABLE
             leaderboard_snapshots,
             gw_scores,
+            user_gameweek_finance,
             starting_xi,
             gw_selections,
             chips,
+            cancelled_transfers,
             transfers
         RESTART IDENTITY
     """)
     op.execute("UPDATE league_members SET season_points = 0, rank = 0, last_gw_points = 0")
+
+    # league_h2h_fixtures: reset ONLY the three derived columns. The pairing
+    # columns (league_id, season, gameweek, user_id_1, user_id_2) are the
+    # season's schedule and are never touched, so who plays whom is unchanged.
+    #
+    # Each of the three is recomputed from scratch by
+    # Results/standings.py::_process_h2h_league, which reads every fixture for
+    # the gameweek (THIS_GW_FIXTURES_QUERY) without skipping resolved ones and
+    # overwrites all three via RESOLVE_FIXTURE_STMT:
+    #   points_1 / points_2 <- gw_scores.total_points, absent row counted as 0
+    #   result              <- comparing those two points, or the literal
+    #                          'bye' when user_id_2 IS NULL
+    # So none of the three carries information that is not reconstructible
+    # from the pairing plus gw_scores, and gw_scores is being emptied above --
+    # leaving these set would state match results for scores that no longer
+    # exist.
+    #
+    # 'bye' specifically survives the reset: both the writer
+    # (standings.py "if fx.user_id_2 is None: result = 'bye'") and the reader
+    # (Results/leagues.py "is_bye = row.user_id_2 is None") derive it from the
+    # pairing column, never from this column.
+    #
+    # The resulting state is one the system already handles: it is exactly the
+    # state every not-yet-played round is in today, and GET /leagues/{id}/h2h
+    # renders it as an unplayed fixture (points null, result null), while the
+    # standings queries exclude it via `result IS NOT NULL`.
+    op.execute("""
+        UPDATE league_h2h_fixtures
+           SET points_1 = NULL,
+               points_2 = NULL,
+               result   = NULL
+         WHERE points_1 IS NOT NULL
+            OR points_2 IS NOT NULL
+            OR result   IS NOT NULL
+    """)
     # user_squads.total_transfers no longer exists (dropped by revision d8f4a2c60b19),
     # so there is no squad counter to reset here.
 

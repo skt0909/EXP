@@ -30,24 +30,32 @@ def upgrade() -> None:
     # gw_selections: the weekly tactic. NOT NULL with no default works
     # because the previous revision emptied the table.
     # ------------------------------------------------------------------
+    # DEFAULT 'balanced' then DROP DEFAULT: the column is NOT NULL, and
+    # adding a NOT NULL column with no default only works on an empty table.
+    # The previous revision does empty gw_selections, but relying on that
+    # made this revision silently order-dependent -- it would fail outright
+    # if the truncate were ever skipped, guarded out, or run separately. The
+    # default backfills whatever is there; dropping it immediately keeps the
+    # original intent that every future row must state its tactic explicitly.
     op.execute("""
         ALTER TABLE gw_selections
-            ADD COLUMN tactic VARCHAR(10) NOT NULL
+            ADD COLUMN tactic VARCHAR(10) NOT NULL DEFAULT 'balanced'
                 CONSTRAINT ck_gw_selections_tactic
                 CHECK (tactic IN ('attack', 'defence', 'balanced'))
     """)
+    op.execute("ALTER TABLE gw_selections ALTER COLUMN tactic DROP DEFAULT")
 
     # ------------------------------------------------------------------
-    # starting_xi: bench slots, generated role, Bonus flag.
-    # The old inline CHECK (slot 1-11) is auto-named by Postgres; if the
-    # live name differs, the DROP below silently does nothing and the ADD
-    # of the new check will leave both in place. Verify with \d starting_xi.
+    # starting_xi: generated role, Bonus flag.
+    #
+    # The slot range is NOT touched here. Phase 0 verified against the live
+    # schema that starting_xi_position_slot_check is ALREADY
+    # CHECK (position_slot >= 1 AND position_slot <= 15) -- the bench already
+    # lives at slots 12-15. The draft previously dropped and re-added it as
+    # ck_starting_xi_slot, believing the live check was 1-11. That was a
+    # rename of an equivalent constraint, doing nothing but obscuring the
+    # fact that nothing needed widening. Left exactly as it is.
     # ------------------------------------------------------------------
-    op.execute("ALTER TABLE starting_xi DROP CONSTRAINT IF EXISTS starting_xi_position_slot_check")
-    op.execute("""
-        ALTER TABLE starting_xi
-            ADD CONSTRAINT ck_starting_xi_slot CHECK (position_slot BETWEEN 1 AND 15)
-    """)
     op.execute("""
         ALTER TABLE starting_xi
             ADD COLUMN is_bonus BOOLEAN NOT NULL DEFAULT FALSE,
@@ -205,14 +213,20 @@ def upgrade() -> None:
     #   raw_points   = General Points (XI + swaps + Auto Subs)
     #   final_points = raw_points + tactical_points + sub_bonus
     #   total_points = final_points (no hits any more)
-    # rules_version already exists in the live DB per ARCHITECTURE.md but is
-    # not in the v1.0 DDL; IF NOT EXISTS makes this safe either way.
+    #
+    # rules_version is NOT touched. It already exists as smallint NOT NULL
+    # (added by c9a04e7b53d1; live values are 1 and 2). The draft previously
+    # carried `ADD COLUMN IF NOT EXISTS rules_version VARCHAR(20)`, which was
+    # a silent no-op against that column -- the migration would pass and the
+    # scorer would then fail at runtime trying to store a string in a
+    # smallint. The version stays an integer and the next generation is 3,
+    # set in Shared/rules.py (CURRENT_RULES_VERSION) in a later phase, not
+    # here: this revision changes schema, not rules.
     # ------------------------------------------------------------------
     op.execute("""
         ALTER TABLE gw_scores
             ADD COLUMN tactical_points SMALLINT NOT NULL DEFAULT 0,
-            ADD COLUMN sub_bonus       SMALLINT NOT NULL DEFAULT 0,
-            ADD COLUMN IF NOT EXISTS rules_version VARCHAR(20)
+            ADD COLUMN sub_bonus       SMALLINT NOT NULL DEFAULT 0
     """)
 
     # ------------------------------------------------------------------
@@ -225,8 +239,18 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Leaves gw_scores.rules_version in place: it may have existed before this
-    revision, and it is nullable and harmless. Never touches the ml schema."""
+    """Restores the structures this revision added, and nothing else.
+
+    gw_scores.rules_version is untouched because upgrade() no longer touches
+    it either -- it predates this revision entirely.
+
+    The slot range is likewise untouched. An earlier draft deleted every
+    starting_xi row above slot 11 and restored a 1-11 check here; both were
+    wrong. The live constraint was already 1-15 before this revision ran, so
+    "restoring" 1-11 would impose a state the database never had and destroy
+    the bench on the way. A downgrade returns the schema to its previous
+    shape, which is 1-15. Never touches the ml schema.
+    """
     op.execute("ALTER TABLE gw_scores DROP COLUMN IF EXISTS sub_bonus")
     op.execute("ALTER TABLE gw_scores DROP COLUMN IF EXISTS tactical_points")
 
@@ -241,16 +265,11 @@ def downgrade() -> None:
     op.execute("DROP TRIGGER IF EXISTS enforce_bonus_count ON starting_xi")
     op.execute("DROP FUNCTION IF EXISTS enforce_bonus_count_fn()")
 
-    # Bench rows (slots 12-15) cannot exist under the old 1-11 check.
-    op.execute("DELETE FROM starting_xi WHERE position_slot > 11")
+    # Bench rows are kept: slots 12-15 were legal before this revision and
+    # remain legal after it is undone.
     op.execute("ALTER TABLE starting_xi DROP CONSTRAINT IF EXISTS uq_starting_xi_sel_slot")
     op.execute("ALTER TABLE starting_xi DROP CONSTRAINT IF EXISTS ck_starting_xi_bonus_is_starter")
     op.execute("ALTER TABLE starting_xi DROP COLUMN IF EXISTS role")
     op.execute("ALTER TABLE starting_xi DROP COLUMN IF EXISTS is_bonus")
-    op.execute("ALTER TABLE starting_xi DROP CONSTRAINT IF EXISTS ck_starting_xi_slot")
-    op.execute("""
-        ALTER TABLE starting_xi
-            ADD CONSTRAINT starting_xi_position_slot_check CHECK (position_slot BETWEEN 1 AND 11)
-    """)
 
     op.execute("ALTER TABLE gw_selections DROP COLUMN IF EXISTS tactic")
