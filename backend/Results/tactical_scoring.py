@@ -449,8 +449,12 @@ def score_selection(selection, stats, positions):
     auto_outfield = next((b for b in bench
                           if b.position_slot == 13 and position_of[b.player_id] != "GK"),
                          None)
+    # A cover whose own position is not on record cannot be judged legal, so
+    # he does not come on (ambiguity E6). Better a starter scoring 0 than a
+    # substitution made on a guess about the shape it produces.
     if (auto_outfield is not None
             and auto_outfield.player_id not in swapped_in
+            and position_of[auto_outfield.player_id] in FORMATION_MIN
             and appeared(auto_outfield.player_id)):
         sub_position = position_of[auto_outfield.player_id]
         for starter in starters:                     # already in slot order

@@ -170,6 +170,11 @@ UPSERT_GW_FINANCE_STMT = text(
     """
 )
 
+# A selected player with no ml.players row for this season (ambiguity E6).
+# He is given a position that matches NO formation minimum, so he counts
+# towards none of them -- see _score_one's warning for the full reasoning.
+UNKNOWN_POSITION = "UNKNOWN"
+
 _STAT_FIELDS = (
     "minutes", "goals_scored", "assists", "clean_sheets", "goals_conceded",
     "saves", "penalties_saved", "penalties_missed", "own_goals",
@@ -426,6 +431,31 @@ def _persist(engine, writes, finance_writes):
 
 def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, gameweek):
     """Validate (advisory) and score one manager."""
+    # E6: a player selected but absent from ml.players for this season used to
+    # raise KeyError from the engine's position lookup and fail the WHOLE
+    # manager. He now gets UNKNOWN_POSITION, which:
+    #   * scores 0, because BATCH_STATS_QUERY returns no row for him either,
+    #     so his fixture list is empty and general_points is never called;
+    #   * counts towards NO formation minimum, because "UNKNOWN" matches none
+    #     of FORMATION_MIN's keys. That is the honest reading -- we do not know
+    #     he was a defender, so he cannot be credited with satisfying the
+    #     defensive floor. It makes Auto Sub cover STRICTER, not looser: a line
+    #     depending on him to reach its floor refuses the cover rather than
+    #     allowing one on a guess;
+    #   * cannot come on as an Auto Sub cover, guarded in the engine.
+    missing = sorted({r.player_id for r in slot_rows} - set(positions))
+    if missing:
+        logger.warning(
+            "data-integrity: user_id=%s season=%s gameweek=%s selected player_id(s) "
+            "%s with no ml.players row for this season. They score 0, count towards "
+            "no formation minimum, and cannot be used as an Auto Sub cover. The rest "
+            "of the selection is scored normally.",
+            sel.user_id, season, gameweek, missing,
+        )
+        positions = dict(positions)
+        for pid in missing:
+            positions[pid] = UNKNOWN_POSITION
+
     slots = [Slot(position_slot=r.position_slot, player_id=r.player_id,
                   is_bonus=bool(r.is_bonus)) for r in slot_rows]
     swaps = [Swap(player_out_id=r.player_out_id, player_in_id=r.player_in_id)
