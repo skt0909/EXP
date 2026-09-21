@@ -44,7 +44,7 @@ Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, s
 | Area | Rule |
 |---|---|
 | General Points | Appearance 60+ min +2, 1-59 min +1. Goals GK +10 / DEF +6 / MID +5 / FWD +4. Assist +3. Clean sheet (60+ min) GK/DEF +4, MID +1, FWD 0. Defensive Contribution +2 (DEF 10 actions, MID/FWD 12). Goals conceded -1 per 2 (GK/DEF). Yellow -1, Red -3, Own goal -2, Penalty missed -2. Saves +1 per 3, Penalty saved +5. **No FPL bonus points, no captain, no chips.** Validated: this table reproduces the FPL archive totals (minus bonus) on 100% of rows. |
-| Tactical Points (Bonus Players only, per fixture, summed across a double Gameweek) | **Attack:** goal +3, assist +2. **Defence:** clean sheet (60+ min) +3, plus Defensive Contribution tiers: 6+ actions +1, 10+ +2, 14+ +3. **Balanced:** goal or assist +1 each, plus creativity tiers: 15+ +1, 30+ +2, 50+ +3. **Tiers are NOT stacked: only the highest tier reached counts** (10 actions = +2, not +3). Values chosen ("Option P") so the three tactics have distinct personalities: Attack swingiest, Defence middle, Balanced steadiest, with average returns within about 8% for a form-based manager. They are tuned on 2025-26 only (35 Gameweeks) and MUST be re-tuned after about 20 Gameweeks of 2026-27. |
+| Tactical Points (Bonus Players only, per fixture, summed across a double Gameweek) | **Attack:** goal +3, assist +2. **Defence:** clean sheet (60+ min) +2, plus Defensive Contribution tiers: 8+ actions +2, 10+ +3. **Balanced:** goal or assist +1 each, plus creativity tiers: 20+ +1, 40+ +3. **Tiers are NOT stacked: only the highest tier reached counts** (10 actions = +3, not +2 +3; creativity 39.9 = +1, not +3). These are rules **"Q1"**, judged against the balance spec in section 9. Values chosen so the three tactics have distinct personalities: Attack swingiest, Defence middle, Balanced steadiest, with average returns within about 3% for a form-based manager. They are tuned on 2025-26 only (35 Gameweeks) and MUST be re-tuned after about 20 Gameweeks of 2026-27. |
 | Gameweek total | General Points of all scoring slots + Tactical Points + Sub Bonus. Resets each Gameweek; completed totals accumulate into the Season Total. |
 | Transfers | 1 free per Gameweek. Unused ones bank, **cap 2** (was 5). **No paid transfers, no hits**: transfers beyond the balance are rejected. `transfers.is_free` stays (always true). |
 | Removed | Chips (all four), captain / vice-captain, transfer hits, FPL bonus points. |
@@ -64,8 +64,8 @@ Baseline DDL reviewed: `public` v1.0 script. It is OLDER than the live schema, s
 - Scoring reads per-fixture rows and sums them (double Gameweeks). Keys and ids stay in fpl-id space on the classic side.
 - `Shared/rules.py` keeps its zero-import rule. New constants go there: `FREE_TRANSFER_BANK_CAP = 2`, `FIXTURE_DURATION_MIN = 115`, bench slot map, tactic definitions, `CURRENT_RULES_VERSION = 3`, and the Tactical Points tables as pure data:
   - Attack: goal 3, assist 2.
-  - Defence: clean_sheet 3, `DC_TIERS = ((6, 1), (10, 2), (14, 3))`.
-  - Balanced: goal_or_assist 1, `CREATIVITY_TIERS = ((15, 1), (30, 2), (50, 3))`.
+  - Defence: clean_sheet 2, `DC_TIERS = ((8, 2), (10, 3))`.
+  - Balanced: goal_or_assist 1, `CREATIVITY_TIERS = ((20, 1), (40, 3))`.
   - Tier semantics: `(minimum, points)`, the HIGHEST tier reached counts (not stacked).
   - **`rules_version` is an INTEGER, not a string.** Phase 0 verified the live column
     is `gw_scores.rules_version smallint NOT NULL` (added by `c9a04e7b53d1`), holding
@@ -128,7 +128,7 @@ Order of operations:
 6. Sub Bonus: for each executed swap, +1 if General(incoming) > General(outgoing) using full-Gameweek sums.
 7. Total = General of all scoring slots + Tactical + Sub Bonus.
 
-Test scenarios (each a hand-built Gameweek): double Gameweek swap block; swap with outgoing no-show; incoming no-show; swap slot never Auto Sub covered; Auto Sub priority (two no-shows, one Auto Sub); formation blocking an Auto Sub; Bonus Player no-show with Auto Sub cover; Bonus in a double Gameweek (tiers evaluated per fixture, then summed); Sub Bonus tie gives 0; Sub Bonus with outgoing no-show; unused Tactical Sub; each tactic's events; **tier boundaries** (5/6/9/10/13/14 defensive actions; creativity 14.9/15/29.9/30/49.9/50; highest tier only); 13-scorer maximum; General Points golden test against the archive CSVs (100% match target).
+Test scenarios (each a hand-built Gameweek): double Gameweek swap block; swap with outgoing no-show; incoming no-show; swap slot never Auto Sub covered; Auto Sub priority (two no-shows, one Auto Sub); formation blocking an Auto Sub; Bonus Player no-show with Auto Sub cover; Bonus in a double Gameweek (tiers evaluated per fixture, then summed); Sub Bonus tie gives 0; Sub Bonus with outgoing no-show; unused Tactical Sub; each tactic's events; **tier boundaries** (7/8/9/10 defensive actions; creativity 19.9/20/39.9/40; highest tier only); 13-scorer maximum; General Points golden test against the archive CSVs (100% match target).
 Validation tests: legal/illegal formations, Attack with fewer than 2 FWD, Bonus position mismatch, Bonus as outgoing, cross-position swap, swap kickoff order, budget, club limit, transfer bank cap 2, overspend rejected.
 
 ---
@@ -149,9 +149,12 @@ Validation tests: legal/illegal formations, Attack with fewer than 2 FWD, Bonus 
 - The FPL API is undocumented and not a licensed public API; check its terms before any commercial launch.
 - Avoid FPL branding and vocabulary in the product ("Fantasy Premier League", "FPL", possibly "Gameweek").
 - **Tactical Points values are tuned on ONE season (2025-26, 35 Gameweeks).** Bootstrap uncertainty on the averages is large. Re-tune in Phase 6.
-- Measured with `simulate_tactics.py` (form-based manager, 2025-26): averages 3.86 / 4.06 / 4.20 (Attack / Defence / Balanced), relative swing 0.90 / 0.70 / 0.51, best-of-three shares 43% / 26% / 31%. Attack slightly exceeds the 40% guide; within noise, but watch it.
-- A casual manager (picks popular players, no form-reading) averages 2.57 / 3.33 / 2.70, so Defence is the easy default. Watch for a "default tactic" effect.
+- Measured with `simulate_tactics.py` under the adopted **Q1** rules (form-based manager, 2025-26): averages **3.86 / 3.89 / 3.97** (Attack / Defence / Balanced), relative swing **0.90 / 0.72 / 0.58**, best-of-three shares **42% / 31% / 27%**. Attack slightly exceeds the 40% guide; within noise, but watch it.
+- A casual manager (picks popular players, no form-reading) averages **2.57 / 3.02 / 2.42** under Q1, so Defence is still the easier default. Watch for a "default tactic" effect.
 - Balanced now pays something to about 58% of full-match midfielders, so it behaves partly like a steady participation bonus, not a sharp prediction reward.
+- **Attack managers cannot use forward swaps.** A forward swap needs 2 Bonus forwards + 1 non-Bonus forward starter + 1 bench forward = 4 forwards, and the squad holds 3. Accepted for the MVP; defender and midfielder swaps remain possible.
+- **The app must show each tactic's tier thresholds to managers.** The tiers are not stacked and the boundaries are not guessable: a creativity of 39.9 earns +1, not +3.
+- Cosmetic: `team_value_available` is `True` beside `team_value` `0.0` for a fresh user (found in Phase 1). Fix in Phase 5.
 - `creativity` column existence in `ml.player_gw_stats` is unverified.
 - Sub Bonus giveaway when the outgoing player never appeared.
 
@@ -176,7 +179,7 @@ Design principle: the three tactics should have overlapping average returns (so 
 Definitions: "form-based" = picks the 2 players with the best trailing 5-Gameweek Tactical Points from the pool of the most-owned players (Attack pool 10, Defence 15, Balanced 15). "Casual" = picks 2 at random from the same pool.
 
 ### Status of candidate rules (2025-26, 35 Gameweeks)
-| | Adopted "P" | Candidate "Q1" |
+| | Retired "P" | **ADOPTED "Q1"** |
 |---|---|---|
 | Defence | Clean sheet +3; DC 6+ +1, 10+ +2, 14+ +3 | Clean sheet +2; DC 8+ +2, 10+ +3 |
 | Balanced | G/A +1; creativity 15+ +1, 30+ +2, 50+ +3 | G/A +1; creativity 20+ +1, 40+ +3 |
@@ -184,8 +187,19 @@ Definitions: "form-based" = picks the 2 players with the best trailing 5-Gamewee
 | Swing A / D / B | 0.90 / 0.70 / 0.51 | 0.90 / 0.72 / 0.58 |
 | Best-of-three shares | 43% / 26% / 31% | 42% / 31% / 27% |
 | Casual averages A / D / B | 2.57 / 3.33 / 2.70 | 2.57 / 3.02 / 2.42 |
-| Passes | T1b, T2a, T2b | T1a, T1b, T2a, T2b, T5 |
-| Fails | T1a (Balanced 4.20), T3a/b/c, T4, T5 (7 thresholds) | T3a/b/c, T4 |
+| Passes | T1b, T2a, T2b | **T1a, T1b, T2a, T2b, T5** |
+| Fails | T1a (Balanced 4.20), T3a/b/c, T4, T5 (7 thresholds) | **T3a, T3b, T3c, T4** |
+
+**Q1 is ADOPTED; P is retired.** Q1 gains T1a (Balanced falls from 4.20 to 3.97, inside
+the 3.7-4.1 band) and T5 (5 thresholds instead of P's 7, against a limit of 6), while
+keeping the three personalities intact.
+
+Q1's two remaining failures, **T3a/b/c (casual parity) and T4 (win share), are recorded
+as known structural misses to monitor, not bugs.** Both are explained below: they are
+properties of what the underlying events reward, not of the numbers chosen, and no
+candidate among the 657 searched fixes T3 without erasing Defence's personality.
+Treat them as monitoring targets — see "Post-launch monitoring" — rather than as defects
+to be tuned away.
 
 ### Known structural conflicts (do not hide these)
 1. **T3 (casual) vs the Defence swing band.** Across 657 Defence rules with at most 3 tiers, none satisfied the average band, the swing band 0.65-0.78 AND casual within 12% of Attack. The best achievable casual advantage while keeping swing >= 0.65 was about +18%. Reason: clean sheets and defensive actions are team-level events, so an ordinary popular defender earns them; there is little skill premium to reward. Getting casual parity means making Defence steadier (swing about 0.55), which erases the personality.
@@ -197,3 +211,50 @@ With 35 Gameweeks, 90% bootstrap intervals are roughly +-0.9 on each average and
 
 ### Post-launch monitoring (the real test)
 The casual simulation is a proxy. Once live, track the share of managers choosing each tactic per Gameweek. If any tactic is chosen by more than 50% of managers for 3 consecutive Gameweeks, investigate a "default tactic" problem before touching the scoring values.
+
+---
+
+## 10. Environments and release
+
+### Local databases
+| Database | Role | State |
+|---|---|---|
+| `fpl_game` | dev | **Migrated at Phase 4**, not before. Stays on its current schema until then. |
+| `fpl_game_test` | tests only | Already migrated (Phase 1). |
+| `fpl_game_scratch` | temporary rehearsal copy | Drop it when the rehearsal is done. |
+
+### Server
+- Database `pitchside_db` on a Google e2-micro, holding **test users only**.
+- Roughly 8.6 GB disk with about 3.1 GB free, about 1 GB RAM, and a single-task Celery
+  worker (`--pool=solo`).
+- **Its state is unverified until the owner supplies it.** Do not guess at its schema,
+  its Alembic revision or what runs on it.
+
+### Release: the database change and the code change must reach the server together
+Neither half works alone — the migration drops columns today's code still selects, and
+the new code needs columns only the migration adds. Deploy as one step:
+
+1. Stop the app processes (API and Celery worker).
+2. Back up: `pg_dump -U postgres pitchside_db > pitchside_db_backup.sql`.
+3. Pull the code.
+4. Migrate, with the override set **for that one command only**:
+   `ALLOW_GAMEPLAY_WIPE=pitchside_db alembic upgrade head`.
+   **Never store it in any `.env` file** — it exists to make the wipe a deliberate,
+   one-off act, and a stored copy turns the guard into decoration.
+5. Restart the app processes.
+6. Smoke check.
+
+### Server rules
+- **Never run tests against `pitchside_db`.** `ALLOW_GAMEPLAY_WIPE` must never name it in
+  a stored file, and no test configuration may point at it.
+- **The branch is not pushed or merged until Phase 4 is finished.**
+
+### Operational notes
+- The scoring job must process managers in **batches of a few hundred**. The e2-micro has
+  about 1 GB RAM and a single-task worker, so a whole-league pass in one transaction is
+  not safe there.
+- Downgrading past the merge revision needs the explicit parent, because `downgrade -1`
+  twice hits "Ambiguous walk" at the mergepoint:
+  ```
+  alembic downgrade a06f58d93f5a
+  ```

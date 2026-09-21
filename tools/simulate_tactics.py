@@ -33,8 +33,8 @@ TACTICAL = {
     # Tiers are cumulative: the HIGHEST tier reached counts (e.g. 10 actions = +2, not +1 +2).
     # DC only exists from 2025-26. Archive column is `defensive_contribution` (singular);
     # the database column is `defensive_contributions` (plural).
-    "defence":  {"clean_sheet": 3, "dc_tiers": [(6, 1), (10, 2), (14, 3)]},
-    "balanced": {"goal_or_assist": 1, "creativity_tiers": [(15, 1), (30, 2), (50, 3)]},
+    "defence":  {"clean_sheet": 2, "dc_tiers": [(8, 2), (10, 3)]},
+    "balanced": {"goal_or_assist": 1, "creativity_tiers": [(20, 1), (40, 3)]},
 }
 
 # Which players can a manager realistically hold? The N most-owned per position.
