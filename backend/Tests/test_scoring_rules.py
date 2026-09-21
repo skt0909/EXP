@@ -22,7 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from main import app
-from Results.scoring import _component_score
+from Results.tactical_scoring import general_points
 from Game_logic.dream11_scoring import calculate_dream11_points
 
 client = TestClient(app)
@@ -40,8 +40,10 @@ def rules():
 def _classic_row(position, **stats):
     """A player who did nothing, plus whatever the caller sets.
 
-    `bonus` and `defensive_contributions` are real columns _component_score
-    reads; every field must be present because it accesses them directly.
+    Phase 4c: this now feeds Results/tactical_scoring.general_points, which
+    reads the same columns. `bonus` is kept in the row deliberately -- the
+    tactical game removes FPL bonus entirely, and leaving the column present
+    proves general_points ignores it rather than merely not being given it.
     """
     base = dict(
         position=position, minutes=0, goals_scored=0, assists=0, clean_sheets=0,
@@ -83,23 +85,23 @@ def test_both_rulesets_arrive_in_one_response(rules):
 
 @pytest.mark.parametrize("position", POSITIONS)
 def test_published_goal_value_is_what_the_scorer_pays(rules, position):
-    scored = _component_score(_classic_row(position, goals_scored=1))
+    scored = general_points(_classic_row(position, goals_scored=1), position)
     assert scored == rules["classic"]["goal"][position]
 
 
 @pytest.mark.parametrize("position", POSITIONS)
 def test_published_assist_value_is_what_the_scorer_pays(rules, position):
-    scored = _component_score(_classic_row(position, assists=1))
+    scored = general_points(_classic_row(position, assists=1), position)
     assert scored == rules["classic"]["assist"]
 
 
 @pytest.mark.parametrize("position", POSITIONS)
 def test_published_clean_sheet_value_and_threshold_match(rules, position):
     minutes = rules["classic"]["clean_sheet_minutes"]
-    earned = _component_score(_classic_row(position, minutes=minutes, clean_sheets=1))
+    earned = general_points(_classic_row(position, minutes=minutes, clean_sheets=1), position)
     # One minute short must NOT pay the clean sheet -- that's the threshold
     # being real rather than decorative.
-    missed = _component_score(_classic_row(position, minutes=minutes - 1, clean_sheets=1))
+    missed = general_points(_classic_row(position, minutes=minutes - 1, clean_sheets=1), position)
     appearance = rules["classic"]["appearance"]
 
     assert earned - appearance["full"] == rules["classic"]["clean_sheet"][position]
@@ -107,18 +109,20 @@ def test_published_clean_sheet_value_and_threshold_match(rules, position):
 
 
 def test_published_appearance_values_match(rules):
-    """Appearance points are only reachable through the component path, which
-    needs some other stat present to engage (see _component_score's
-    component_signal -- a row with minutes alone defers to FPL's total_points
-    instead). So each case carries one bonus point and the assertion nets it
-    out; seeding minutes alone would test the fallback, not the rule."""
+    """Phase 4c: this used to need a spare bonus point in each row.
+
+    The classic _component_score had a fallback -- a row with minutes and
+    nothing else deferred to FPL's own total_points instead of computing -- so
+    appearance points were only reachable by seeding some other stat and
+    netting it out. The tactical engine has no fallback: the point table IS the
+    rule, so minutes alone is enough and the test says what it means."""
     appearance = rules["classic"]["appearance"]
 
-    partial = _component_score(_classic_row("MID", minutes=1, bonus=1))
-    full = _component_score(_classic_row("MID", minutes=appearance["full_minutes"], bonus=1))
+    partial = general_points(_classic_row("MID", minutes=1), "MID")
+    full = general_points(_classic_row("MID", minutes=appearance["full_minutes"]), "MID")
 
-    assert partial - 1 == appearance["partial"]
-    assert full - 1 == appearance["full"]
+    assert partial == appearance["partial"]
+    assert full == appearance["full"]
     assert appearance["partial"] < appearance["full"]
 
 
@@ -132,7 +136,7 @@ def test_published_appearance_values_match(rules):
     ],
 )
 def test_published_deductions_match_and_stay_negative(rules, stat, key):
-    scored = _component_score(_classic_row("MID", **{stat: 1}))
+    scored = general_points(_classic_row("MID", **{stat: 1}), "MID")
     assert scored == rules["classic"][key]
     # Guards the sign convention: these are stored negative, and a refactor
     # that flipped one would otherwise still "match" a flipped constant.
@@ -142,23 +146,23 @@ def test_published_deductions_match_and_stay_negative(rules, stat, key):
 def test_published_saves_tier_matches(rules):
     saves = rules["classic"]["saves"]
     # Integer division: one short of the divisor pays nothing.
-    assert _component_score(_classic_row("GK", saves=saves["per"] - 1)) == 0
-    assert _component_score(_classic_row("GK", saves=saves["per"])) == saves["points"]
+    assert general_points(_classic_row("GK", saves=saves["per"] - 1), "GK") == 0
+    assert general_points(_classic_row("GK", saves=saves["per"]), "GK") == saves["points"]
 
 
 def test_published_goals_conceded_tier_matches(rules):
     conceded = rules["classic"]["goals_conceded"]
-    assert _component_score(_classic_row("DEF", goals_conceded=conceded["per"] - 1)) == 0
+    assert general_points(_classic_row("DEF", goals_conceded=conceded["per"] - 1), "DEF") == 0
     assert (
-        _component_score(_classic_row("DEF", goals_conceded=conceded["per"]))
+        general_points(_classic_row("DEF", goals_conceded=conceded["per"]), "DEF")
         == conceded["points"]
     )
     # GK/DEF only -- a midfielder is untouched by concessions.
-    assert _component_score(_classic_row("MID", goals_conceded=conceded["per"])) == 0
+    assert general_points(_classic_row("MID", goals_conceded=conceded["per"]), "MID") == 0
 
 
 def test_published_penalty_saved_matches(rules):
-    scored = _component_score(_classic_row("GK", penalties_saved=1))
+    scored = general_points(_classic_row("GK", penalties_saved=1), "GK")
     assert scored == rules["classic"]["penalty_saved"]
 
 
@@ -168,8 +172,8 @@ def test_published_defcon_threshold_matches_per_position(rules):
 
     for position in ("DEF", "MID", "FWD"):
         threshold = thresholds[position]
-        at = _component_score(_classic_row(position, defensive_contributions=threshold))
-        below = _component_score(_classic_row(position, defensive_contributions=threshold - 1))
+        at = general_points(_classic_row(position, defensive_contributions=threshold), position)
+        below = general_points(_classic_row(position, defensive_contributions=threshold - 1), position)
         assert at == points, position
         assert below == 0, position
 
@@ -178,7 +182,7 @@ def test_goalkeepers_are_published_as_ineligible_for_defcon(rules):
     """GK is served as 0 to mean "no threshold reaches it". The scorer must
     genuinely pay a keeper nothing however many actions they rack up."""
     assert rules["classic"]["defensive_contribution_threshold"]["GK"] == 0
-    assert _component_score(_classic_row("GK", defensive_contributions=99)) == 0
+    assert general_points(_classic_row("GK", defensive_contributions=99), "GK") == 0
 
 
 def test_transfer_hit_is_published_as_the_manager_experiences_it(rules):

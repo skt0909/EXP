@@ -457,3 +457,85 @@ def test_total_points_equals_final_points_because_there_are_no_hits(
     row = _score_row(engine, uid)
     assert row.final_points == row.total_points
     assert row.total_points == row.raw_points + row.tactical_points + row.sub_bonus
+
+
+# ---- migrated from the deleted test_scoring.py ----------------------------
+#
+# These four checked behaviour the tactical engine must still have, end to end
+# through the job rather than against the pure engine (which
+# backend/Tests/unit/test_tactical_scoring.py already covers).
+
+def test_migrated_gk_autosub_swaps_in_the_bench_keeper(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    """From test_gk_autosub_swaps_in_bench_gk."""
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 9000,
+                       "balanced", (7, 8))
+    _seed_stats(make_gw_stat, pairs, {
+        0: dict(minutes=0),                       # starting GK did not play
+        1: dict(minutes=90, saves=3),             # bench GK did, 2 + 1 = 3
+    })
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    # 10 outfield starters at 2 each, plus the bench keeper's 3.
+    assert _score_row(engine, uid).raw_points == 23
+
+
+def test_migrated_outfield_autosub_respects_formation(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    """From test_outfield_autosub_respects_formation. The XI is 1-4-4-2, so
+    losing a defender still leaves 3 and the DEF on slot 13 can come on."""
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 9100,
+                       "balanced", (7, 8))
+    _seed_stats(make_gw_stat, pairs, {
+        4: dict(minutes=0),                       # a starting DEF blanked
+        6: dict(minutes=90, goals_scored=1),      # bench DEF: 2 + 6 = 8
+    })
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    assert _score_row(engine, uid).raw_points == 10 * 2 + 8
+
+
+def test_migrated_no_valid_autosub_leaves_the_slot_at_zero(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    """From test_no_valid_autosub_stays_at_zero: the only Auto Sub also
+    blanked, so nobody comes on and the slot simply scores 0."""
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 9200,
+                       "balanced", (7, 8))
+    _seed_stats(make_gw_stat, pairs, {4: dict(minutes=0), 6: dict(minutes=0)})
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    assert _score_row(engine, uid).raw_points == 10 * 2
+
+
+def test_migrated_a_manager_with_no_user_squads_row_scores_without_a_finance_snapshot(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    """From test_no_user_squads_row_skips_finance_snapshot_without_error.
+
+    The finance snapshot reads user_squads. A selection can exist without one
+    (test data, or a squad deleted out from under it), and that must not stop
+    the manager being scored -- it only means there is nothing to snapshot.
+    """
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 9300,
+                       "balanced", (7, 8))
+    _seed_stats(make_gw_stat, pairs)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "DELETE FROM squad_players WHERE user_squad_id IN "
+            "(SELECT id FROM user_squads WHERE user_id = :u)"), {"u": uid})
+        conn.execute(text("DELETE FROM user_squads WHERE user_id = :u"), {"u": uid})
+
+    summary = score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    assert uid in summary["scored"]
+    assert _score_row(engine, uid).raw_points == 22
+
+    with engine.connect() as conn:
+        n = conn.execute(text(
+            "SELECT count(*) FROM user_gameweek_finance WHERE user_id = :u "
+            "AND season = :s AND gameweek = :g"),
+            {"u": uid, "s": TEST_SEASON, "g": GAMEWEEK}).scalar()
+    assert n == 0, "no squad means nothing to snapshot, not an error"

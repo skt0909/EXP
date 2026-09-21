@@ -72,7 +72,7 @@ from main import app as fastapi_app
 from GameEngine.free_hit_revert import revert_expired_free_hits
 from GameEngine.gameweek_finalize import refresh_active_gameweeks
 from GameEngine.gameweek_lock import lock_expired_gameweeks
-from Results.scoring import score_gameweek  # noqa: F401 -- imported for readers tracing the wiring, called via refresh_active_gameweeks
+from Results.scoring_job import score_gameweek_tactical  # noqa: F401 -- imported for readers tracing the wiring, called via refresh_active_gameweeks
 from dream11_locking import lock_started_contests
 from dream11_scoring import (
     finalize_dream11_contest,

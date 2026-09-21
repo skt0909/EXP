@@ -23,9 +23,12 @@ def get_engine():
 
 
 def score_gameweek(engine, season: str, gameweek: int) -> dict:
-    from Results.scoring import score_gameweek as _score_gameweek
+    # Phase 4c: Results/scoring.py is deleted; the tactical job is the scorer.
+    # allow_sim_seasons=True because this harness drives SIM38OK / SIM38TST /
+    # SIMSMOKE, which the production season filter refuses by design.
+    from Results.scoring_job import score_gameweek_tactical as _score_gameweek
 
-    return _score_gameweek(engine, season, gameweek)
+    return _score_gameweek(engine, season, gameweek, allow_sim_seasons=True)
 
 
 def compute_league_standings(engine, season: str, gameweek: int) -> dict:

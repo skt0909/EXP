@@ -55,7 +55,8 @@ from GameEngine.free_hit_revert import revert_expired_free_hits
 from GameEngine.gameweek_finalize import refresh_active_gameweeks
 from GameEngine.gameweek_lock import lock_expired_gameweeks
 from Shared.deadlines import DEADLINE_PASSED_QUERY, deadline_has_passed
-from Results.scoring import score_gameweek
+# Phase 4c: Results/scoring.py is deleted. The tactical job is the scorer.
+from Results.scoring_job import score_gameweek_tactical as score_gameweek
 from Gameplay.starting_xi import LOCKED_DETAIL
 
 client = TestClient(fastapi_app)

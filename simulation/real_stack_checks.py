@@ -34,7 +34,8 @@ os.environ.setdefault("DATABASE_URL", "postgresql://postgres:postgres@localhost:
 os.environ.setdefault("REDIS_URL", "redis://localhost:56379/0")
 os.environ.setdefault("JWT_SECRET", "simulation-secret")
 
-from Results.scoring import score_gameweek
+# Phase 4c: the tactical job replaces the deleted Results/scoring.py.
+from Results.scoring_job import score_gameweek_tactical as score_gameweek
 from Results.standings import compute_league_standings
 from Worker.tasks import (
     crashable_simulate_match_task,
