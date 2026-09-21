@@ -145,15 +145,6 @@ app.conf.beat_schedule = {
         "task": "lock_dream11_contests",
         "schedule": _beat_interval(300.0),
     },
-    "revert-free-hits": {
-        # Every 15 minutes: this only fires once a gameweek's last fixture
-        # is comfortably over (see free_hit_revert.FREE_HIT_REVERT_BUFFER_HOURS),
-        # so the cadence just bounds how long a user keeps seeing their
-        # free-hit squad after it should have reverted -- there is no
-        # deadline being raced here, unlike the two lock tasks above.
-        "task": "revert_free_hits",
-        "schedule": _beat_interval(900.0),
-    },
     "refresh-active-gameweeks": {
         "task": "refresh_active_gameweeks",
         "schedule": _beat_interval(900.0),  # every 15 minutes

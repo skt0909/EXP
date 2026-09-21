@@ -72,13 +72,6 @@ from GameEngine.gameweek_lock import lock_expired_gameweeks
 from GameEngine.gameweek_finalize import refresh_active_gameweeks
 
 
-# --- Free Hit · GameEngine/free_hit_revert.py -------------------------
-
-# Restores the pre-Free-Hit squad once a chip's gameweek is over, and
-# marks the snapshot reverted. Every 900s.
-from GameEngine.free_hit_revert import revert_expired_free_hits
-
-
 # --- Dream11 · Game_logic/dream11_locking.py --------------------------
 
 # Locks each Dream11 contest at its OWN fixture's kickoff -- the only

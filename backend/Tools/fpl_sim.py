@@ -72,7 +72,6 @@ from Shared.db_utils import get_engine, safe_url
 # caller in the repo that passes it.
 from Results.scoring_job import score_gameweek_tactical
 from Results.standings import compute_league_standings
-from GameEngine.free_hit_revert import revert_expired_free_hits
 from GameEngine.gameweek_finalize import refresh_active_gameweeks
 from GameEngine.gameweek_lock import lock_expired_gameweeks
 from Shared.deadlines import resolve_gameweek_deadline
@@ -284,7 +283,6 @@ BEAT_TASKS = {
     "lock_expired_gameweeks": lock_expired_gameweeks,
     "lock_dream11_contests": lock_started_contests,
     "refresh_active_gameweeks": refresh_active_gameweeks,
-    "revert_free_hits": revert_expired_free_hits,
 }
 
 

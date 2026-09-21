@@ -181,7 +181,6 @@ from Gameplay.chips import (
 from Data.auth import CurrentUser, get_current_user
 from Shared.rules import BENCH_SIZE, STARTING_XI_SIZE, VALID_CHIPS
 from Shared.deadlines import deadline_has_passed
-from GameEngine.free_hit_revert import restore_free_hit_snapshot
 
 # The rules themselves. Phase 3 moved them out of this file into a pure module
 # so they can be tested without a database -- this module now only reads the

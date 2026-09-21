@@ -124,7 +124,6 @@ from Worker.beat_registry import (
     lock_expired_gameweeks as _lock_expired_gameweeks,
     lock_started_contests as _lock_started_contests,
     refresh_active_gameweeks as _refresh_active_gameweeks,
-    revert_expired_free_hits as _revert_expired_free_hits,
     find_next_gameweek_needing_predictions,
     find_fixtures_needing_poll_schedule,
     mark_fixture_polls_scheduled,
@@ -297,26 +296,6 @@ def refresh_active_gameweeks(self) -> dict:
         record_task_heartbeat(get_engine(), "refresh_active_gameweeks", success=False, error=str(exc))
         raise self.retry(exc=exc)
 
-
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="revert_free_hits")
-def revert_free_hits(self) -> dict:
-    try:
-        engine = get_engine()
-        summary = _revert_expired_free_hits(engine)
-
-        if summary["failed"]:
-            logger.warning(
-                "revert_free_hits: reverted %d free hit(s), %d FAILED: %s",
-                len(summary["reverted"]), len(summary["failed"]), summary["failed"],
-            )
-        else:
-            logger.info("revert_free_hits: reverted %d free hit(s), 0 failed", len(summary["reverted"]))
-        record_task_heartbeat(engine, "revert_free_hits", success=True)
-        return summary
-    except Exception as exc:
-        logger.exception("revert_free_hits failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1)
-        record_task_heartbeat(get_engine(), "revert_free_hits", success=False, error=str(exc))
-        raise self.retry(exc=exc)
 
 
 @app.task(bind=True, max_retries=3, default_retry_delay=60, name="schedule_predictions")

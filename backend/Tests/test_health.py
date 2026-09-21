@@ -131,7 +131,7 @@ def clean_heartbeats(engine):
     names = (
         "_test_task_a", "_test_task_b",
         "lock_expired_gameweeks", "lock_dream11_contests", "refresh_active_gameweeks",
-        "revert_free_hits", "finalize_dream11_contests", "refresh_fixtures",
+        "finalize_dream11_contests", "refresh_fixtures",
         "schedule_fixture_polls", "schedule_predictions",
     )
 
@@ -204,7 +204,7 @@ def test_scheduled_tasks_lists_every_beat_task_even_with_no_heartbeat_yet(clean_
     names = {t["task_name"] for t in resp.json()["tasks"]}
     assert names == {
         "lock_expired_gameweeks", "lock_dream11_contests", "refresh_active_gameweeks",
-        "revert_free_hits", "finalize_dream11_contests", "refresh_fixtures",
+        "finalize_dream11_contests", "refresh_fixtures",
         "schedule_fixture_polls", "schedule_predictions",
     }
 

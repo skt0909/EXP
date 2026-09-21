@@ -30,7 +30,6 @@ collision between the @app.task wrapper and the imported function):
     lock_expired_gameweeks                     lock_expired_gameweeks
     refresh_active_gameweeks                   refresh_active_gameweeks
     lock_started_contests                      lock_dream11_contests
-    revert_expired_free_hits                   revert_free_hits
     finalize_dream11_contest (singular)        no dedicated task -- only
                                                 reachable via the plural
                                                 Beat sweep, finalize_dream11
@@ -76,7 +75,6 @@ from Worker.tasks import (
     lock_dream11_contests,
     lock_expired_gameweeks,
     refresh_active_gameweeks,
-    revert_free_hits,
 )
 
 # --- module-wide skip guard --------------------------------------------
@@ -243,8 +241,6 @@ def test_beat_schedule_registers_the_expected_tasks_and_intervals():
 
     assert schedule["lock-dream11-contests"]["task"] == "lock_dream11_contests"
     assert schedule["lock-dream11-contests"]["schedule"] == 300.0
-
-    assert schedule["revert-free-hits"]["task"] == "revert_free_hits"
     assert schedule["revert-free-hits"]["schedule"] == 900.0
 
     assert schedule["refresh-active-gameweeks"]["task"] == "refresh_active_gameweeks"
@@ -321,3 +317,4 @@ def test_uuid_argument_survives_a_real_enqueue_execute_round_trip(real_worker):
 
     assert isinstance(returned, uuid.UUID)
     assert returned == original
+

@@ -4,7 +4,7 @@ Celery Beat tasks, and Worker/celery_app.py's beat_schedule config.
 
 Those functions used to share one module, Game_logic/scheduling.py. That
 file has been split up and no longer exists; they now live in
-deadlines.py, gameweek_lock.py, gameweek_finalize.py, free_hit_revert.py,
+deadlines.py, gameweek_lock.py, gameweek_finalize.py,
 dream11_locking.py and Predict/prediction_scheduling.py, with
 Worker/beat_registry.py as the index of which module owns what.
 
@@ -27,7 +27,6 @@ from fastapi.testclient import TestClient
 
 from conftest import TEST_SEASON, bearer_headers
 from main import app as fastapi_app
-from GameEngine.free_hit_revert import revert_expired_free_hits
 from GameEngine.gameweek_finalize import find_active_gameweeks, refresh_active_gameweeks
 from GameEngine.gameweek_lock import lock_expired_gameweeks
 from Shared.deadlines import resolve_gameweek_deadline, deadline_has_passed
@@ -493,7 +492,6 @@ def test_lock_started_contests_actually_blocks_joining_afterwards(engine, make_u
     assert "contest is locked and can no longer be joined" in resp.json()["detail"]
 
 
-# ---------------------------------------------------------------- revert_expired_free_hits
 
 def _seed_squad_with_free_hit(engine, user_id, pre_ids, post_ids, pre_budget, post_budget, gameweek):
     """Puts the user in the state a played Free Hit leaves behind: the
@@ -545,116 +543,6 @@ def _budget(engine, user_squad_id):
         ).scalar()
 
 
-def test_revert_free_hit_restores_squad_and_budget_once_gameweek_is_over(
-    engine, make_user, make_team, make_fixture
-):
-    user = make_user()
-    home = make_team(fpl_id=1001, name="Home1", short_name="H1")
-    away = make_team(fpl_id=1002, name="Away1", short_name="A1")
-    make_fixture(fpl_id=2001, gameweek=1, home_team_id=home, away_team_id=away,
-                 kickoff_time=NOW() - timedelta(hours=6), finished=True)
-    usid = _seed_squad_with_free_hit(
-        engine, user, pre_ids=[101, 102, 103], post_ids=[201, 202, 203],
-        pre_budget=40, post_budget=5, gameweek=1,
-    )
-
-    summary = revert_expired_free_hits(engine)
-
-    assert (user, TEST_SEASON, 1) in summary["reverted"]
-    assert summary["failed"] == []
-    assert _active_player_ids(engine, usid) == [101, 102, 103]
-    assert _budget(engine, usid) == 40
-
-
-def test_revert_free_hit_does_not_fire_while_gameweek_is_still_being_played(
-    engine, make_user, make_team, make_fixture
-):
-    """The free-hit squad must stay active through its own gameweek --
-    reverting at the deadline (the way locking works) would swap a
-    manager's team out from under them mid-match."""
-    user = make_user()
-    home = make_team(fpl_id=1001, name="Home1", short_name="H1")
-    away = make_team(fpl_id=1002, name="Away1", short_name="A1")
-    make_fixture(fpl_id=2001, gameweek=1, home_team_id=home, away_team_id=away,
-                 kickoff_time=NOW() - timedelta(minutes=30), finished=False)
-    usid = _seed_squad_with_free_hit(
-        engine, user, pre_ids=[101, 102, 103], post_ids=[201, 202, 203],
-        pre_budget=40, post_budget=5, gameweek=1,
-    )
-
-    summary = revert_expired_free_hits(engine)
-
-    assert (user, TEST_SEASON, 1) not in summary["reverted"]
-    assert _active_player_ids(engine, usid) == [201, 202, 203]
-    assert _budget(engine, usid) == 5
-
-
-def test_revert_free_hit_waits_for_the_last_fixture_of_the_gameweek(
-    engine, make_user, make_team, make_fixture
-):
-    """One finished early match doesn't end the gameweek -- a Monday
-    night fixture still to come keeps the free-hit squad in place."""
-    user = make_user()
-    home = make_team(fpl_id=1001, name="Home1", short_name="H1")
-    away = make_team(fpl_id=1002, name="Away1", short_name="A1")
-    make_fixture(fpl_id=2001, gameweek=1, home_team_id=home, away_team_id=away,
-                 kickoff_time=NOW() - timedelta(days=2), finished=True)
-    make_fixture(fpl_id=2002, gameweek=1, home_team_id=away, away_team_id=home,
-                 kickoff_time=NOW() + timedelta(days=1), finished=False)
-    usid = _seed_squad_with_free_hit(
-        engine, user, pre_ids=[101, 102, 103], post_ids=[201, 202, 203],
-        pre_budget=40, post_budget=5, gameweek=1,
-    )
-
-    summary = revert_expired_free_hits(engine)
-
-    assert (user, TEST_SEASON, 1) not in summary["reverted"]
-    assert _active_player_ids(engine, usid) == [201, 202, 203]
-
-
-def test_revert_free_hit_is_idempotent(engine, make_user, make_team, make_fixture):
-    """Beat retries and manual Tools/fpl_sim.py runs both re-enter this;
-    a second pass must not re-revert (which would resurrect the pre-chip
-    squad over a legitimate later transfer)."""
-    user = make_user()
-    home = make_team(fpl_id=1001, name="Home1", short_name="H1")
-    away = make_team(fpl_id=1002, name="Away1", short_name="A1")
-    make_fixture(fpl_id=2001, gameweek=1, home_team_id=home, away_team_id=away,
-                 kickoff_time=NOW() - timedelta(hours=6), finished=True)
-    usid = _seed_squad_with_free_hit(
-        engine, user, pre_ids=[101, 102, 103], post_ids=[201, 202, 203],
-        pre_budget=40, post_budget=5, gameweek=1,
-    )
-
-    revert_expired_free_hits(engine)
-    second = revert_expired_free_hits(engine)
-
-    assert (user, TEST_SEASON, 1) not in second["reverted"]
-    assert _active_player_ids(engine, usid) == [101, 102, 103]
-
-    with engine.connect() as conn:
-        pending = conn.execute(
-            text("SELECT COUNT(*) FROM free_hit_squads WHERE user_id = :u AND reverted_at IS NULL"),
-            {"u": user},
-        ).scalar()
-    assert pending == 0
-
-
-def test_revert_free_hit_skips_gameweek_with_no_fixtures_ingested(engine, make_user):
-    """No fixtures means the gameweek's end is unknown -- same stance as
-    an unknown deadline never being 'passed'."""
-    user = make_user()
-    usid = _seed_squad_with_free_hit(
-        engine, user, pre_ids=[101, 102, 103], post_ids=[201, 202, 203],
-        pre_budget=40, post_budget=5, gameweek=1,
-    )
-
-    summary = revert_expired_free_hits(engine)
-
-    assert (user, TEST_SEASON, 1) not in summary["reverted"]
-    assert _active_player_ids(engine, usid) == [201, 202, 203]
-
-
 # ---------------------------------------------------------------- beat_schedule config
 
 def test_beat_schedule_contains_every_task_with_correct_intervals():
@@ -672,8 +560,6 @@ def test_beat_schedule_contains_every_task_with_correct_intervals():
     assert schedule["refresh-active-gameweeks"]["task"] == "refresh_active_gameweeks"
     assert schedule["refresh-active-gameweeks"]["schedule"] == 900.0
 
-    assert schedule["revert-free-hits"]["task"] == "revert_free_hits"
-    assert schedule["revert-free-hits"]["schedule"] == 900.0
 
     assert schedule["schedule-predictions-weekly"]["task"] == "schedule_predictions"
     entry_schedule = schedule["schedule-predictions-weekly"]["schedule"]
@@ -711,3 +597,35 @@ def test_every_beat_task_name_is_actually_registered():
     missing = scheduled - set(celery_app.tasks)
 
     assert not missing, f"beat_schedule names tasks that are not registered: {sorted(missing)}"
+
+
+# ---- Phase 4c: the Free Hit revert is gone --------------------------------
+#
+# These live here rather than in test_celery_wiring.py because that module is
+# skipped wholesale when a broker is not reachable, and an assertion that
+# something no longer exists is worthless if it never runs.
+
+def test_the_free_hit_revert_module_is_deleted():
+    import importlib
+
+    try:
+        importlib.import_module("GameEngine.free_hit_revert")
+    except ImportError:
+        return
+    raise AssertionError("GameEngine/free_hit_revert.py should be deleted")
+
+
+def test_revert_free_hits_task_no_longer_exists():
+    """Free Hit is a chip, and chips were removed in Phase 1. The task and its
+    Beat entry outlived the feature by three phases."""
+    from Worker import tasks
+
+    assert not hasattr(tasks, "revert_free_hits")
+
+
+def test_no_beat_entry_points_at_the_deleted_revert_task():
+    from Worker.celery_app import app
+
+    schedule = app.conf.beat_schedule
+    assert "revert-free-hits" not in schedule
+    assert all(entry["task"] != "revert_free_hits" for entry in schedule.values())
