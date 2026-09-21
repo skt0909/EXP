@@ -111,9 +111,17 @@ BATCH_STATS_QUERY = text(
     """
 )
 
+# BOUNDED BELOW BY THE EPOCH (ambiguity E5, now closed). season_total used to
+# sum every earlier gameweek, including rows written under rules_version 1 or
+# 2, so a season that switched rulesets mid-way carried a cumulative total
+# spanning two scoring systems. :first_gameweek is the ruleset epoch, or
+# FIRST_GAMEWEEK when there is no epoch row -- in which case this is exactly
+# the old behaviour, because the season has only ever known these rules.
 SEASON_TOTAL_PRIOR_QUERY = text(
     "SELECT user_id, COALESCE(SUM(total_points), 0) AS prior FROM gw_scores "
-    "WHERE season = :season AND gameweek < :gameweek AND user_id = ANY(:user_ids) "
+    "WHERE season = :season "
+    "  AND gameweek >= :first_gameweek AND gameweek < :gameweek "
+    "  AND user_id = ANY(:user_ids) "
     "GROUP BY user_id"
 )
 
@@ -243,11 +251,12 @@ def score_gameweek_tactical(engine, season: str, gameweek: int,
         selections = conn.execute(
             SELECTIONS_QUERY, {"season": season, "gameweek": gameweek}
         ).all()
+    # first_gameweek is carried into the batches below: it bounds season_total.
 
     scored, failed = [], []
     for batch in _chunks(selections, max(1, batch_size)):
         try:
-            done, bad = _score_batch(engine, season, gameweek, batch)
+            done, bad = _score_batch(engine, season, gameweek, batch, first_gameweek)
         except Exception as exc:                       # noqa: BLE001
             # A whole-batch failure is still isolated: the remaining batches
             # run. Every manager in it is reported, so nothing disappears.
@@ -263,7 +272,7 @@ def score_gameweek_tactical(engine, season: str, gameweek: int,
     return {"scored": scored, "failed": failed, "skipped_reason": None}
 
 
-def _score_batch(engine, season: str, gameweek: int, batch):
+def _score_batch(engine, season: str, gameweek: int, batch, first_gameweek: int):
     """One batch: four reads, then one write transaction."""
     selection_ids = [s.gw_selection_id for s in batch]
     user_ids = [s.user_id for s in batch]
@@ -299,7 +308,8 @@ def _score_batch(engine, season: str, gameweek: int, batch):
             r.user_id: r.prior
             for r in conn.execute(
                 SEASON_TOTAL_PRIOR_QUERY,
-                {"season": season, "gameweek": gameweek, "user_ids": user_ids},
+                {"season": season, "gameweek": gameweek, "user_ids": user_ids,
+                 "first_gameweek": first_gameweek},
             )
         }
         finance = {
@@ -330,9 +340,13 @@ def _score_batch(engine, season: str, gameweek: int, batch):
             "tactical_points": result.tactical_points,
             "sub_bonus": result.sub_bonus,
             "final_points": total,
-            # No hits under these rules, so total == final. Written explicitly
-            # rather than left to a default, because every reader of gw_scores
-            # (standings, leaderboards, H2H) reads total_points.
+            # E7: total_points and final_points are ALWAYS EQUAL under these
+            # rules, because hits are the only thing that ever separated them
+            # and hits are gone. Both are kept for now: the dashboard's
+            # breakdown contract still names both, and dropping one is a
+            # response-shape change that belongs after the frontend phase.
+            # test_total_points_equals_final_points_because_there_are_no_hits
+            # pins the equality so it cannot drift while both exist.
             "total_points": total,
             "season_total": (prior.get(sel.user_id, 0) or 0) + total,
             "rules_version": RULES_VERSION,

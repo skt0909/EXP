@@ -391,3 +391,69 @@ def test_the_finance_write_is_also_idempotent(engine, make_user, make_team,
             "WHERE user_id = :u AND season = :s AND gameweek = :g"),
             {"u": uid, "s": TEST_SEASON, "g": GAMEWEEK}).scalar()
     assert n == 1
+
+
+# ---- E5: season_total must not sum across rule generations ----------------
+
+def test_season_total_ignores_gameweeks_before_the_ruleset_epoch(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, epoch
+):
+    """A season that switches rulesets mid-way had a cumulative total spanning
+    two scoring systems: season_total was SUM(total_points) over every earlier
+    gameweek, including rows written under rules_version 1 and 2."""
+    epoch(GAMEWEEK)                      # these rules begin at GAMEWEEK
+    uid = make_user()
+    ids = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 8000,
+                     "balanced", (7, 8))
+    _seed_stats(make_gw_stat, ids)
+
+    # Two old rows under the previous rulesets, below the epoch.
+    with engine.begin() as conn:
+        for gw, rv, pts in ((GAMEWEEK - 2, 1, 500), (GAMEWEEK - 1, 2, 700)):
+            conn.execute(text(
+                "INSERT INTO gw_scores (user_id, season, gameweek, raw_points, "
+                "final_points, total_points, season_total, rules_version) "
+                "VALUES (:u, :s, :g, 0, 0, :p, :p, :rv)"),
+                {"u": uid, "s": TEST_SEASON, "g": gw, "p": pts, "rv": rv})
+
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    row = _score_row(engine, uid)
+
+    # 11 starters x 2 = 22, and NOT 22 + 500 + 700.
+    assert row.season_total == row.total_points == 22
+
+
+def test_without_an_epoch_row_season_total_still_sums_every_earlier_gameweek(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    """No epoch row means the season has only ever known these rules, so the
+    behaviour is unchanged from before this fix."""
+    uid = make_user()
+    ids = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 8200,
+                     "balanced", (7, 8))
+    _seed_stats(make_gw_stat, ids)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "INSERT INTO gw_scores (user_id, season, gameweek, raw_points, "
+            "final_points, total_points, season_total, rules_version) "
+            "VALUES (:u, :s, :g, 0, 0, 30, 30, 3)"),
+            {"u": uid, "s": TEST_SEASON, "g": GAMEWEEK - 1})
+
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    row = _score_row(engine, uid)
+    assert row.season_total == 22 + 30
+
+
+# ---- E7: total_points and final_points are equal under these rules --------
+
+def test_total_points_equals_final_points_because_there_are_no_hits(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    uid = make_user()
+    ids = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 8400,
+                     "balanced", (7, 8))
+    _seed_stats(make_gw_stat, ids, {7: dict(minutes=90, goals_scored=1, creativity=40)})
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+    row = _score_row(engine, uid)
+    assert row.final_points == row.total_points
+    assert row.total_points == row.raw_points + row.tactical_points + row.sub_bonus
