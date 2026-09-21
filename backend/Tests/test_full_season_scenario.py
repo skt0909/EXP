@@ -216,7 +216,6 @@ def make_user(make_user, engine):
         with engine.begin() as conn:
             conn.execute(text("DELETE FROM gw_scores WHERE user_id = :uid"), {"uid": uid})
             conn.execute(text("DELETE FROM gw_selections WHERE user_id = :uid"), {"uid": uid})
-            conn.execute(text("DELETE FROM free_hit_squads WHERE user_id = :uid"), {"uid": uid})
             conn.execute(text("DELETE FROM chips WHERE user_id = :uid"), {"uid": uid})
             conn.execute(
                 text(

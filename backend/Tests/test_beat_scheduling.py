@@ -67,7 +67,6 @@ def make_user(make_user, engine):
         for uid in factory.created:
             conn.execute(text("DELETE FROM gw_scores WHERE user_id = :uid"), {"uid": uid})
             conn.execute(text("DELETE FROM gw_selections WHERE user_id = :uid"), {"uid": uid})
-            conn.execute(text("DELETE FROM free_hit_squads WHERE user_id = :uid"), {"uid": uid})
             conn.execute(
                 text("DELETE FROM squad_players WHERE user_squad_id IN "
                      "(SELECT id FROM user_squads WHERE user_id = :uid)"),

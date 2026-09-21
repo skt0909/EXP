@@ -146,19 +146,6 @@ CHIPS_STATE_QUERY = text(
     """
 )
 
-# Collapsed to one row per snapshot -- 15 player rows per free hit would
-# bury everything else in the status dump.
-FREE_HIT_STATE_QUERY = text(
-    """
-    SELECT gameweek, COUNT(*) AS players_snapshotted,
-           MIN(budget_remaining) AS budget_to_restore,
-           MAX(reverted_at) AS reverted_at
-    FROM free_hit_squads
-    WHERE season = :season AND (:user_id IS NULL OR user_id = :user_id)
-    GROUP BY gameweek
-    ORDER BY gameweek
-    """
-)
 
 SCORES_STATE_QUERY = text(
     """
@@ -215,7 +202,7 @@ def cmd_status(args) -> None:
         squads = conn.execute(SQUAD_STATE_QUERY, params).all()
         transfers = conn.execute(TRANSFERS_STATE_QUERY, params).all()
         chips = conn.execute(CHIPS_STATE_QUERY, params).all()
-        free_hits = conn.execute(FREE_HIT_STATE_QUERY, params).all()
+        free_hits = []
         scores = conn.execute(SCORES_STATE_QUERY, params).all()
 
     _print_rows(

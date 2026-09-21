@@ -276,24 +276,7 @@ INSERT_CHIP_STMT = text(
     """
 )
 
-# Free Hit snapshot. Written in the SAME transaction that activates the
-# chip, so a squad can never be left with the chip set but no way back.
-# Deleted (not marked reverted) when the chip is switched away on
-# resubmit, mirroring DELETE_CHIP_FOR_GW_STMT -- an unplayed chip leaves
-# no trace. Only ever taken for a gameweek that hasn't been reverted yet;
-# see GameEngine/free_hit_revert.py's revert_expired_free_hits for the other end.
-DELETE_FREE_HIT_SNAPSHOT_STMT = text(
-    "DELETE FROM free_hit_squads WHERE user_id = :user_id AND season = :season "
-    "AND gameweek = :gameweek AND reverted_at IS NULL"
-)
 
-# The "is this submission activating the chip, or resubmitting under a
-# chip that is already live?" test -- and, when the chip is being
-# switched away, the squad the manager is about to get back.
-PENDING_FREE_HIT_SNAPSHOT_QUERY = text(
-    "SELECT player_id FROM free_hit_squads WHERE user_id = :user_id AND season = :season "
-    "AND gameweek = :gameweek AND reverted_at IS NULL"
-)
 
 # Reverses the free transfers a cancelled Free Hit consumed, by naming
 # its transfers in cancelled_transfers -- `transfers` is append-only, so
@@ -309,30 +292,7 @@ PENDING_FREE_HIT_SNAPSHOT_QUERY = text(
 #
 # MUST run before DELETE_FREE_HIT_SNAPSHOT_STMT below -- it reads the
 # snapshot it is bounded by.
-CANCEL_FREE_HIT_TRANSFERS_STMT = text(
-    """
-    INSERT INTO cancelled_transfers (transfer_id)
-    SELECT t.id
-    FROM transfers t
-    WHERE t.user_id = :user_id AND t.season = :season AND t.gameweek = :gameweek
-      AND t.transferred_at >= (
-          SELECT MIN(fhs.created_at) FROM free_hit_squads fhs
-          WHERE fhs.user_id = :user_id AND fhs.season = :season
-            AND fhs.gameweek = :gameweek AND fhs.reverted_at IS NULL
-      )
-    ON CONFLICT ON CONSTRAINT cancelled_transfers_pkey DO NOTHING
-    """
-)
 
-INSERT_FREE_HIT_SNAPSHOT_STMT = text(
-    """
-    INSERT INTO free_hit_squads (user_id, season, gameweek, player_id, purchase_price, budget_remaining)
-    SELECT :user_id, :season, :gameweek, sp.player_id, sp.purchase_price, us.budget_remaining
-    FROM squad_players sp
-    JOIN user_squads us ON us.id = sp.user_squad_id
-    WHERE us.user_id = :user_id AND us.season = :season AND sp.is_active = TRUE
-    """
-)
 
 class SwapPayload(BaseModel):
     player_out_id: int
