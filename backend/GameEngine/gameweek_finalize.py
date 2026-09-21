@@ -43,7 +43,10 @@ import logging
 
 from sqlalchemy import text
 
-from Results.scoring import score_gameweek
+# Phase 4a: the batched tactical job replaces the classic per-manager loop.
+# Results/scoring.py stays on disk because Results/team_dashboard.py still
+# imports resolve_autosubs from it -- unpicking that is Phase 4b.
+from Results.scoring_job import score_gameweek_tactical as score_gameweek
 from Results.standings import compute_league_standings
 
 logger = logging.getLogger(__name__)

@@ -111,7 +111,10 @@ from Shared.db_utils import get_engine
 from feature_builder import build_features
 from predictor import predict_points
 from tier_builder import build_tiers
-from Results.scoring import score_gameweek
+# Phase 4a: the batched tactical job. Same name, same signature, same
+# {"scored": [...], "failed": [...]} shape, so every call site below is
+# unchanged; it additionally returns "skipped_reason".
+from Results.scoring_job import score_gameweek_tactical as score_gameweek
 from Results.standings import compute_league_standings as compute_standings
 # Every Beat-scheduled function comes in through the registry, which is
 # the one place that records what Beat runs and which module owns it --

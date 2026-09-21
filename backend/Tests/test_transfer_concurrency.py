@@ -45,6 +45,9 @@ from main import app
 
 FULL_SQUAD_POSITIONS = ["GK"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3
 GAMEWEEK = 1
+# A gameweek by which the bank has reached FREE_TRANSFER_BANK_CAP (2), so
+# two batches can both be within the allowance and race for something else.
+BANKED_GAMEWEEK = 3
 READ_PHASE_DELAY = 0.6
 
 
@@ -141,17 +144,22 @@ def _budget(engine, squad_id):
 # ---------------------------------------------------------------- the race
 
 
-@pytest.mark.skip(reason="Phase 3 changed the allowance these fixtures assume (bank caps at 2, no paid transfers). The advisory-lock behaviour they pin is unchanged and must be re-pinned against the new allowance")
 def test_two_concurrent_batches_cannot_both_spend_the_last_free_transfer(
     engine, make_team, make_player, test_user, slow_read_phase
 ):
     """Gameweek 1 carries exactly ONE free transfer.
 
     Each batch is a single swap, so each is perfectly valid on its own and
-    would be free if it ran first. Run together they must still consume one
-    free slot between them -- the second is a paid transfer, not a second
-    free one. Unlocked, both read free_used_count = 0 and stamp
-    is_free = TRUE.
+    would be free if it ran first. Gameweek 1 grants exactly one, and under
+    the tactical rules there is NO paid fallback -- so run together, one must
+    win and the other must be REJECTED. Unlocked, both read
+    free_used_count = 0, both decide they are within the allowance, and both
+    commit.
+
+    Re-pinned for the tactical rules. The guarantee is unchanged and the test
+    is now STRICTER than it was: previously the loser was merely charged 4
+    points (200, is_free = FALSE), so a lock failure cost points; now it
+    would hand out a transfer that does not exist.
     """
     squad = _seed_squad(engine, make_team, make_player, test_user)
     in_a = _make_spare(make_team, make_player, 9501, "MID")
@@ -165,19 +173,23 @@ def test_two_concurrent_batches_cannot_both_spend_the_last_free_transfer(
         [body(squad["MID"][0], in_a), body(squad["MID"][1], in_b)], test_user
     )
 
-    assert [r.status_code for r in responses] == [200, 200], [r.text for r in responses]
-
-    rows = _transfer_rows(engine, test_user)
-    assert len(rows) == 2, f"expected both batches recorded, got {rows}"
-
-    free_count = sum(1 for r in rows if r.is_free)
-    assert free_count == 1, (
-        f"{free_count} transfers were stamped free, but gameweek 1 grants exactly one -- "
-        "both batches claimed the same slot"
+    codes = sorted(r.status_code for r in responses)
+    assert codes == [200, 422], (
+        f"expected exactly one winner and one rejection, got {codes}: "
+        f"{[r.text for r in responses]}"
     )
 
+    rows = _transfer_rows(engine, test_user)
+    assert len(rows) == 1, (
+        f"gameweek 1 grants exactly one free transfer and there are no paid "
+        f"ones, so exactly one row may exist -- got {len(rows)}: {rows}"
+    )
+    assert rows[0].is_free is True
 
-@pytest.mark.skip(reason="Phase 3 changed the allowance these fixtures assume (bank caps at 2, no paid transfers). The advisory-lock behaviour they pin is unchanged and must be re-pinned against the new allowance")
+    rejected = next(r for r in responses if r.status_code == 422)
+    assert any("free transfer" in e for e in rejected.json()["detail"])
+
+
 def test_two_concurrent_batches_cannot_both_spend_the_same_budget(
     engine, make_team, make_player, test_user, slow_read_phase
 ):
@@ -188,13 +200,19 @@ def test_two_concurrent_batches_cannot_both_spend_the_same_budget(
 
     Squad is seeded at cost 60 (budget 100) and both incoming players cost
     90, so each swap removes 30. Sequentially that is 100 -> 70 -> 40.
+
+    Re-pinned for the tactical rules: this runs in gameweek 3, not gameweek 1.
+    The bank reaches FREE_TRANSFER_BANK_CAP (2) by then, so BOTH batches are
+    within the allowance and the budget is what they race for. In gameweek 1
+    the allowance is 1, so the second batch would be rejected for the
+    allowance and never reach the budget arithmetic this test exists to pin.
     """
     squad = _seed_squad(engine, make_team, make_player, test_user, cost=60)
     in_a = _make_spare(make_team, make_player, 9601, "DEF", cost=90)
     in_b = _make_spare(make_team, make_player, 9602, "DEF", cost=90)
 
     def body(out_id, in_id):
-        return {"season": TEST_SEASON, "gameweek": GAMEWEEK,
+        return {"season": TEST_SEASON, "gameweek": BANKED_GAMEWEEK,
                 "transfers": [{"player_out_id": out_id, "player_in_id": in_id}]}
 
     responses = _fire_together(
@@ -208,29 +226,36 @@ def test_two_concurrent_batches_cannot_both_spend_the_same_budget(
     )
 
 
-@pytest.mark.skip(reason="Phase 3 changed the allowance these fixtures assume (bank caps at 2, no paid transfers). The advisory-lock behaviour they pin is unchanged and must be re-pinned against the new allowance")
 def test_serialised_batches_are_unaffected_by_the_lock(
     engine, make_team, make_player, test_user, slow_read_phase
 ):
-    """The control. Two batches one after the other must behave exactly as
-    they always did -- one free, one paid -- so the lock is not quietly
-    changing single-threaded behaviour."""
+    """The control: the lock must not change single-threaded behaviour.
+
+    Re-pinned for the tactical rules. Sequentially in gameweek 1 the first
+    batch takes the single free transfer and the second is rejected, because
+    paid transfers no longer exist. That is exactly the outcome the
+    concurrent test above demands -- which is the point of the control: the
+    lock makes the racing case behave like this serial one, rather than
+    inventing behaviour of its own."""
     squad = _seed_squad(engine, make_team, make_player, test_user)
     in_a = _make_spare(make_team, make_player, 9701, "FWD")
     in_b = _make_spare(make_team, make_player, 9702, "FWD")
     client = TestClient(app)
 
-    for out_id, in_id in ((squad["FWD"][0], in_a), (squad["FWD"][1], in_b)):
+    expected = [200, 422]
+    for (out_id, in_id), want in zip(
+        ((squad["FWD"][0], in_a), (squad["FWD"][1], in_b)), expected
+    ):
         resp = client.post(
             "/transfers",
             json={"season": TEST_SEASON, "gameweek": GAMEWEEK,
                   "transfers": [{"player_out_id": out_id, "player_in_id": in_id}]},
             headers=bearer_headers(test_user),
         )
-        assert resp.status_code == 200, resp.text
+        assert resp.status_code == want, resp.text
 
     rows = _transfer_rows(engine, test_user)
-    assert [r.is_free for r in rows] == [True, False]
+    assert [r.is_free for r in rows] == [True]
 
 
 def test_a_rejected_batch_releases_the_lock(engine, make_team, make_player, test_user):
