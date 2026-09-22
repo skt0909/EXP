@@ -389,7 +389,25 @@ Find real file names first. Expected areas:
   - **E2, E5, E6, E7 and F1 to F6 are closed** — see section 8. **E3 stays open until Phase 4c.**
 
 **Phase 4c. The classic removals. — DONE** (`PHASE4C_REPORT.md`). `Results/scoring.py` is deleted; no module imports it anywhere. `GameEngine/free_hit_revert.py`, the `revert_free_hits` task and its Beat entry are gone, and migration `f2b9c05e7a41` drops `free_hit_squads`. `MAX_TRANSFERS_PER_GAMEWEEK`, the `FREE_CHIPS` import and the `chip_active` placeholder are gone from `transfers.py`, and `_validate_transfers`' `allowance` is required. Suite: 0 pass→fail, 26 tests removed (all classic-only), 71 EXPECTED / 3 UNEXPECTED.
-  - **Still outstanding, reported in `PHASE4C_REPORT.md` §G:** `Gameplay/chips.py` is **still routed** at `Context_assembler/main.py:174`, so `GET /chips/used` is a live endpoint querying the dropped `chips` table. Removing a route is client-facing, so it is grouped with Phase 5 rather than done blind.
+
+**Phase 4d. The two live breaks. — DONE.** Both classic references that would have 500'd the moment `fpl_game` is migrated are gone.
+  - **`GET /chips/used` deleted**, with `Gameplay/chips.py` entirely — nothing else used it (`starting_xi.py` imported four names from it and used none). Ten tests removed, all exercising chip availability.
+    - **The frontend still calls this route** and now gets a 404: `frontend/src/api/chips.js:3` (`fetchChipsUsed`), used by `frontend/src/pages/StartingXI/StartingXIPage.jsx:21,290,647` on page load and after each submit. **Phase 5 must remove those calls.** Not editable here by instruction, but it is a user-visible consequence, not a tidy-up.
+  - **`CAPTAIN_QUERY` deleted** from `Context_assembler/main.py`. It read `gw_selections.captain_id` on **every `POST /chat` request**. Nothing in the response depended on it — `ChatResponse` is a single `response: str` — so it was deleted outright rather than nulled; the additive rule only applies to fields the frontend renders. The `[CURRENT CAPTAIN]` instructions went with it, so the model is no longer told to expect a tag that can never appear.
+
+### Pre-4e checklist: everything still naming a Phase-1-dropped object
+
+Found by scanning `text()` blocks in production code (Dream11, tests and migrations excluded). **Nothing here is fixed yet — decide before 4e.**
+
+| File:line | Names | Reachable? |
+|---|---|---|
+| `Gameplay/starting_xi.py:262` | `DELETE_CHIP_FOR_GW_STMT` → `chips` table | **DEAD.** Defined, never executed; the only other mention is a docstring. Phase 3 orphaned it. |
+| `Gameplay/starting_xi.py:266` | `INSERT_CHIP_STMT` → `chips` table | **DEAD**, same reason. |
+| `Tools/fpl_sim.py:94` | `captain_id`, `vice_captain_id`, `chip_used` | **EXECUTED, not request-reachable.** `SELECTION_STATE_QUERY`, run by the `status` subcommand at `:200`. A dev tool, so no user hits it — but it will error the moment anyone runs it against a migrated database. |
+| `Tools/fpl_sim.py:140` | `chips` table | **EXECUTED, not request-reachable.** `CHIPS_STATE_QUERY` at `:204`. |
+| `Tools/fpl_sim.py:150` | `transfer_hits`, `hit_deductions` | **EXECUTED, not request-reachable.** `SCORES_STATE_QUERY` at `:206`. |
+
+**No production SQL reachable by an HTTP request names a dropped object any more.** The remaining mentions in `Results/team_dashboard.py` (lines 189-190, 239, 251-252, 351, 417-418, 447-448, 556, 561-562) and `Gameplay/transfers.py` are **response fields set to constants** — `False`, `0`, `None` — kept deliberately so the current frontend renders, with no database access behind them. They are Phase 5's, listed below.
 
 **Phase 5. Frontend.** Screens listed in section 4, plus the inert keys the backend is still returning for compatibility: `chip_used`, `captain_multiplier`, `captain_bonus`, `transfer_hits`, `hit_deductions`, per-player `is_captain` / `is_vice_captain`, the deprecated `points`, and `chip_active` on `GET /transfers/used`. Remove `GET /chips/used` with the UI that calls it.
   - **Re-pin the three `test_transfer_concurrency.py` tests FIRST**, before any other Phase 4 work. They pin the Stage 3 TOCTOU advisory-lock fix, which is a live concurrency guarantee, and they are skipped only because their fixtures assume the old allowance.
