@@ -236,15 +236,31 @@ def get_fixtures(
 # gameweeks were ever marked scored, because scored_at did not exist when they
 # were played. Ranking unscored gameweeks across all seasons would therefore
 # hand back the first gameweek of the oldest season in the database, forever.
-# max(season) is well defined here because the season filter below admits only
-# 'YYYY-YY', where lexical and chronological order coincide.
+# max(season) is well defined because the filter below admits only '20YY-YY',
+# where lexical and chronological order coincide.
 #
-# REAL SEASONS ONLY. Without this filter the query ranked across every season
-# in ml.fixtures, and the simulation seasons (SIM38OK, SIM38TST, SIMSMOKE,
-# SIMGWE2E) carry real timestamps -- so a simulation fixture could win and
-# every page would show a simulation gameweek. Proven by
-# test_a_simulation_season_never_wins_the_current_gameweek. Same pattern as the
-# scoring job's REAL_SEASON_RE; braces are doubled because this is an f-string.
+# REAL SEASONS ONLY, and the century prefix is load-bearing. Without any filter
+# the query ranked across every season in ml.fixtures, and the simulation
+# seasons (SIM38OK, SIM38TST, SIMSMOKE, SIMGWE2E) carry real timestamps -- so a
+# simulation fixture could win and every page would show a simulation gameweek.
+# Proven by test_a_simulation_season_never_wins_the_current_gameweek.
+#
+# The first version of that filter was '^[0-9]{4}-[0-9]{2}$', which is what the
+# scoring job's REAL_SEASON_RE still uses. It is not tight enough. fpl_game
+# holds a season literally named '9998-00' (one fixture, gameweek 5), and the
+# test suite's TEST_SEASON is '9999-00' -- BOTH match four-digits-dash-two, and
+# because they sort above every real season, max(season) selected them outright.
+# Measured against a clone of fpl_game:
+#
+#     OLD (deadline-based)     -> ('2026-27', 6)
+#     '^[0-9]{4}-[0-9]{2}$'    -> ('9998-00', 5)   <-- wrong season, live
+#     '^20[0-9]{2}-[0-9]{2}$'  -> ('2026-27', 5)
+#
+# Note the direction of the harm: the latest-season clause made this WORSE than
+# the rule it replaced. Under the old deadline ranking '9998-00' lost because
+# its single kickoff was in the past; under max(season) it wins outright.
+#
+# Braces are doubled because this is an f-string.
 #
 # The deadline expression reuses deadlines.py's rather than restating "90
 # minutes before kickoff" a third time -- see that module's docstring on why
@@ -265,7 +281,7 @@ CURRENT_GAMEWEEK_QUERY = text(
     WITH gw_deadlines AS (
         SELECT season, gameweek, {_DEADLINE_EXPR} AS deadline
         FROM ml.fixtures
-        WHERE season ~ '^[0-9]{{4}}-[0-9]{{2}}$'
+        WHERE season ~ '^20[0-9]{{2}}-[0-9]{{2}}$'
         GROUP BY season, gameweek
     ),
     latest_season AS (
