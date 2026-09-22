@@ -487,15 +487,62 @@ Found by scanning `text()` blocks in production code (Dream11, tests and migrati
 
 **No production SQL reachable by an HTTP request names a dropped object any more.** The remaining mentions in `Results/team_dashboard.py` (lines 189-190, 239, 251-252, 351, 417-418, 447-448, 556, 561-562) and `Gameplay/transfers.py` are **response fields set to constants** — `False`, `0`, `None` — kept deliberately so the current frontend renders, with no database access behind them. They are Phase 5's, listed below.
 
-**Phase 5. Frontend.** Screens listed in section 4, plus the inert keys the backend is still returning for compatibility: `chip_used`, `captain_multiplier`, `captain_bonus`, `transfer_hits`, `hit_deductions`, per-player `is_captain` / `is_vice_captain`, the deprecated `points`, and `chip_active` on `GET /transfers/used`. Remove `GET /chips/used` with the UI that calls it.
-  - **Re-pin the three `test_transfer_concurrency.py` tests FIRST**, before any other Phase 4 work. They pin the Stage 3 TOCTOU advisory-lock fix, which is a live concurrency guarantee, and they are skipped only because their fixtures assume the old allowance.
-  - **B5. Delete `MAX_TRANSFERS_PER_GAMEWEEK` and its dead check.** The allowance caps at 2, so the 20-transfer cap can never fire. Remove the constant from `Shared/rules.py` and the check from `Gameplay/transfers.py::_validate_transfers`.
-  - **B6. Delete the `chip_active` placeholder and the `FREE_CHIPS` import** from `Gameplay/transfers.py`. `chip_active` is bound to a literal `False` and reads as though chips might return.
-  - **B7. Make `allowance` a REQUIRED parameter of `_validate_transfers`**, with no default. The default of 0 means a caller that forgets it gets a confusing "0 free transfers available" rejection instead of a crash. Update any test that depends on the current parameter order — `test_multiple_simultaneous_violations_all_reported_together` asserts the error array's order, so check it after the signature change.
-  - **Filter out non-real seasons** — anything not matching `^[0-9]{4}-[0-9]{2}$` — in the scoring job and in **every** season lookup. `SIM38OK`, `SIM38TST` and `SIMSMOKE` belong to the `simulation/` harness and must never be treated as game data. As of Phase 3 **nothing in `backend/**/*.py` filtered them**: the guardrail existed only in this document, and migration `e7c4d81b3a95` is the first code to apply it.
-  - Migrate `fpl_game` here, with the code, for the reason above.
-  - **Add a small migration dropping `free_hit_squads`.** Both Phase 1 revisions leave it in place because `revert_free_hits` still reads it; it can only go once that code is removed, which happens in this phase. Sequence it after the code change.
-**Phase 5. Frontend.** Screens listed in section 4.
+**Phase 5. Frontend. — NOT STARTED.** The backend is fully converted; the classic React app is not. This entry previously carried seven sub-bullets that were **Phase 4 items mis-parented here**, and the header appeared twice. Where each of those actually landed: re-pinning `test_transfer_concurrency.py` → 4a; B5 `MAX_TRANSFERS_PER_GAMEWEEK`, B6 `chip_active`/`FREE_CHIPS`, B7 required `allowance`, and the `free_hit_squads` drop (`f2b9c05e7a41`) → 4c; the season filter → 4e part A, **with six production queries still unfiltered** (listed under 4e). Only one is still open and it is restated below: **migrating `fpl_game`**.
+
+#### What is actually broken today (measured, not inferred)
+
+Against the running app — backend on `:8000`, frontend on `:5173` — with a registered user:
+
+- **`POST /gw_selection` fails for every manager.** `frontend/src/api/gwSelection.js:12-32` sends `captain_id`, `vice_captain_id` and `chip_used`; `Gameplay/starting_xi.py:296-306` requires `tactic` and `bonus_player_ids`. Sending exactly the body the frontend builds returns:
+
+  ```
+  POST /gw_selection -> 422
+      missing ['body', 'tactic'] Field required
+      missing ['body', 'bonus_player_ids'] Field required
+  ```
+
+  This is not cosmetic drift — **the Starting XI page cannot submit at all.** It is the single highest-priority item in the phase.
+- **`GET /chips/used` 404s on page load.** `frontend/src/api/chips.js:3-5`, called from `pages/StartingXI/StartingXIPage.jsx:21,290,647`. Deleted in 4d with `Gameplay/chips.py`.
+- **`GET /gw_selection` no longer returns what the page reads.** Live keys: `bench_order`, `bonus_player_ids`, `gameweek`, `has_selection`, `player_ids`, `season`, `swaps`, `tactic`, `user_id`. No `captain_id`, no `vice_captain_id`, no `chip_used`.
+- **`GET /team` returns both models at once**, which is why the classic dashboard still renders rather than crashing. The Phase 4b inert keys (`captain_multiplier` = 1, `chip_used` = null, `captain_bonus`/`transfer_hits`/`hit_deductions` = 0) sit alongside the real ones: `tactic`, `is_locked`, `general_points`, `tactical_points`, `sub_bonus`, `swaps`, `scored`, `scored_reason`, `provisional`, `score_source`, `has_score`, `live_status`.
+- **No classic frontend file reads a single tactical field.** `grep -rln "tactic\|is_locked\|sub_bonus\|tactical_points"` over `frontend/src` matches only `api/dream11.js`, `pages/Dream11/*` and `pages/Matches/MatchDetailPage.jsx` — all out of scope.
+
+#### File-by-file change map
+
+| File | What it encodes | Change |
+|---|---|---|
+| `api/gwSelection.js:12-32` | sends `captain_id`/`vice_captain_id`/`chip_used` | send `tactic`, `bonus_player_ids`, `swaps`; drop the other three |
+| `api/chips.js` | `fetchChipsUsed` → deleted route | delete the file |
+| `pages/StartingXI/StartingXIPage.jsx` | `CHIP_TYPES` (`:40`), `chipAvailable` (`:45-49`), captain/vice validation (`:62-81`), captain popover (`:115,140,143,262`), chip state (`:252,260`) | the largest rewrite: tactic selector, 2 Bonus Players, bench **roles** not 1st/2nd/3rd/4th, swap planner |
+| `pages/DashboardPage/DashboardPage.jsx` (570 lines) | C/V badges (`:44,64,377`), `bench_boost` (`:356`), `captain_multiplier` (`:379`), Captain Bonus tile (`:424-426`), `hit_deductions` (`:432`) | the four states; General/Tactical/Sub Bonus replacing Captain Bonus and Hit Penalty |
+| `pages/Transfers/TransfersPage.jsx:126` | `chip_active` | drop; allowance is a flat 2, no hits |
+| `data/scoringRules.js:95,101,208,215,225-240,255` | Hit Penalty, Chip Boost, Captain Multiplier, Triple Captain, Vice-Captaincy Protocol, Bench Boost, Rollover Cap | rewrite for the tactical ruleset |
+| `components/PlayerJersey`, `PlayerMarker`, `PlayerPointsSheet`, `OpponentTeamPanel` | `captain` / `viceCaptain` props | Bonus star replaces the armband |
+| `pages/LandingPage/LandingPage.jsx` | marketing copy naming captaincy/chips | reword |
+
+#### Order of work, each its own commit
+
+- **5a. Unbreak submission.** `api/gwSelection.js` + the minimum of `StartingXIPage` to send `tactic` and `bonus_player_ids`. Delete `api/chips.js` and its three call sites. After this the app is usable again.
+- **5b. Starting XI proper.** Tactic selector, Bonus Player picker (exactly 2, both starters, both the tactic's position), bench roles (slot 12 backup GK, 13 Auto Sub, 14/15 Tactical Subs), swap planner capped at 2. The bench is already drag-ordered via `@dnd-kit` — the ordinals become roles, so the interaction survives.
+- **5c. Dashboard.** The four states from the "Dashboard state" note above, driven by `has_lineup`, `is_locked` and `scored`. Reference designs exist: the Stitch project *FPL Chat Assistant* (`6082680430787009104`) has **Dashboard — No Squad & GW Locked** (`192f20ee…`) and **Dashboard with Horizontal Reorder Bench** (`48c92560…`), and the canvas *PitchSide Dashboard States* holds State 3 and State 4. **The Stitch screens are pre-tactical** — they still show C/V badges and a 1st/2nd/3rd/4th bench, so take the layout and the state pills from them, not the bench or captaincy model.
+- **5d. Scoring rules screen and copy.** `data/scoringRules.js`, `ScoringPage`, `LandingPage`.
+- **5e. Retire the inert keys.** Only once nothing renders them: `chip_used`, `captain_multiplier`, `captain_bonus`, `transfer_hits`, `hit_deductions`, per-player `is_captain`/`is_vice_captain`, the deprecated `points`, and `chip_active` on `GET /transfers/used`. Backend and frontend in one commit, since this is the point the additive contract ends.
+
+#### Still open from Phase 4
+
+- **Migrate `fpl_game`.** Still on `a06f58d93f5a` + `c2f6a83e91d4` — none of `c41a9e27d06b`, `d58b3f10a7c2`, `e7c4d81b3a95`, `f2b9c05e7a41`, `b4e1f37c920d`. Note the contradiction this resolves: Phase 1's entry says it is migrated "in Phase 4", and Phase 4 is finished without it. It is sequenced **with the code**, because the migration drops columns the pre-4c code still selected; rehearse on a scratch copy first, as every prior revision was.
+- **The six unfiltered season queries** listed under Phase 4e.
+
+#### Running it locally (cost several attempts; recorded so it costs none next time)
+
+The ASGI app is **`backend/Context_assembler/main.py`**, not `backend/main.py`, and `main:app` only resolves once the sub-package directories `conftest.py` inserts are on `sys.path` (`backend/Tests/conftest.py:21-29`):
+
+```
+PYTHONPATH="backend;backend\Context_assembler;backend\Feature_engineering;backend\Predict;backend\Worker;backend\Game_logic;backend\Data" \
+  python -m uvicorn main:app --app-dir backend --host 127.0.0.1 --port 8000
+```
+
+`vite.config.js` proxies `/api` → `127.0.0.1:8000`, so the frontend is useless without it. **Do not point it at `fpl_game`** (unmigrated, and out of bounds) **or at `fpl_game_test`** (app writes there leak into `gw_average`/`overall_rank`, which are computed season-wide over `gw_scores`). Use a scratch clone — `CREATE DATABASE fpl_game_ui TEMPLATE fpl_game_test` — and pass `DATABASE_URL` to that one process rather than editing `.env`. A clone has no real-season fixtures, so `GET /gameweeks/current` answers `found: false` and the whole app shows "No season is scheduled yet" (`config/gameweek.jsx:34,63`) until teams, players and fixtures are seeded. `ml.players.position_encoded` is **0-based** (`players_position_encoded_check` is `>= 0 AND <= 3`).
 **Phase 6. Re-tune.** After about 20 Gameweeks of 2026-27, re-run `simulate_tactics.py` (it holds the same tier tables in its CONFIG block) and revisit all three tactics, Defence first.
 
 Separate housekeeping (own confirmation, not part of any phase): delete only the 2 stray rows in `ml.player_gw_stats` (`2026-27`, gameweek 38, fixture 1381, player ids 45830 and 45819).
