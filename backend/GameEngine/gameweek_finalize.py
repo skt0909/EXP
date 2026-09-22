@@ -46,6 +46,7 @@ from sqlalchemy import text
 # Phase 4a: the batched tactical job replaces the classic per-manager loop.
 # Results/scoring.py stays on disk because Results/team_dashboard.py still
 # imports resolve_autosubs from it -- unpicking that is Phase 4b.
+from Shared.seasons import real_season_sql
 from Results.scoring_job import score_gameweek_tactical as score_gameweek
 from Results.standings import compute_league_standings
 
@@ -57,10 +58,15 @@ DEFAULT_ACTIVE_WINDOW_DAYS = 5
 # the DB clock is authoritative -- the same stance deadlines.py and
 # gameweek_lock.py take, and the reason the test suite crosses a deadline
 # by UPDATE-ing kickoff_time rather than by faking Python's clock.
+# REAL SEASONS ONLY. Without this the sweep picked up every season in
+# ml.fixtures -- the SIM harness seasons and the numeric sentinels alike --
+# and handed them to the scoring job as if they were the game. See
+# Shared/seasons.py for why the century prefix is load-bearing.
 ACTIVE_GAMEWEEKS_QUERY = text(
-    """
+    f"""
     SELECT season, gameweek
     FROM ml.fixtures
+    WHERE {real_season_sql()}
     GROUP BY season, gameweek
     HAVING MIN(kickoff_time) IS NOT NULL
        AND MIN(kickoff_time) <= NOW()

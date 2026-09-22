@@ -24,16 +24,19 @@ import logging
 
 from sqlalchemy import text
 
+from Shared.seasons import real_season_sql
+
 logger = logging.getLogger(__name__)
 
 # Earliest gameweek that has fixtures, has not kicked off, and has no
 # predictions yet. MIN(kickoff_time) > NOW() keeps the comparison in SQL
 # so the DB clock is authoritative.
 NEXT_GAMEWEEK_NEEDING_PREDICTIONS_QUERY = text(
-    """
+    f"""
     SELECT f.season, f.gameweek
     FROM ml.fixtures f
-    WHERE NOT EXISTS (
+    WHERE {real_season_sql('f.season')}
+      AND NOT EXISTS (
         SELECT 1 FROM ml.ml_predictions mp WHERE mp.season = f.season AND mp.gameweek = f.gameweek
     )
     GROUP BY f.season, f.gameweek

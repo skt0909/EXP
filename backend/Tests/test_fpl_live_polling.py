@@ -64,7 +64,7 @@ def _cold_fetch_cache():
 def _fake_fetch_json(fixtures_payload):
     """fpl_ingest.fetch_json monkeypatch: bootstrap-static/ is faked just
     enough for LiveSource.check_season()'s year-derivation to land on
-    TEST_SEASON ("9999-00": year=9999, str(9999+1)[-2:]="00"); fixtures/
+    TEST_SEASON ("2099-00": year=2099, str(2099+1)[-2:]="00"); fixtures/
     returns the payload under test. Any other path is a test bug."""
     def _fake(path):
         if path == "bootstrap-static/":

@@ -40,6 +40,7 @@ import logging
 from sqlalchemy import text
 
 from Shared.deadlines import DEADLINE_OFFSET_MINUTES
+from Shared.seasons import real_season_sql
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +63,7 @@ EXPIRED_UNLOCKED_GAMEWEEKS_QUERY = text(
     FROM (SELECT DISTINCT season, gameweek FROM gw_selections WHERE is_locked = FALSE) gs
     JOIN (
         SELECT season, gameweek, {_DEADLINE_EXPR} AS deadline
-        FROM ml.fixtures GROUP BY season, gameweek
+        FROM ml.fixtures WHERE {real_season_sql()} GROUP BY season, gameweek
     ) f ON f.season = gs.season AND f.gameweek = gs.gameweek
     WHERE f.deadline IS NOT NULL AND f.deadline <= NOW()
     """
@@ -71,10 +72,11 @@ EXPIRED_UNLOCKED_GAMEWEEKS_QUERY = text(
 UNLOCKED_NO_DEADLINE_QUERY = text(
     f"""
     SELECT gs.season, gs.gameweek
-    FROM (SELECT DISTINCT season, gameweek FROM gw_selections WHERE is_locked = FALSE) gs
+    FROM (SELECT DISTINCT season, gameweek FROM gw_selections WHERE is_locked = FALSE
+          AND {real_season_sql()}) gs
     LEFT JOIN (
         SELECT season, gameweek, {_DEADLINE_EXPR} AS deadline
-        FROM ml.fixtures GROUP BY season, gameweek
+        FROM ml.fixtures WHERE {real_season_sql()} GROUP BY season, gameweek
     ) f ON f.season = gs.season AND f.gameweek = gs.gameweek
     WHERE f.deadline IS NULL
     """

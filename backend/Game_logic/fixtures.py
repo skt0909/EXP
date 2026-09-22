@@ -42,6 +42,7 @@ from sqlalchemy import text
 
 from Shared.db_utils import get_engine
 from Shared.deadlines import _DEADLINE_EXPR
+from Shared.seasons import real_season_sql
 from Data.auth import CurrentUser, get_current_user
 
 router = APIRouter()
@@ -281,7 +282,7 @@ CURRENT_GAMEWEEK_QUERY = text(
     WITH gw_deadlines AS (
         SELECT season, gameweek, {_DEADLINE_EXPR} AS deadline
         FROM ml.fixtures
-        WHERE season ~ '^20[0-9]{{2}}-[0-9]{{2}}$'
+        WHERE {real_season_sql()}
         GROUP BY season, gameweek
     ),
     latest_season AS (

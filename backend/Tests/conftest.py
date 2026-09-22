@@ -62,7 +62,13 @@ for _d in [Path(__file__).resolve().parent] + list(Path(__file__).resolve().pare
         load_dotenv(_candidate)
         break
 
-TEST_SEASON = "9999-00"
+# Was '9999-00'. Moved to 2099 because the real-season filter now requires a
+# '20YY-YY' century prefix -- '9998-00' and '9999-00' both sorted above every
+# real season and won max(season) rankings outright (Shared/seasons.py). The
+# shape is unchanged: the second half is the FOLLOWING year's last two digits,
+# and str(2100)[-2:] == '00', so '2099-00' derives exactly as '9999-00' did.
+# Still a season that cannot occur in practice, which is the point.
+TEST_SEASON = "2099-00"
 
 
 @pytest.fixture(scope="session")

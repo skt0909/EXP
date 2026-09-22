@@ -47,6 +47,7 @@ from decimal import Decimal
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from Shared.seasons import REAL_SEASON_RE as _REAL_SEASON_RE
 from Gameplay.selection_rules import SelectionInput, SwapInput, validate_selection
 from Results.tactical_scoring import Selection, Slot, Swap, score_selection
 from Shared.rules import FIRST_GAMEWEEK, RULES_VERSION
@@ -60,7 +61,11 @@ SCORING_BATCH_SIZE = 200
 
 # A real season is exactly YYYY-YY. Anything else -- SIM38OK, SIM38TST,
 # SIMSMOKE -- belongs to the simulation harness and is never game data.
-REAL_SEASON_RE = re.compile(r"^\d{4}-\d{2}$")
+# Was re.compile(r"^\d{4}-\d{2}$") here. That matched the numeric sentinels
+# '9998-00' and '9999-00' -- both present in fpl_game -- so the job would have
+# scored them as real seasons. Now one definition, in Shared/seasons.py, which
+# records the measurement that forced the century prefix.
+REAL_SEASON_RE = _REAL_SEASON_RE
 
 
 SELECTIONS_QUERY = text(

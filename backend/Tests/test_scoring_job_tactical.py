@@ -133,7 +133,7 @@ def test_simulation_seasons_are_never_scored(engine, sim_season):
 def test_the_real_season_pattern_is_what_decides():
     from Results.scoring_job import REAL_SEASON_RE
     assert re.fullmatch(REAL_SEASON_RE, "2026-27")
-    assert re.fullmatch(REAL_SEASON_RE, TEST_SEASON)      # 9999-00 is real-shaped
+    assert re.fullmatch(REAL_SEASON_RE, TEST_SEASON)      # 2099-00 is real-shaped
     for bad in ("SIM38OK", "SIM38TST", "SIMSMOKE", "2026", "2026-2027"):
         assert not re.fullmatch(REAL_SEASON_RE, bad), bad
 

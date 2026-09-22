@@ -422,7 +422,7 @@ def test_registered_team_name_is_visible_to_team_dashboard(engine, cleanup_users
 
     dash = client.get(
         "/team",
-        params={"season": "9999-00", "gameweek": 1},
+        params={"season": TEST_SEASON, "gameweek": 1},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert dash.status_code == 200, dash.text

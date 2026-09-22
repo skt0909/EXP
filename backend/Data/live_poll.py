@@ -45,6 +45,7 @@ import logging
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from Shared.seasons import real_season_sql
 from fpl_ingest import fetch_json, COUNTING_COLS, SOURCE_STAT_KEYS
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,8 @@ FIXTURES_NEEDING_POLL_SCHEDULE_QUERY = text(
     SELECT f.id, f.season, f.gameweek, f.kickoff_time
     FROM ml.fixtures f
     LEFT JOIN ml.fixture_poll_schedule ps ON ps.fixture_id = f.id
-    WHERE f.finished = FALSE
+    WHERE {real_season_sql('f.season')}
+      AND f.finished = FALSE
       AND f.kickoff_time IS NOT NULL
       AND f.kickoff_time > NOW() - INTERVAL '{POLL_SCHEDULE_LOOKBACK}'
       AND (ps.fixture_id IS NULL OR ps.halftime_scheduled = FALSE)

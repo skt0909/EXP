@@ -24,7 +24,7 @@ def sim_fixtures(engine):
     """A SIM season fixture whose deadline is sooner than anything real.
 
     Seeded with raw SQL because conftest's make_fixture hardcodes TEST_SEASON,
-    and TEST_SEASON ('9999-00') matches the real-season pattern -- so it could
+    and TEST_SEASON ('2099-00') matches the real-season pattern -- so it could
     never demonstrate the leak.
     """
     created = []
