@@ -209,6 +209,14 @@ def get_fixtures(
 # minutes before kickoff" a third time -- see that module's docstring on why
 # DEADLINE_OFFSET_MINUTES has exactly one source of truth.
 #
+# REAL SEASONS ONLY. Without the season filter this ranked deadlines across
+# every season in ml.fixtures, and the simulation seasons (SIM38OK, SIM38TST,
+# SIMSMOKE, SIMGWE2E) carry real timestamps -- so a simulation fixture could
+# win and every page in the app would show a simulation gameweek. Proven by
+# test_a_simulation_season_never_wins_the_current_gameweek, which asserted the
+# broken behaviour before this line existed. Same pattern as the scoring job's
+# REAL_SEASON_RE; the braces are doubled because this is an f-string.
+#
 # Two-tier because "the current gameweek" has two different honest answers
 # depending on where the calendar sits: normally it's the soonest gameweek a
 # manager can still set a team for (deadline still ahead); but between the
@@ -223,6 +231,7 @@ CURRENT_GAMEWEEK_QUERY = text(
     WITH gw_deadlines AS (
         SELECT season, gameweek, {_DEADLINE_EXPR} AS deadline
         FROM ml.fixtures
+        WHERE season ~ '^[0-9]{{4}}-[0-9]{{2}}$'
         GROUP BY season, gameweek
     )
     (SELECT season, gameweek, deadline FROM gw_deadlines
