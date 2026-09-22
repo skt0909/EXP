@@ -50,7 +50,7 @@ from Data.auth import CurrentUser, get_current_user
 # Shared with scoring.py rather than redeclared here -- this module used to
 # keep its own copies, and the two had to agree or the multiplier shown
 # beside a score would contradict the score itself.
-from Shared.deadlines import resolve_gameweek_deadline
+from Shared.deadlines import deadline_has_passed, resolve_gameweek_deadline
 # Phase 4b: per-player points are computed at request time by the TACTICAL
 # engine, for THIS manager and gameweek. The classic scoring.py is no longer
 # imported at all -- resolve_autosubs went with it, because the engine already
@@ -72,8 +72,11 @@ router = APIRouter()
 # other "doesn't exist yet" case in this endpoint.
 USER_QUERY = text("SELECT username, team_name FROM users WHERE id = :user_id")
 
+# is_locked is selected here rather than by a second query because this row is
+# already being read -- it is the same row Gameplay/transfers.py reads for the
+# same purpose (its GW_SELECTION_QUERY selects nothing else).
 GW_SELECTION_QUERY = text(
-    "SELECT id AS gw_selection_id, tactic FROM gw_selections "
+    "SELECT id AS gw_selection_id, tactic, is_locked FROM gw_selections "
     "WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
 )
 
@@ -236,6 +239,13 @@ class TeamDashboardResponse(BaseModel):
     gameweek: int
     deadline: str | None
     has_lineup: bool
+    # Can this manager still change anything for this gameweek? A different
+    # question from has_lineup, which is False both the day before the
+    # deadline and a week after it. Never null: the OR of gw_selections
+    # .is_locked and deadlines.deadline_has_passed always has an answer, and
+    # it is the same OR Gameplay/transfers.py and Gameplay/starting_xi.py
+    # enforce with.
+    is_locked: bool
     chip_used: str | None
     captain_multiplier: int
     gw_points: int | None
@@ -334,6 +344,10 @@ def get_team_dashboard(
     engine = get_engine()
 
     deadline = resolve_gameweek_deadline(engine, season, gameweek)
+    # Asked fresh from ml.fixtures, on its own connection, exactly as the two
+    # write endpoints ask it -- never inferred from `deadline` above, so there
+    # is one comparison and the database clock is the one that makes it.
+    deadline_passed = deadline_has_passed(engine, season, gameweek)
 
     with engine.connect() as conn:
         user_row = conn.execute(USER_QUERY, {"user_id": user_id}).first()
@@ -345,6 +359,27 @@ def get_team_dashboard(
         ).first()
 
         has_lineup = selection_row is not None
+
+        # THE SAME FORMULA AS Gameplay/transfers.py:447-448, copied rather
+        # than re-derived:
+        #
+        #     locked_by_flag = gw_selection_row is not None and gw_selection_row.is_locked
+        #     if locked_by_flag or deadline_passed:
+        #
+        # Gameplay/starting_xi.py enforces the identical pair -- the trigger
+        # enforce_selection_lock_fn for the already-locked row, and
+        # deadline_has_passed for the never-submitted case the trigger cannot
+        # see, because a BEFORE UPDATE trigger has no row to fire on. Both
+        # sources are needed: the flag alone reports False for a manager who
+        # never submitted, however long ago the gameweek kicked off, and the
+        # deadline alone cannot see a row Beat locked early.
+        #
+        # This is deliberately NOT a fourth implementation. If the three ever
+        # disagree the dashboard would invite an edit the write endpoints then
+        # reject with a 422, which reads as a bug in the app rather than as a
+        # closed deadline.
+        locked_by_flag = selection_row is not None and selection_row.is_locked
+        is_locked = bool(locked_by_flag or deadline_passed)
         # Chips are gone. The key stays in the response so the current frontend
         # keeps rendering; it is always None now, and the frontend phase
         # removes it. Same for captain_multiplier below.
@@ -553,6 +588,7 @@ def get_team_dashboard(
         gameweek=gameweek,
         deadline=deadline.isoformat() if deadline is not None else None,
         has_lineup=has_lineup,
+        is_locked=is_locked,
         chip_used=chip_used,
         captain_multiplier=captain_multiplier,
         has_score=has_score,
