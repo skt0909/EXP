@@ -217,15 +217,49 @@ def get_fixtures(
 # broken behaviour before this line existed. Same pattern as the scoring job's
 # REAL_SEASON_RE; the braces are doubled because this is an f-string.
 #
-# Two-tier because "the current gameweek" has two different honest answers
-# depending on where the calendar sits: normally it's the soonest gameweek a
-# manager can still set a team for (deadline still ahead); but between the
-# last ingested gameweek's deadline and the next gameweek's fixtures being
-# ingested, there IS no such gameweek, and returning nothing would strand
-# every page that reads this. In that gap, falling back to the most recent
-# PAST gameweek is deliberate -- the deadline has already passed, so it will
-# render read-only via the same locked-gameweek path Starting XI/Transfers
-# already have, not falsely invite an edit.
+# THE RULE: the current gameweek is the earliest one NOT YET SCORED.
+#
+# It used to be "the gameweek whose deadline is soonest in the future", which
+# moves the instant a deadline passes -- so from Saturday 11:30 onward, while
+# gw8 was still being played and scored, every page in the app already showed
+# gw9. Proven by test_a_locked_but_unscored_gameweek_is_still_current, which
+# asserted the broken answer (9) before this rewrite. Under the scored rule a
+# gameweek stays current through kickoff, through the 90 minutes, and through
+# the scoring run -- it stops being current only when the scoring job records
+# that it finished (gameweeks.scored_at, added in b4e1f37c920d).
+#
+# "Not scored" is a LEFT JOIN with scored_at IS NULL, so no row and a row with
+# a NULL scored_at read identically -- the latter means "known about, not
+# finished" and must not be mistaken for done.
+#
+# LATEST SEASON ONLY. ml.fixtures holds years of history, and none of those
+# gameweeks were ever marked scored, because scored_at did not exist when they
+# were played. Ranking unscored gameweeks across all seasons would therefore
+# hand back the first gameweek of the oldest season in the database, forever.
+# max(season) is well defined here because the season filter below admits only
+# 'YYYY-YY', where lexical and chronological order coincide.
+#
+# REAL SEASONS ONLY. Without this filter the query ranked across every season
+# in ml.fixtures, and the simulation seasons (SIM38OK, SIM38TST, SIMSMOKE,
+# SIMGWE2E) carry real timestamps -- so a simulation fixture could win and
+# every page would show a simulation gameweek. Proven by
+# test_a_simulation_season_never_wins_the_current_gameweek. Same pattern as the
+# scoring job's REAL_SEASON_RE; braces are doubled because this is an f-string.
+#
+# The deadline expression reuses deadlines.py's rather than restating "90
+# minutes before kickoff" a third time -- see that module's docstring on why
+# DEADLINE_OFFSET_MINUTES has exactly one source of truth.
+#
+# THE TWO DEADLINE TIERS ARE KEPT, below the scored rule, as the fallback for
+# the cases where it selects nothing:
+#   * no fixtures ingested yet for any real season -- the season-start edge
+#     case. Nothing has ever been scored and there is nothing to rank, so all
+#     three tiers are empty and the endpoint answers found=False;
+#   * every gameweek of the latest season is scored -- end of season. Tier 3
+#     returns the most recent past gameweek, which renders read-only through
+#     the same locked-gameweek path Starting XI and Transfers already have
+#     rather than falsely inviting an edit. Returning nothing here would
+#     strand every page that reads this endpoint.
 CURRENT_GAMEWEEK_QUERY = text(
     f"""
     WITH gw_deadlines AS (
@@ -233,7 +267,18 @@ CURRENT_GAMEWEEK_QUERY = text(
         FROM ml.fixtures
         WHERE season ~ '^[0-9]{{4}}-[0-9]{{2}}$'
         GROUP BY season, gameweek
+    ),
+    latest_season AS (
+        SELECT max(season) AS season FROM gw_deadlines
     )
+    (SELECT d.season, d.gameweek, d.deadline
+       FROM gw_deadlines d
+       JOIN latest_season l ON l.season = d.season
+       LEFT JOIN gameweeks g
+              ON g.season = d.season AND g.gameweek = d.gameweek
+      WHERE g.scored_at IS NULL
+      ORDER BY d.gameweek ASC LIMIT 1)
+    UNION ALL
     (SELECT season, gameweek, deadline FROM gw_deadlines
      WHERE deadline > NOW()
      ORDER BY deadline ASC LIMIT 1)
