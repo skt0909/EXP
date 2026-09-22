@@ -292,6 +292,58 @@ Its three indexes belong to the table and go with it. `downgrade()` recreates
 the shape only, reproduced from `c4e1a7b92f30`; the snapshots are data and are
 not recoverable, and would be meaningless if they were.
 
+### Revision 5 — `b4e1f37c920d`, "Add gameweeks: when a gameweek was finished being scored" (Phase 4e)
+
+`down_revision = "f2b9c05e7a41"` (Phase 4c's `free_hit_squads` drop, which was head).
+
+```sql
+CREATE TABLE IF NOT EXISTS gameweeks (
+    season    VARCHAR(9)  NOT NULL,
+    gameweek  SMALLINT    NOT NULL,
+    scored_at TIMESTAMPTZ,
+    PRIMARY KEY (season, gameweek)
+)
+```
+
+**Why a new table at all.** Nothing in this schema recorded *"this gameweek is done"*.
+Every pre-existing signal is an inference:
+
+| Signal | What it actually says |
+|---|---|
+| `ml.fixtures.finished` | the matches are over — not that they were scored |
+| a `gw_scores` row | the job ran once — not that it will not run again |
+| the 5-day active window | "probably final" by **elapsed time**, not by state |
+
+`scored_at` is the first state-based answer, and section 5's Phase 4e rewrite of
+`GET /gameweeks/current` is built on it.
+
+**Written by `Results/scoring_job.py::_mark_gameweek_scored`, under two conditions,
+both required:** the batch run completed, **and** every fixture in that gameweek has
+`finished = TRUE`. Scores written mid-play are persisted but deliberately left
+unmarked, because the 15-minute job revisits them for five days and the numbers move.
+A gameweek with **no fixtures at all** is not marked either — `bool_and` over zero rows
+is NULL, and the explicit `total = 0` check makes that intent visible rather than
+resting on the quirk.
+
+**Idempotent** via `ON CONFLICT (season, gameweek) DO UPDATE ... WHERE
+gameweeks.scored_at IS NULL`, so five days of re-runs keep the timestamp of the run
+that *first* completed it. Without the `WHERE` this silently becomes a "last touched"
+column. `_mark_gameweek_scored` never raises: a failed mark must not turn a successful
+scoring run into a failed one.
+
+**`scored_at` is NULLABLE on purpose.** A row with NULL means "known about, not
+finished" — a different statement from having no row, and the current-gameweek query
+reads both as "not scored".
+
+**No foreign keys.** Seasons and gameweeks are not entities here; they exist as
+`(season, gameweek)` pairs across `ml.fixtures`, `gw_selections` and `gw_scores` with
+no parent table to point at. An FK would invent one and make this table deletable by
+cascade — exactly the property `ruleset_epochs` was designed to avoid.
+
+Rehearsed on a scratch copy recreated from a fresh `pg_dump` of `fpl_game` (upgrade →
+shape check → downgrade → upgrade), then applied to **`fpl_game_test` only**.
+`fpl_game` is untouched, still on `a06f58d93f5a` + `c2f6a83e91d4`.
+
 ### Downgrade semantics
 
 **Structure only. Wiped data is NOT restored** — not the truncated tables, and not the
@@ -347,6 +399,7 @@ alembic downgrade a06f58d93f5a
    spelling is the **plural** `defensive_contributions`; the archive CSVs use the
    singular.
 
+
 ---
 
 ## 4. Code change map (discover, do not assume)
@@ -394,6 +447,31 @@ Find real file names first. Expected areas:
   - **`GET /chips/used` deleted**, with `Gameplay/chips.py` entirely — nothing else used it (`starting_xi.py` imported four names from it and used none). Ten tests removed, all exercising chip availability.
     - **The frontend still calls this route** and now gets a 404: `frontend/src/api/chips.js:3` (`fetchChipsUsed`), used by `frontend/src/pages/StartingXI/StartingXIPage.jsx:21,290,647` on page load and after each submit. **Phase 5 must remove those calls.** Not editable here by instruction, but it is a user-visible consequence, not a tidy-up.
   - **`CAPTAIN_QUERY` deleted** from `Context_assembler/main.py`. It read `gw_selections.captain_id` on **every `POST /chat` request**. Nothing in the response depended on it — `ChatResponse` is a single `response: str` — so it was deleted outright rather than nulled; the additive rule only applies to fields the frontend renders. The `[CURRENT CAPTAIN]` instructions went with it, so the model is no longer told to expect a tag that can never appear.
+
+**Phase 4e. The current gameweek, and locked/scored state on the dashboard. — DONE.** Three fixes, one theme: `GET /gameweeks/current` was answering the wrong question, in the wrong season.
+  - **A. The season leak.** `Game_logic/fixtures.py::CURRENT_GAMEWEEK_QUERY` ranked deadlines across **every** season in `ml.fixtures` with no filter, and the simulation seasons carry real timestamps — so a `SIM38OK` fixture could win and every page in the app would show a simulation gameweek. Proven first by `test_a_simulation_season_never_wins_the_current_gameweek`, which asserted `'SIM38OK' != 'SIM38OK'` before the fix. Filter added: `season ~ '^[0-9]{4}-[0-9]{2}$'`.
+    - **Six other production queries have the same missing filter** and are **not** fixed: `GameEngine/gameweek_finalize.py:60`, `GameEngine/gameweek_lock.py:59` and `:71`, `Game_logic/live_poll.py:76` and `:123`, `Game_logic/prediction_scheduling.py:32`. The last one **corroborates** a long-standing UNEXPECTED failure — `test_schedule_predictions_no_op_when_nothing_needs_predicting` — which is the same root cause, now confirmed structurally rather than guessed. Six further Dream11 queries are out of scope.
+  - **B. "Current" now means "earliest not yet scored".** The old rule was "the gameweek whose deadline is soonest in the future", which moves the instant a deadline passes — so from Saturday 11:30, while gw8 was still being played and its scores still changing, every page already showed gw9. `test_a_locked_but_unscored_gameweek_is_still_current` asserted the broken answer (`assert 9 == 8`) before the rewrite. A gameweek now stays current through its deadline, kickoff, the 90 minutes and the scoring run, and stops being current only when `gameweeks.scored_at` is set.
+    - **Latest season only**, and this is the subtle part: `ml.fixtures` holds years of history that was never marked scored, because `scored_at` did not exist when it was played. Ranking unscored gameweeks across all seasons would return the first gameweek of the *oldest* season, forever. `max(season)` is well defined because the real-season filter admits only `YYYY-YY`, where lexical and chronological order coincide.
+    - **The two deadline tiers are kept below the scored rule**, as the fallback for the two cases where it selects nothing: no real-season fixtures ingested at all (season start → `found=false`, not a 404), and every gameweek of the latest season scored (end of season → the most recent past gameweek, which renders read-only rather than inviting an edit).
+  - **C. The `gameweeks` table** — migration `b4e1f37c920d`, section 3, Revision 5.
+  - **D. `GET /team` returns `is_locked`**, computed with the formula already in `Gameplay/transfers.py:447-448`, copied rather than re-derived: `selection_row is not None and selection_row.is_locked`, OR'd with `deadlines.deadline_has_passed`. `Gameplay/starting_xi.py` enforces the identical pair by a different mechanism (the `enforce_selection_lock_fn` trigger plus the same deadline pre-check). All three now agree by construction; a fourth implementation would let the dashboard invite an edit the write endpoints then reject with a 422.
+  - Suite: **0 pass→fail, 0 removed**, 12 added (all passing), 63 EXPECTED / 3 UNEXPECTED — identical split before and after.
+
+### Dashboard state: the four states a gameweek is actually in
+
+`has_lineup` was carrying this alone and cannot: it is `False` both the day before the deadline, when the manager can still act, and a week after it, when they cannot. Three fields separate the four real states.
+
+| State | `has_lineup` | `is_locked` | scored (`gameweeks.scored_at`) | What the manager should see |
+|---|---|---|---|---|
+| **1. No squad yet** | `false` | `false` | `null` | "Pick your squad" — nothing exists, and this is not an error |
+| **2. Squad, no lineup, pre-deadline** | `false` | `false` | `null` | "Set your lineup" — still editable, deadline shown as a countdown |
+| **3. Locked, in progress** | `true` *or* `false` | **`true`** | `null` | Read-only. Points are **partial** and will change; `provisional` is `true` |
+| **4. Scored** | `true` | `true` | set | Final. The number will not move again |
+
+States 1 and 2 are distinguished by the squad, not by these three fields — `GET /squad` returns an empty list in state 1. State 3 covers a manager who never submitted **and** one who did: the never-submitted case is exactly why `is_locked` cannot be read from the `gw_selections` flag alone.
+
+**`scored` is the only state-based signal of finality.** Before Phase 4e the dashboard inferred it — all fixtures `finished` means the matches are over, not that they were scored, and the 5-day active window means "probably final" by elapsed time. `gameweeks.scored_at` is written only when the batch run completed *and* every fixture finished, so states 3 and 4 are now distinguishable rather than guessed at.
 
 ### Pre-4e checklist: everything still naming a Phase-1-dropped object
 
