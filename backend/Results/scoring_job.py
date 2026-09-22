@@ -274,6 +274,8 @@ def score_gameweek_tactical(engine, season: str, gameweek: int,
         scored.extend(done)
         failed.extend(bad)
 
+    _mark_gameweek_scored(engine, season, gameweek)
+
     return {"scored": scored, "failed": failed, "skipped_reason": None}
 
 
@@ -492,6 +494,63 @@ def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, ga
         stats_by_player,
         positions,
     )
+
+
+# Every fixture in the gameweek is over. MIN over zero rows is NULL and
+# bool_and over zero rows is NULL too, so a gameweek with NO fixtures comes
+# back NULL rather than TRUE -- which is what stops an unplayed gameweek from
+# being marked complete.
+ALL_FIXTURES_FINISHED_QUERY = text(
+    """
+    SELECT bool_and(finished) AS all_finished, count(*) AS total
+    FROM ml.fixtures
+    WHERE season = :season AND gameweek = :gameweek
+    """
+)
+
+# COALESCE + the WHERE clause together are the idempotence: the row is only
+# written when scored_at is not already set, so a gameweek re-scored for five
+# days keeps the timestamp of the run that FIRST completed it. Without the
+# WHERE, this would quietly become a "last touched" column.
+MARK_GAMEWEEK_SCORED_STMT = text(
+    """
+    INSERT INTO gameweeks (season, gameweek, scored_at)
+    VALUES (:season, :gameweek, now())
+    ON CONFLICT (season, gameweek) DO UPDATE SET scored_at = now()
+    WHERE gameweeks.scored_at IS NULL
+    """
+)
+
+
+def _mark_gameweek_scored(engine, season: str, gameweek: int) -> None:
+    """Record that this gameweek is finished being scored.
+
+    TWO conditions, both required:
+      1. the batch run completed -- this is called after the loop, and
+      2. every fixture in the gameweek has finished = TRUE.
+
+    (2) is the one worth stating. Scores written while matches are still in
+    play ARE persisted, but they are not final: the 15-minute job revisits the
+    gameweek for five days and the numbers move. Marking it scored then would
+    make GET /gameweeks/current advance past a gameweek still being played.
+
+    Never raises. A failure here must not turn an otherwise successful scoring
+    run into a failed one -- the mark is recoverable on the next run, and the
+    scores are already committed.
+    """
+    try:
+        with engine.begin() as conn:
+            row = conn.execute(
+                ALL_FIXTURES_FINISHED_QUERY, {"season": season, "gameweek": gameweek}
+            ).first()
+            if row is None or row.total == 0 or not row.all_finished:
+                return
+            conn.execute(MARK_GAMEWEEK_SCORED_STMT, {"season": season, "gameweek": gameweek})
+    except SQLAlchemyError as exc:
+        logger.error(
+            "score_gameweek_tactical: could not mark season=%s gameweek=%s scored: %s: %s",
+            season, gameweek, type(exc).__name__, exc,
+        )
 
 
 # ---- single-manager entry point, for the dashboard -------------------------
