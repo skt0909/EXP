@@ -41,7 +41,10 @@ function FplHeader({ title, showHelp = false }) {
 
   return (
     <>
-      <header className="sticky top-0 z-40 bg-surface/95 backdrop-blur-xl border-b border-outline-variant/60">
+      {/* z-50, one above the pages' own sticky bars (z-40): at equal z the
+          later element wins, so SquadSelectionPage's budget bar covered this
+          header's account menu -- "Log out" couldn't be clicked there. */}
+      <header className="sticky top-0 z-50 bg-surface/95 backdrop-blur-xl border-b border-outline-variant/60">
         <div className="flex items-center gap-sm h-16 px-md w-full max-w-[600px] mx-auto">
           <button
             aria-label="Menu"

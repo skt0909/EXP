@@ -6,6 +6,18 @@ const FIELD_CLASS =
   'w-full bg-surface-container-lowest border border-outline-variant rounded-lg py-sm pl-[36px] font-body-md text-body-md text-on-surface ' +
   'focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary transition-colors'
 
+// Pages login never sends anyone BACK to. ProtectedRoute remembers the page
+// a signed-out user was on, and logging out from squad selection (where a
+// new manager spends their first minutes) made the next sign-in land there
+// again instead of on the gameweek dashboard. Deep links elsewhere -- a Quick
+// 11 invite, a league -- still return the user where they were headed.
+const NO_RETURN_PATHS = ['/', '/squad-selection', '/login', '/register']
+
+function returnPath(from) {
+  const path = from?.pathname
+  return path && !NO_RETURN_PATHS.includes(path) ? `${path}${from.search ?? ''}` : '/dashboard'
+}
+
 function LoginPage() {
   const { user, login } = useAuth()
   const navigate = useNavigate()
@@ -26,8 +38,9 @@ function LoginPage() {
     setError(null)
     try {
       await login({ email, password })
-      // Back to whatever ProtectedRoute bounced them off, else the hub.
-      navigate(location.state?.from?.pathname ?? '/dashboard', { replace: true })
+      // Back to whatever ProtectedRoute bounced them off, else the gameweek
+      // dashboard -- see NO_RETURN_PATHS.
+      navigate(returnPath(location.state?.from), { replace: true })
     } catch (err) {
       // The backend deliberately returns one generic message for both "no such
       // account" and "wrong password" (auth.py's INVALID_CREDENTIALS_MESSAGE)
