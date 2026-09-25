@@ -33,7 +33,7 @@ function RegisterPage() {
   const [formErrors, setFormErrors] = useState([])
   const [submitting, setSubmitting] = useState(false)
 
-  if (user) return <Navigate to="/squad-selection" replace />
+  if (user) return <Navigate to="/dashboard" replace />
 
   const update = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }))
 
@@ -44,9 +44,10 @@ function RegisterPage() {
     setFormErrors([])
     try {
       await register(form)
-      // Step 3 of the flow: a brand-new manager has no squad, so send them
-      // straight to squad selection rather than a dashboard with nothing on it.
-      navigate('/squad-selection', { replace: true })
+      // Land on the gameweek dashboard, same as login. A brand-new manager
+      // has no squad yet, and the dashboard shows a "Select your squad" card
+      // for exactly that case -- they pick when they choose to, not first.
+      navigate('/dashboard', { replace: true })
     } catch (err) {
       if (err.errors) {
         const { byField, other } = splitErrors(err.errors)
