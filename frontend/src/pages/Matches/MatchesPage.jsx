@@ -3,23 +3,8 @@ import { Link, useOutletContext } from 'react-router-dom'
 import FplHeader from '../../components/FplHeader/FplHeader'
 import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import { fetchFixtures } from '../../api/fixtures'
-
-function kickoffLabel(kickoffTime) {
-  if (!kickoffTime) return 'Time TBC'
-  const date = new Date(kickoffTime)
-  if (Number.isNaN(date.getTime())) return 'Time TBC'
-
-  const now = new Date()
-  const sameDay = date.toDateString() === now.toDateString()
-  const tomorrow = new Date(now)
-  tomorrow.setDate(now.getDate() + 1)
-  const isTomorrow = date.toDateString() === tomorrow.toDateString()
-
-  const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
-  if (sameDay) return `Today ${time}`
-  if (isTomorrow) return `Tomorrow ${time}`
-  return `${date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })} ${time}`
-}
+import { kickoffLabel } from '../../data/kickoff'
+import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
 
 /** "1d 5h" / "2h 15m" / "12m" -- null once kickoff has passed. */
 function countdown(kickoffTime, now) {
@@ -43,8 +28,8 @@ function Scoreline({ fixture }) {
       <div className="flex items-center gap-sm flex-1 min-w-0">
         <TeamBadge name={fixture.home_team_name} shortName={fixture.home_team} />
         <div className="min-w-0">
-          <p className="font-headline-sm text-headline-sm text-primary truncate">{fixture.home_team}</p>
-          <p className="font-label-md text-label-md text-on-surface-variant">HOME</p>
+          <p className="font-headline-sm text-headline-sm text-on-surface truncate">{fixture.home_team}</p>
+          <p className="font-label-md text-[9px] font-bold tracking-wider text-on-surface-variant">HOME</p>
         </div>
       </div>
       {hasScore ? (
@@ -52,12 +37,12 @@ function Scoreline({ fixture }) {
           {fixture.home_score}–{fixture.away_score}
         </p>
       ) : (
-        <p className="font-label-md text-label-md text-on-surface-variant shrink-0 px-sm">vs</p>
+        <p className="font-label-md text-[10px] font-bold tracking-wider text-on-surface-variant shrink-0 px-sm">VS</p>
       )}
       <div className="flex items-center justify-end gap-sm flex-1 min-w-0 text-right">
         <div className="min-w-0">
-          <p className="font-headline-sm text-headline-sm text-primary truncate">{fixture.away_team}</p>
-          <p className="font-label-md text-label-md text-on-surface-variant">AWAY</p>
+          <p className="font-headline-sm text-headline-sm text-on-surface truncate">{fixture.away_team}</p>
+          <p className="font-label-md text-[9px] font-bold tracking-wider text-on-surface-variant">AWAY</p>
         </div>
         <TeamBadge name={fixture.away_team_name} shortName={fixture.away_team} />
       </div>
@@ -75,23 +60,30 @@ function PerformanceStrip({ fixture }) {
 
   const ranked = fixture.user_rank > 0
   return (
-    <div className="mt-sm flex items-center justify-between gap-sm bg-surface-container-high rounded-lg px-3 py-2">
+    <div className="mt-3 flex items-center justify-between gap-sm bg-[#F5F3F0] rounded-xl px-3 py-3">
       <span className="flex items-center gap-2 min-w-0">
-        <span className="material-symbols-outlined text-[18px] text-on-surface-variant">leaderboard</span>
+        <DashboardIcon className="text-on-surface-variant" name="chart" size={18} />
         <span className="font-label-md text-label-md text-on-surface-variant truncate">
           {ranked
             ? `Your performance · Rank ${fixture.user_rank} of ${fixture.user_contest_size}`
             : 'Your performance · not scored yet'}
         </span>
       </span>
-      <span className="font-label-md text-label-md text-on-primary bg-secondary rounded px-2 py-0.5 shrink-0">
+      <span className="font-label-md text-label-md font-bold text-white bg-[#667D28] rounded-full px-2.5 py-1 shrink-0">
         {fixture.user_points} pts
       </span>
     </div>
   )
 }
 
-function MatchCard({ fixture, now }) {
+/**
+ * flat = true renders without its own card chrome (border/rounded/shadow) --
+ * used inside Section's `grouped` container, which draws one shared border
+ * around a divide-y stack of rows instead of each match getting its own
+ * card. Matches the Stitch "Matches" mockup's Completed section, which is
+ * one bordered container of rows, not a stack of separate cards.
+ */
+function MatchCard({ fixture, now, flat = false }) {
   const remaining = countdown(fixture.kickoff_time, now)
   const inContests = fixture.user_contest_count > 0
 
@@ -100,7 +92,11 @@ function MatchCard({ fixture, now }) {
   // the obvious place to press -- did nothing at all.
   return (
     <Link
-      className="block bg-surface-container-lowest rounded-xl p-md border border-outline-variant shadow-sm hover:shadow-md transition-shadow"
+      className={
+        flat
+          ? 'block p-4 hover:bg-[#F7F7F2] transition-colors'
+          : `relative block overflow-hidden bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow ${inContests ? 'border-l-4 border-l-[#78952D]' : ''}`
+      }
       data-testid="match-card"
       to={`/matches/${fixture.fixture_id}`}
     >
@@ -110,7 +106,7 @@ function MatchCard({ fixture, now }) {
         </span>
         <span className="flex items-center gap-2 shrink-0">
           {fixture.contest_count > 0 && (
-            <span className="bg-primary text-on-primary text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap">
+            <span className="bg-[#78952D] text-white text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap">
               {inContests
                 ? `In ${fixture.user_contest_count} contest${fixture.user_contest_count === 1 ? '' : 's'}`
                 : `${fixture.contest_count} contest${fixture.contest_count === 1 ? '' : 's'}`}
@@ -129,7 +125,7 @@ function MatchCard({ fixture, now }) {
             </span>
           )}
           {remaining && (
-            <span className="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">
+            <span className="rounded-full bg-[#F0F0EA] px-2 py-1 font-label-md text-label-md tabular-nums text-on-surface-variant whitespace-nowrap">
               {remaining}
             </span>
           )}
@@ -142,19 +138,19 @@ function MatchCard({ fixture, now }) {
       {/* Affordances only -- the card itself navigates. Completed matches get
           one too, so a finished contest is still reachable from here. */}
       {inContests ? (
-        <span className="mt-sm flex items-center justify-center gap-2 text-secondary font-label-md text-label-md py-1">
-          View contests
-          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+        <span className="mt-sm flex items-center justify-center gap-2 text-[#667D28] font-label-md text-label-md font-bold py-1">
+          View Leagues
+          <DashboardIcon name="chevronRight" size={16} />
         </span>
       ) : fixture.status === 'completed' ? (
-        <span className="mt-sm flex items-center justify-center gap-2 text-on-surface-variant font-label-md text-label-md py-1">
+        <span className="mt-sm flex items-center justify-center gap-2 text-[#667D28] font-label-md text-label-md font-bold py-1">
           View match
-          <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+          <DashboardIcon name="chevronRight" size={16} />
         </span>
       ) : (
-        <span className="mt-sm flex items-center justify-center gap-2 bg-surface-container-high text-on-surface rounded-lg py-2 font-label-md text-label-md">
-          <span className="material-symbols-outlined text-[18px]">add_circle</span>
-          Create or Join Contest
+        <span className="mt-3 flex items-center justify-center gap-2 bg-[#EDF2DF] text-[#4D631B] rounded-xl py-2.5 font-label-md text-label-md font-bold">
+          <DashboardIcon name="add" size={17} strokeWidth={2.2} />
+          Create Team
         </span>
       )}
     </Link>
@@ -173,34 +169,53 @@ function MatchCard({ fixture, now }) {
  */
 const SECTION_LIMIT = 6
 
-function Section({ title, dot, fixtures, now, limit = SECTION_LIMIT }) {
+function Section({ title, dot, fixtures, now, limit = SECTION_LIMIT, grouped = false }) {
   const [expanded, setExpanded] = useState(false)
   if (fixtures.length === 0) return null
 
   const shown = expanded ? fixtures : fixtures.slice(0, limit)
   const hidden = fixtures.length - shown.length
 
+  const cards = shown.map((f) => <MatchCard flat={grouped} fixture={f} key={f.fixture_id} now={now} />)
+
   return (
-    <section aria-label={title} className="flex flex-col gap-sm">
-      <h2 className="font-headline-sm text-headline-sm text-primary flex items-center gap-2">
+    <section aria-label={title} className="flex flex-col gap-3">
+      <h2 className="font-headline-sm text-[17px] font-bold text-on-surface flex items-center gap-2">
         {title}
         {dot && <span className="w-2 h-2 rounded-full bg-error animate-pulse" />}
-        <span className="font-label-md text-label-md text-on-surface-variant font-normal">
+        <span className="rounded-full bg-[#F0F0EA] px-2 py-0.5 font-label-md text-[10px] text-on-surface-variant font-bold">
           {fixtures.length}
         </span>
       </h2>
-      {shown.map((f) => (
-        <MatchCard fixture={f} key={f.fixture_id} now={now} />
-      ))}
-      {hidden > 0 && (
-        <button
-          className="text-secondary font-label-md text-label-md py-2"
-          data-testid="section-show-more"
-          onClick={() => setExpanded(true)}
-          type="button"
-        >
-          Show {hidden} more
-        </button>
+      {grouped ? (
+        <div className="bg-white rounded-[20px] border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] divide-y divide-[#E5E6E1] overflow-hidden">
+          {cards}
+          {hidden > 0 && (
+            <button
+              className="w-full p-md text-center text-primary-container font-label-md text-label-md hover:bg-surface-container-high transition-colors"
+              data-testid="section-show-more"
+              onClick={() => setExpanded(true)}
+              type="button"
+            >
+              View all {fixtures.length} completed matches
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {cards}
+          {hidden > 0 && (
+            <button
+              className="self-center rounded-full bg-white border border-[#E5E6E1] px-5 py-2 text-on-surface font-label-md text-label-md font-semibold shadow-sm"
+              data-testid="section-show-more"
+              onClick={() => setExpanded(true)}
+              type="button"
+            >
+              Show {hidden} more matches
+              <DashboardIcon className="inline-block ml-1 align-[-3px]" name="expandDown" size={15} />
+            </button>
+          )}
+        </>
       )}
     </section>
   )
@@ -216,7 +231,7 @@ function Section({ title, dot, fixtures, now, limit = SECTION_LIMIT }) {
  */
 function MatchesPage() {
   const { settings } = useOutletContext()
-  const { user_id, season } = settings
+  const { user_id, season, gameweek } = settings
 
   const [fixtures, setFixtures] = useState([])
   const [loading, setLoading] = useState(true)
@@ -250,7 +265,7 @@ function MatchesPage() {
     return () => clearInterval(id)
   }, [])
 
-  const grouped = useMemo(() => {
+  const byStatus = useMemo(() => {
     const live = fixtures.filter((f) => f.status === 'live')
     const upcoming = fixtures.filter((f) => f.status === 'upcoming')
     // Newest first: the match that just ended is the one you want to see.
@@ -263,11 +278,16 @@ function MatchesPage() {
 
   return (
     <>
-      <FplHeader title="Matches" />
-      <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
-        <p className="font-body-md text-body-md text-on-surface-variant">
-          {season} · pick a match to create or join a contest.
-        </p>
+      <FplHeader showHelp title="Matches" />
+      <main className="w-full px-4 py-3 pb-28 flex flex-col gap-4 bg-[#FBF9F5] min-h-screen font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-body-md text-body-md text-on-surface-variant">
+            {season} · Pick a match to create or join a contest.
+          </p>
+          <span className="shrink-0 rounded-full bg-[#8DAA3C]/15 px-2.5 py-1 font-label-md text-xs font-bold text-[#4D631B]">
+            GW {gameweek}
+          </span>
+        </div>
 
       {error && (
         <div className="bg-error-container text-on-error-container rounded-lg p-sm" role="alert">
@@ -283,9 +303,9 @@ function MatchesPage() {
         </p>
       ) : (
         <>
-          <Section dot fixtures={grouped.live} limit={Infinity} now={now} title="Live Now" />
-          <Section fixtures={grouped.upcoming} now={now} title="Upcoming" />
-          <Section fixtures={grouped.completed} now={now} title="Completed" />
+          <Section dot fixtures={byStatus.live} limit={Infinity} now={now} title="Live Now" />
+          <Section fixtures={byStatus.upcoming} now={now} title="Upcoming" />
+          <Section grouped fixtures={byStatus.completed} now={now} title="Completed" />
         </>
       )}
       </main>

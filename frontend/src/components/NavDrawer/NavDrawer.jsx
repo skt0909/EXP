@@ -1,30 +1,51 @@
-import { NavLink } from 'react-router-dom'
-import { FPL_ITEMS, CONTESTS_ITEMS } from '../BottomNav/BottomNav'
-import { useSquadStatus } from '../../hooks/useSquadStatus'
-import { MODE_CONTESTS, useAppMode } from '../../config/appMode'
+import { useNavigate } from 'react-router-dom'
+import { MODE_CONTESTS, MODE_FPL, MODE_HOME, useAppMode } from '../../config/appMode'
+
+// The FPL | Contests segmented toggle that used to sit under every FplHeader
+// is gone -- this "Game Modes" section, at the top of the drawer, is now the
+// only way to switch. Renamed for the tactical rulebook: FPL mode -> Tactic
+// Mode (the full lineup/formation game this whole codebase implements),
+// Contests mode -> Quick 11 Mode (Dream11's one-match pick, still called
+// MODE_CONTESTS internally since only the display name changed).
+const MODE_CARDS = [
+  {
+    mode: MODE_FPL,
+    label: 'Tactic Mode',
+    description: 'Full tactical line-up and formation builder with AI insights',
+    icon: 'tune',
+    badge: 'Full Game',
+  },
+  {
+    mode: MODE_CONTESTS,
+    label: 'Quick 11 Mode',
+    description: 'Rapid single-match draft & contest picks in under 60s',
+    icon: 'bolt',
+    badge: 'Fast Pick',
+  },
+]
 
 /**
  * The slide-out drawer opened by FplHeader's hamburger button.
  *
- * Lists the SAME destinations as BottomNav, imported from there rather than
- * redefined here -- there was no menu/drawer anywhere in the app before this,
- * so rather than invent a second set of destinations, this is just a second
- * way to reach the ones that already exist in the tab bar. Reads useAppMode()
- * itself (same as BottomNav) so it always shows the right list even though
- * today only FPL-mode pages mount a hamburger at all.
- *
- * The Starting XI "needs a squad first" lock is replicated from BottomNav's
- * own rendering rather than shared as a component: the two lists render as a
- * horizontal pill bar and a vertical sheet respectively, different enough
- * that forcing one shared row-renderer would fight both layouts more than it
- * would save.
+ * Only the "Game Modes" switcher lives here now -- Home, Starting XI,
+ * Transfers, Leagues and Chats were removed on request since they duplicate
+ * BottomNav exactly and this drawer's one remaining job is switching
+ * between Tactic Mode and Quick 11 Mode. If per-mode destination links are
+ * wanted back here later, BottomNav.jsx still exports FPL_ITEMS/
+ * CONTESTS_ITEMS for that.
  */
 function NavDrawer({ open, onClose }) {
-  const { hasSquad, loading } = useSquadStatus()
-  const { mode } = useAppMode()
-  const items = mode === MODE_CONTESTS ? CONTESTS_ITEMS : FPL_ITEMS
+  const { mode, setMode } = useAppMode()
+  const navigate = useNavigate()
 
   if (!open) return null
+
+  function selectMode(next) {
+    onClose()
+    if (next === mode) return
+    setMode(next)
+    navigate(MODE_HOME[next])
+  }
 
   return (
     <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Navigation menu">
@@ -47,40 +68,46 @@ function NavDrawer({ open, onClose }) {
           </button>
         </div>
 
-        <div className="flex flex-col gap-1 p-sm overflow-y-auto">
-          {items.map((item) => {
-            const locked = item.needsSquad && (loading || !hasSquad)
-
-            if (locked) {
-              return (
-                <div
-                  aria-disabled="true"
-                  className="flex items-center gap-sm px-sm py-sm rounded-lg text-outline-variant cursor-not-allowed"
-                  key={item.key}
-                  title="Submit your 15-player squad first"
-                >
-                  <span className="material-symbols-outlined text-[20px]">lock</span>
-                  <span className="font-body-md text-body-md">{item.label}</span>
-                </div>
-              )
-            }
-
+        <div className="flex flex-col gap-sm p-sm">
+          <span className="font-label-md text-[11px] font-bold uppercase tracking-wider text-on-surface-variant px-1">
+            Game Modes
+          </span>
+          {MODE_CARDS.map((card) => {
+            const active = card.mode === mode
             return (
-              <NavLink
-                className={({ isActive }) =>
-                  `flex items-center gap-sm px-sm py-sm rounded-lg transition-colors ${
-                    isActive
-                      ? 'bg-secondary-container text-on-secondary-container font-bold'
-                      : 'text-on-surface-variant hover:bg-surface-container-high'
-                  }`
-                }
-                key={item.key}
-                onClick={onClose}
-                to={item.to}
+              <button
+                aria-pressed={active}
+                className={`p-sm rounded-xl border flex items-start gap-sm text-left transition-colors ${
+                  active
+                    ? 'bg-surface-container-low border-secondary/30'
+                    : 'border-transparent hover:bg-surface-container-low hover:border-outline-variant'
+                }`}
+                data-testid={`mode-${card.mode}`}
+                key={card.mode}
+                onClick={() => selectMode(card.mode)}
+                type="button"
               >
-                <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-                <span className="font-body-md text-body-md">{item.label}</span>
-              </NavLink>
+                <span className={`material-symbols-outlined text-[22px] mt-0.5 ${active ? 'text-secondary' : 'text-on-surface-variant'}`}>
+                  {card.icon}
+                </span>
+                <span className="flex flex-col flex-1 min-w-0">
+                  <span className="flex items-center justify-between gap-sm">
+                    <span className="font-body-md text-body-md font-bold text-on-surface">{card.label}</span>
+                    <span
+                      className={`text-[9px] uppercase tracking-wide font-extrabold px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                        active
+                          ? 'bg-secondary-container text-on-secondary-container'
+                          : 'bg-surface-container-highest text-on-surface-variant'
+                      }`}
+                    >
+                      {active ? 'Active' : card.badge}
+                    </span>
+                  </span>
+                  <span className="text-[11px] text-on-surface-variant leading-tight mt-0.5">
+                    {card.description}
+                  </span>
+                </span>
+              </button>
             )
           })}
         </div>

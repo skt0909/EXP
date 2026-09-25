@@ -130,39 +130,20 @@ off): contest_id=%' -- matching on "Contest is locked" is inherently
 fragile if that message is ever reworded, same caveat as
 starting_xi.py's LOCK_ERROR_SUBSTRING.
 
-Automatic scoring scheduling (create_contest): two one-off Celery
-tasks (poll_and_score_dream11, defined in Worker/tasks.py) are
-scheduled via .apply_async(eta=...) relative to the fixture's
-kickoff_time. The import of that task is done LOCALLY inside
-create_contest, not at module level -- no existing Game_logic module
-imports anything from Worker (confirmed by reading all of them before
-writing this file; the dependency direction has only ever gone
-Worker -> Game_logic), and a module-level import here would mean every
-FastAPI boot (main.py mounting this router) transitively drags in
-Celery, the Redis broker config, and the whole ML pipeline
-(feature_builder/predictor/tier_builder) just to mount an HTTP router
-that only ever calls .apply_async(). Scheduling itself is best-effort:
-wrapped in its own try/except so a broker being unreachable (e.g. in
-tests, where Redis isn't running) never fails contest creation, which
-has already committed to the DB by that point.
-
-That scheduling now runs as a FastAPI BackgroundTask
-(_schedule_scoring_polls), i.e. after the response is sent, rather than
-inline. Measured against a live uvicorn with Redis stopped: inline, the
-POST hung ~100s and then poisoned the Celery app instance for the whole
-process; with Worker/celery_app.py's bounded retry policy that dropped
-to ~16s, still far too slow to make a user wait for work whose outcome
-they never see. Off the request path it is 0s to the client, and the
-retry policy just bounds how long the background thread spends failing.
+Scoring needs nothing from contest creation. Worker/tasks.py's
+poll_due_fixtures polls every fixture at its checkpoints and rescores the
+contests on it, so a contest created at any time -- including while Redis
+is down -- is scored. It used to book two Celery ETAs here, which a broker
+outage or a Redis restart silently lost.
 """
 
 import logging
 import random
 import string
 from collections import Counter
-from datetime import datetime, timedelta
+from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -219,6 +200,22 @@ POOL_QUERY = text(
     SELECT id AS internal_id, fpl_id, position, team_id
     FROM ml.players
     WHERE season = :season AND (team_id = :home_team_id OR team_id = :away_team_id)
+    """
+)
+
+# get_fixture_pool only -- the same pool as POOL_QUERY, plus the display
+# columns CONTEST_POOL_QUERY reads off a frozen dream11.player_prices row
+# (club, status, is_home_team). There is no player_prices row yet here --
+# that's the whole point of this endpoint -- so those columns come straight
+# off ml.players/ml.teams instead.
+FIXTURE_POOL_DISPLAY_QUERY = text(
+    """
+    SELECT p.id AS internal_id, p.fpl_id, p.web_name, p.position, p.status,
+           t.short_name AS club,
+           (p.team_id = :home_team_id) AS is_home_team
+    FROM ml.players p
+    JOIN ml.teams t ON t.id = p.team_id
+    WHERE p.season = :season AND (p.team_id = :home_team_id OR p.team_id = :away_team_id)
     """
 )
 
@@ -286,8 +283,10 @@ CONTEST_SEASON_QUERY = text(
     "SELECT c.id AS contest_id, f.season FROM dream11.contests c JOIN ml.fixtures f ON f.id = c.fixture_id WHERE c.id = :contest_id"
 )
 
+# has_kicked_off is judged by the DB clock, like the lock trigger itself.
 CONTEST_SEASON_AND_GW_QUERY = text(
-    "SELECT c.id AS contest_id, c.is_locked, c.finalized_at, c.fixture_id, f.season, f.gameweek "
+    "SELECT c.id AS contest_id, c.is_locked, c.finalized_at, c.fixture_id, f.season, f.gameweek, "
+    "       COALESCE(f.kickoff_time <= now(), FALSE) AS has_kicked_off "
     "FROM dream11.contests c JOIN ml.fixtures f ON f.id = c.fixture_id WHERE c.id = :contest_id"
 )
 
@@ -296,7 +295,7 @@ CONTEST_SEASON_AND_GW_QUERY = text(
 # silently reading as "not found in ml.players".
 PLAYERS_LOOKUP_QUERY = text(
     """
-    SELECT p.fpl_id, p.id AS internal_id, p.position, p.team_id, t.short_name AS club
+    SELECT p.fpl_id, p.id AS internal_id, p.web_name, p.position, p.team_id, t.short_name AS club
     FROM ml.players p
     LEFT JOIN ml.teams t ON t.id = p.team_id
     WHERE p.season = :season AND p.fpl_id = ANY(:player_ids)
@@ -307,7 +306,19 @@ CONTEST_PRICES_QUERY = text(
     "SELECT player_id AS internal_id, credit_price FROM dream11.player_prices WHERE contest_id = :contest_id"
 )
 
-INSERT_TEAM_STMT = text("INSERT INTO dream11.teams (contest_id, user_id) VALUES (:contest_id, :user_id) RETURNING id")
+INSERT_TEAM_STMT = text(
+    "INSERT INTO dream11.teams (contest_id, user_id, entry_name) "
+    "VALUES (:contest_id, :user_id, :entry_name) RETURNING id"
+)
+
+# edit_team only -- entry_name is the one field on an already-submitted
+# team's own row this endpoint is allowed to touch (id/submitted_at stay
+# exactly as they were, see edit_team's docstring). :entry_name is left
+# unchanged (not cleared to NULL) when the request doesn't send a new one,
+# which is why this is a COALESCE, not a plain assignment.
+UPDATE_TEAM_ENTRY_NAME_STMT = text(
+    "UPDATE dream11.teams SET entry_name = COALESCE(:entry_name, entry_name) WHERE id = :team_id"
+)
 
 INSERT_TEAM_PLAYER_STMT = text(
     """
@@ -329,6 +340,49 @@ EXISTING_TEAM_QUERY = text(
 # in Python before ever reaching this statement.
 DELETE_TEAM_PLAYERS_STMT = text("DELETE FROM dream11.team_players WHERE team_id = :team_id")
 
+# delete_contest only -- created_by decides WHO may delete, is_locked decides
+# WHETHER. Deliberately not the full _CONTEST_SUMMARY_SELECT projection
+# below (that carries the caller's own membership fields, irrelevant here).
+CONTEST_OWNER_LOCK_QUERY = text(
+    "SELECT created_by, is_locked FROM dream11.contests WHERE id = :contest_id"
+)
+
+DELETE_CONTEST_STMT = text("DELETE FROM dream11.contests WHERE id = :contest_id")
+
+INSERT_SAVED_TEAM_STMT = text(
+    "INSERT INTO dream11.saved_teams (user_id, fixture_id, name) "
+    "VALUES (:user_id, :fixture_id, :name) RETURNING id, created_at"
+)
+
+INSERT_SAVED_TEAM_PLAYER_STMT = text(
+    """
+    INSERT INTO dream11.saved_team_players (saved_team_id, player_id, is_captain, is_vice_captain)
+    VALUES (:saved_team_id, :player_id, :is_captain, :is_vice_captain)
+    """
+)
+
+# One row per (saved_team, player) -- get_saved_teams groups these back into
+# SavedTeamResponse.players in Python, same shape USER_TEAM_QUERY's rows get
+# grouped into UserTeamResponse.players.
+SAVED_TEAMS_QUERY = text(
+    """
+    SELECT st.id AS saved_team_id, st.name AS team_name, st.created_at,
+           p.fpl_id AS player_id, p.web_name AS player_name, p.position, t.short_name AS club,
+           stp.is_captain, stp.is_vice_captain
+    FROM dream11.saved_teams st
+    JOIN dream11.saved_team_players stp ON stp.saved_team_id = st.id
+    JOIN ml.players p ON p.id = stp.player_id
+    JOIN ml.teams t ON t.id = p.team_id
+    WHERE st.user_id = :user_id AND st.fixture_id = :fixture_id
+    ORDER BY st.created_at DESC, st.id,
+             CASE p.position WHEN 'GK' THEN 0 WHEN 'DEF' THEN 1 WHEN 'MID' THEN 2 ELSE 3 END
+    """
+)
+
+SAVED_TEAM_OWNER_QUERY = text("SELECT user_id FROM dream11.saved_teams WHERE id = :saved_team_id")
+
+DELETE_SAVED_TEAM_STMT = text("DELETE FROM dream11.saved_teams WHERE id = :saved_team_id")
+
 # ------------------------------------------------------------------ read queries
 #
 # The shared contest-summary projection. :user_id is always the CALLER
@@ -340,7 +394,7 @@ DELETE_TEAM_PLAYERS_STMT = text("DELETE FROM dream11.team_players WHERE team_id 
 # who did not identify themselves.
 _CONTEST_SUMMARY_SELECT = """
     SELECT c.id AS contest_id, c.code, c.name, c.max_members, c.is_locked,
-           c.created_by, c.created_at, c.finalized_at,
+           c.created_by, c.created_at, c.finalized_at, c.void_reason,
            f.id AS fixture_id, f.season, f.gameweek, f.kickoff_time, f.finished,
            h.short_name AS home_team, a.short_name AS away_team,
            (SELECT COUNT(*) FROM dream11.contest_members m WHERE m.contest_id = c.id) AS member_count,
@@ -412,12 +466,12 @@ CONTEST_POOL_QUERY = text(
 # so unranked members sort last rather than first. FALSE < TRUE in Postgres.
 CONTEST_LEADERBOARD_QUERY = text(
     """
-    SELECT cm.user_id, u.username, u.team_name, cm.total_points, cm.rank, cm.joined_at,
-           EXISTS (
-               SELECT 1 FROM dream11.teams t WHERE t.contest_id = cm.contest_id AND t.user_id = cm.user_id
-           ) AS has_submitted_team
+    SELECT cm.user_id, u.username, COALESCE(t.entry_name, u.team_name) AS team_name,
+           cm.total_points, cm.rank, cm.joined_at,
+           t.id IS NOT NULL AS has_submitted_team
     FROM dream11.contest_members cm
     JOIN public.users u ON u.id = cm.user_id
+    LEFT JOIN dream11.teams t ON t.contest_id = cm.contest_id AND t.user_id = cm.user_id
     WHERE cm.contest_id = :contest_id
     ORDER BY (cm.rank = 0), cm.rank ASC, cm.total_points DESC, cm.joined_at ASC
     """
@@ -505,39 +559,6 @@ def _generate_code() -> str:
     return "".join(random.choices(string.ascii_uppercase + string.digits, k=CODE_LENGTH))
 
 
-def _schedule_scoring_polls(contest_id: int, fixture_id: int, kickoff_time) -> None:
-    """Queue this contest's two scoring checkpoints. Runs as a FastAPI
-    BackgroundTask -- i.e. AFTER the response has been sent -- because a
-    broker outage makes .apply_async() take many seconds even with the
-    bounded retry policy Worker/celery_app.py sets, and the caller is an
-    HTTP request that has already committed the contest to the database.
-    Nothing here can affect what the client received, so every failure is
-    logged and swallowed rather than raised."""
-    try:
-        from Worker.tasks import poll_and_score_dream11  # local import -- see module docstring
-
-        if kickoff_time is None:
-            logger.warning(
-                "create_contest: contest_id=%s fixture_id=%s has no kickoff_time yet -- skipping automatic poll scheduling",
-                contest_id, fixture_id,
-            )
-            return
-
-        poll_and_score_dream11.apply_async(
-            args=[fixture_id, contest_id, "halftime"], eta=kickoff_time + timedelta(minutes=50)
-        )
-        poll_and_score_dream11.apply_async(
-            args=[fixture_id, contest_id, "fulltime"], eta=kickoff_time + timedelta(minutes=115)
-        )
-    except Exception as e:
-        # Best-effort: scheduling failure (e.g. broker unreachable) must
-        # never undo an already-committed contest creation.
-        logger.error(
-            "create_contest: failed to schedule automatic polling for contest_id=%s: %s: %s",
-            contest_id, type(e).__name__, e,
-        )
-
-
 def _compute_prices(pool_internal_ids: list[int], rolling_values: dict[int, float | None]) -> dict[int, float]:
     have_data = {pid: v for pid, v in rolling_values.items() if v is not None}
 
@@ -603,6 +624,9 @@ class SubmitTeamRequest(BaseModel):
     player_ids: list[int]  # exactly 11 raw FPL ids
     captain_id: int
     vice_captain_id: int
+    # Optional -- None leaves the leaderboard showing the account's own
+    # team_name, exactly as it always has (see a3d7f92c1e60's docstring).
+    team_name: str | None = None
 
 
 class TeamPlayerOut(BaseModel):
@@ -635,6 +659,10 @@ class ContestSummaryResponse(BaseModel):
     # months ago. is_finalized is the settled state -- the result is frozen
     # and will not change again.
     is_finalized: bool = False
+    # Set when the contest was closed with NO result because its match was
+    # postponed or abandoned ('postponed' / 'abandoned'; see
+    # dream11_scoring.void_unplayable_contests). is_finalized is TRUE too.
+    void_reason: str | None = None
     created_by: int
     created_at: datetime | None = None
     fixture_id: int
@@ -776,6 +804,34 @@ class UserTeamResponse(BaseModel):
     contest_rank: int
 
 
+class SaveTeamRequest(BaseModel):
+    """Same {player_ids, captain_id, vice_captain_id} shape SubmitTeamRequest
+    uses -- duck-type compatible with _validate_team, which only ever reads
+    those three fields off whatever request object it's given."""
+    fixture_id: int
+    name: str
+    player_ids: list[int]
+    captain_id: int
+    vice_captain_id: int
+
+
+class SavedTeamPlayerResponse(BaseModel):
+    player_id: int
+    name: str
+    position: str
+    club: str
+    is_captain: bool
+    is_vice_captain: bool
+
+
+class SavedTeamResponse(BaseModel):
+    saved_team_id: int
+    fixture_id: int
+    name: str
+    created_at: datetime
+    players: list[SavedTeamPlayerResponse]
+
+
 def _contest_summary(row) -> ContestSummaryResponse:
     return ContestSummaryResponse(
         contest_id=row.contest_id,
@@ -786,6 +842,7 @@ def _contest_summary(row) -> ContestSummaryResponse:
         is_locked=row.is_locked,
         created_by=row.created_by,
         is_finalized=row.finalized_at is not None,
+        void_reason=row.void_reason,
         created_at=row.created_at,
         fixture_id=row.fixture_id,
         season=row.season,
@@ -953,6 +1010,66 @@ def get_fixture_contests(
             FIXTURE_CONTESTS_QUERY, {"fixture_id": fixture_id, "user_id": user_id}
         ).all()
     return [_contest_summary(row) for row in rows]
+
+
+@router.get("/dream11/fixtures/{fixture_id}/players", response_model=list[PoolPlayerResponse])
+def get_fixture_pool(fixture_id: int) -> list[PoolPlayerResponse]:
+    """A live-priced player pool for one fixture, with NO contest required --
+    lets a team be built and saved (POST /dream11/saved-teams) before any
+    contest exists at all, e.g. from the Match screen's "Build & Save a
+    Team" action.
+
+    Prices are computed live, the exact same way create_contest freezes
+    them a moment later (POOL_QUERY's pool -> PRICE_INPUT_QUERY's rolling
+    averages -> _compute_prices), so what you see while building here
+    matches what a contest created right now would actually charge. But
+    NOTHING is persisted by this endpoint -- no dream11.player_prices row
+    is written -- so a contest created minutes or days later still prices
+    itself fresh at that moment; the rolling averages this read against can
+    have moved on by then, same as any other live preview.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        fixture_row = conn.execute(FIXTURE_QUERY, {"fixture_id": fixture_id}).first()
+        if fixture_row is None:
+            raise HTTPException(status_code=404, detail="fixture not found")
+
+        rows = conn.execute(
+            FIXTURE_POOL_DISPLAY_QUERY,
+            {
+                "season": fixture_row.season,
+                "home_team_id": fixture_row.home_team_id,
+                "away_team_id": fixture_row.away_team_id,
+            },
+        ).all()
+        if not rows:
+            return []
+
+        internal_ids = [row.internal_id for row in rows]
+        rolling_rows = conn.execute(
+            PRICE_INPUT_QUERY,
+            {"player_ids": internal_ids, "season": fixture_row.season, "gameweek": fixture_row.gameweek},
+        ).all()
+
+    rolling_values = {r.player_id: (float(r.pts_rolling_5gw) if r.pts_rolling_5gw is not None else None) for r in rolling_rows}
+    prices = _compute_prices(internal_ids, {iid: rolling_values.get(iid) for iid in internal_ids})
+
+    pool = [
+        PoolPlayerResponse(
+            player_id=row.fpl_id,
+            name=row.web_name,
+            position=row.position,
+            club=row.club,
+            is_home_team=row.is_home_team,
+            credit_price=prices[row.internal_id],
+            status=row.status,
+            rolling_points=(
+                round(rolling_values[row.internal_id], 1) if rolling_values.get(row.internal_id) is not None else None
+            ),
+        )
+        for row in rows
+    ]
+    return sorted(pool, key=lambda p: (-p.credit_price, p.name))
 
 
 @router.get("/dream11/contests/{contest_id}", response_model=ContestSummaryResponse)
@@ -1221,7 +1338,6 @@ def _build_user_team_response(conn, contest_row, contest_id: int, user_id: int) 
 @router.post("/dream11/contests", response_model=CreateContestResponse)
 def create_contest(
     req: CreateContestRequest,
-    background_tasks: BackgroundTasks,
     current_user: CurrentUser = Depends(get_current_user),
 ) -> CreateContestResponse:
     user_id = current_user.id
@@ -1298,8 +1414,6 @@ def create_contest(
         logger.error("create_contest: exhausted %d code-generation attempts", MAX_CODE_ATTEMPTS)
         raise HTTPException(status_code=500, detail="Could not generate a unique contest code, please try again")
 
-    background_tasks.add_task(_schedule_scoring_polls, contest_id, req.fixture_id, fixture_row.kickoff_time)
-
     return CreateContestResponse(
         contest_id=contest_id,
         code=code,
@@ -1374,7 +1488,10 @@ def submit_team(
 
     try:
         with engine.begin() as conn:
-            team_id = conn.execute(INSERT_TEAM_STMT, {"contest_id": contest_id, "user_id": user_id}).scalar()
+            team_id = conn.execute(
+                INSERT_TEAM_STMT,
+                {"contest_id": contest_id, "user_id": user_id, "entry_name": req.team_name},
+            ).scalar()
             conn.execute(
                 INSERT_TEAM_PLAYER_STMT,
                 [
@@ -1438,16 +1555,14 @@ def edit_team(
     team -> 404, not "create it for me": creation stays on POST, one verb
     per purpose, same split the rest of this router already uses.
 
-    THE is_locked CHECK BELOW IS NOT BELT-AND-BRACES, IT IS THE ONLY GATE.
-    submit_team's lock protection comes entirely from
-    dream11.enforce_contest_lock_fn, a trigger that fires BEFORE INSERT ON
-    dream11.teams. This endpoint never inserts into dream11.teams -- the
-    team row already exists from the original submission and is left
-    untouched (same id, same submitted_at) -- it only replaces
-    dream11.team_players rows, which that trigger has never covered.
-    Skipping this check would silently let a locked contest's picks be
-    changed after kickoff, exactly what the trigger exists to prevent for
-    creation.
+    LOCKED AT KICKOFF, not only once is_locked is set. The lock sweep sets
+    is_locked every 5 minutes, so checking that flag alone left up to 5
+    minutes after kickoff in which picks could still change. The check
+    below is the polite early answer; the guarantee is
+    dream11.enforce_contest_lock_fn, which since migration e6a4b9d2c815
+    also fires on dream11.team_players and refuses once the fixture has
+    kicked off -- so a request that passes this check just before kickoff
+    and writes just after is still refused, and its delete rolls back.
     """
     user_id = current_user.id
     engine = get_engine()
@@ -1457,7 +1572,7 @@ def edit_team(
         if contest_row is None:
             raise HTTPException(status_code=422, detail=[f"contest_id {contest_id} does not exist"])
 
-        if contest_row.is_locked:
+        if contest_row.is_locked or contest_row.has_kicked_off:
             raise HTTPException(
                 status_code=422, detail=["Contest is locked, team can no longer be edited"]
             )
@@ -1489,13 +1604,106 @@ def edit_team(
         raise HTTPException(status_code=422, detail=errors)
 
     team_id = existing_team.team_id
+    try:
+        with engine.begin() as conn:
+            conn.execute(DELETE_TEAM_PLAYERS_STMT, {"team_id": team_id})
+            conn.execute(
+                INSERT_TEAM_PLAYER_STMT,
+                [
+                    {
+                        "team_id": team_id,
+                        "player_id": p["internal_id"],
+                        "is_captain": p["fpl_id"] == req.captain_id,
+                        "is_vice_captain": p["fpl_id"] == req.vice_captain_id,
+                    }
+                    for p in resolved_players
+                ],
+            )
+            # COALESCE-based (see UPDATE_TEAM_ENTRY_NAME_STMT) -- an edit that
+            # doesn't send a new name leaves whatever name was already there.
+            conn.execute(UPDATE_TEAM_ENTRY_NAME_STMT, {"team_id": team_id, "entry_name": req.team_name})
+    except SQLAlchemyError as e:
+        if _is_lock_violation(e):  # kicked off between the check above and this write
+            raise HTTPException(
+                status_code=422, detail=["Contest is locked, team can no longer be edited"]
+            ) from e
+        logger.error("Database write failed: %s: %s", type(e).__name__, e)
+        raise HTTPException(status_code=500, detail="Internal server error") from e
+
+    with engine.connect() as conn:
+        return _build_user_team_response(conn, contest_row, contest_id, user_id)
+
+
+# ------------------------------------------------------------------ saved teams
+#
+# A reusable lineup, scoped to a fixture rather than any one contest -- see
+# Migrations/versions/f9a3c7e18d62's docstring for why: Game_logic/dream11.py's
+# whole player pool is drawn from a fixture's two clubs, so a saved team is
+# meaningful for any contest on that fixture and meaningless for any other.
+# Never scored, never locked, never finalized -- pure input to the picker UI.
+
+@router.post("/dream11/saved-teams", response_model=SavedTeamResponse)
+def save_team(
+    req: SaveTeamRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> SavedTeamResponse:
+    """Validates the lineup with the exact same _validate_team rules
+    submit_team uses -- INCLUDING the budget cap, against the same live-
+    computed prices GET /dream11/fixtures/{fixture_id}/players shows the
+    picker (POOL_QUERY -> PRICE_INPUT_QUERY -> _compute_prices, no
+    dream11.player_prices row exists yet to read frozen ones from). A
+    manager cannot save a lineup that is over budget right now, even though
+    a contest created later prices itself fresh at that moment and could
+    price the same 11 slightly differently -- see get_fixture_pool's own
+    docstring for why that gap can exist and is accepted (rolling averages
+    move). is_member is hardcoded True since "must join this contest
+    first" doesn't apply to a saved team at all.
+    """
+    user_id = current_user.id
+    engine = get_engine()
+
+    with engine.connect() as conn:
+        fixture_row = conn.execute(FIXTURE_QUERY, {"fixture_id": req.fixture_id}).first()
+        if fixture_row is None:
+            raise HTTPException(status_code=422, detail=[f"fixture_id {req.fixture_id} does not exist"])
+
+        unique_ids = list(dict.fromkeys(req.player_ids))
+        players_by_fpl_id = {
+            row.fpl_id: row
+            for row in conn.execute(PLAYERS_LOOKUP_QUERY, {"season": fixture_row.season, "player_ids": unique_ids})
+        }
+        pool_rows = conn.execute(
+            POOL_QUERY,
+            {
+                "season": fixture_row.season,
+                "home_team_id": fixture_row.home_team_id,
+                "away_team_id": fixture_row.away_team_id,
+            },
+        ).all()
+        pool_internal_ids = [row.internal_id for row in pool_rows]
+        rolling_rows = conn.execute(
+            PRICE_INPUT_QUERY,
+            {"player_ids": pool_internal_ids, "season": fixture_row.season, "gameweek": fixture_row.gameweek},
+        ).all()
+
+    rolling_values = {r.player_id: (float(r.pts_rolling_5gw) if r.pts_rolling_5gw is not None else None) for r in rolling_rows}
+    pool_prices = _compute_prices(pool_internal_ids, {iid: rolling_values.get(iid) for iid in pool_internal_ids})
+
+    resolved_players, errors = _validate_team(req, True, players_by_fpl_id, pool_prices)
+    if not req.name.strip():
+        errors.append("name must not be blank")
+    if errors:
+        raise HTTPException(status_code=422, detail=errors)
+
     with engine.begin() as conn:
-        conn.execute(DELETE_TEAM_PLAYERS_STMT, {"team_id": team_id})
+        saved = conn.execute(
+            INSERT_SAVED_TEAM_STMT, {"user_id": user_id, "fixture_id": req.fixture_id, "name": req.name.strip()}
+        ).first()
         conn.execute(
-            INSERT_TEAM_PLAYER_STMT,
+            INSERT_SAVED_TEAM_PLAYER_STMT,
             [
                 {
-                    "team_id": team_id,
+                    "saved_team_id": saved.id,
                     "player_id": p["internal_id"],
                     "is_captain": p["fpl_id"] == req.captain_id,
                     "is_vice_captain": p["fpl_id"] == req.vice_captain_id,
@@ -1504,5 +1712,116 @@ def edit_team(
             ],
         )
 
+    return SavedTeamResponse(
+        saved_team_id=saved.id,
+        fixture_id=req.fixture_id,
+        name=req.name.strip(),
+        created_at=saved.created_at,
+        players=[
+            SavedTeamPlayerResponse(
+                player_id=p["fpl_id"],
+                name=players_by_fpl_id[p["fpl_id"]].web_name,
+                position=p["position"],
+                club=p["club"],
+                is_captain=p["fpl_id"] == req.captain_id,
+                is_vice_captain=p["fpl_id"] == req.vice_captain_id,
+            )
+            for p in resolved_players
+        ],
+    )
+
+
+@router.get("/dream11/saved-teams", response_model=list[SavedTeamResponse])
+def get_saved_teams(
+    fixture_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> list[SavedTeamResponse]:
+    """Every team the caller has saved for one fixture -- the "how many
+    teams have I made" list, newest first, so a freshly-saved team is the
+    first small card the picker shows."""
+    engine = get_engine()
     with engine.connect() as conn:
-        return _build_user_team_response(conn, contest_row, contest_id, user_id)
+        rows = conn.execute(
+            SAVED_TEAMS_QUERY, {"user_id": current_user.id, "fixture_id": fixture_id}
+        ).all()
+
+    teams: dict[int, SavedTeamResponse] = {}
+    for row in rows:
+        if row.saved_team_id not in teams:
+            teams[row.saved_team_id] = SavedTeamResponse(
+                saved_team_id=row.saved_team_id,
+                fixture_id=fixture_id,
+                name=row.team_name,
+                created_at=row.created_at,
+                players=[],
+            )
+        teams[row.saved_team_id].players.append(
+            SavedTeamPlayerResponse(
+                player_id=row.player_id,
+                name=row.player_name,
+                position=row.position,
+                club=row.club,
+                is_captain=row.is_captain,
+                is_vice_captain=row.is_vice_captain,
+            )
+        )
+    # dict preserves insertion order, and SAVED_TEAMS_QUERY's ORDER BY already
+    # put newest-team-first -- Python doesn't need to re-sort anything here.
+    return list(teams.values())
+
+
+@router.delete("/dream11/saved-teams/{saved_team_id}")
+def delete_saved_team(
+    saved_team_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Owner-only. Nothing else references a saved team (it is never
+    submitted anywhere as itself -- submitting copies its picks into a real
+    dream11.teams row), so this is a plain DELETE with no cascade to worry
+    about beyond its own saved_team_players rows."""
+    engine = get_engine()
+    with engine.connect() as conn:
+        owner = conn.execute(SAVED_TEAM_OWNER_QUERY, {"saved_team_id": saved_team_id}).first()
+
+    if owner is None:
+        raise HTTPException(status_code=404, detail="saved team not found")
+    if owner.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="only the owner can delete a saved team")
+
+    with engine.begin() as conn:
+        conn.execute(DELETE_SAVED_TEAM_STMT, {"saved_team_id": saved_team_id})
+
+    return {"deleted": True}
+
+
+@router.delete("/dream11/contests/{contest_id}")
+def delete_contest(
+    contest_id: int,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Creator-only, and only before the contest locks at kickoff --
+    mirrors submit_team/edit_team's own "no changes once the fixture has
+    kicked off" rule. dream11.contests' FKs (contest_members.contest_id,
+    teams.contest_id -> team_players.team_id, player_prices.contest_id) are
+    all ON DELETE CASCADE, so this one DELETE removes every member, team,
+    and frozen price row with it -- there is no scoring history to lose,
+    since a locked contest (the only kind with a real result in progress
+    or settled) is exactly what this endpoint refuses to touch.
+    """
+    engine = get_engine()
+    with engine.connect() as conn:
+        contest_row = conn.execute(CONTEST_OWNER_LOCK_QUERY, {"contest_id": contest_id}).first()
+
+    if contest_row is None:
+        raise HTTPException(status_code=404, detail="contest not found")
+    if contest_row.created_by != current_user.id:
+        raise HTTPException(status_code=403, detail="only the creator can delete this contest")
+    if contest_row.is_locked:
+        raise HTTPException(
+            status_code=422, detail=["contest is locked and can no longer be deleted"]
+        )
+
+    with engine.begin() as conn:
+        conn.execute(DELETE_CONTEST_STMT, {"contest_id": contest_id})
+
+    return {"deleted": True}

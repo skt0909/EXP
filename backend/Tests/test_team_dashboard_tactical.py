@@ -242,9 +242,9 @@ def test_a_fresh_user_still_gets_200_and_a_reason(engine, make_user, auth_header
     assert body["lineup"]["GK"] == [] and body["bench"] == []
 
 
-# ---- the legacy keys are still present ------------------------------------
+# ---- inert compatibility keys are gone ------------------------------------
 
-def test_every_legacy_key_is_still_present(
+def test_team_dashboard_response_no_longer_carries_inert_compatibility_keys(
     engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers
 ):
     uid = make_user()
@@ -254,24 +254,19 @@ def test_every_legacy_key_is_still_present(
     body = _get(uid, auth_headers)
 
     for key in ("user_id", "username", "team_name", "season", "gameweek", "deadline",
-                "has_lineup", "chip_used", "captain_multiplier", "gw_points",
+                "has_lineup", "gw_points",
                 "gw_average", "season_total", "has_score", "raw_points",
-                "captain_bonus", "transfer_hits", "hit_deductions", "final_total",
-                "live_status", "overall_rank", "overall_rank_total",
+                "final_total", "live_status", "overall_rank", "overall_rank_total",
                 "team_value_available", "team_value", "bank", "lineup", "bench"):
-        assert key in body, f"legacy key {key} disappeared"
+        assert key in body, f"dashboard key {key} disappeared"
 
-    # Captain / vice / chip are present but inert until the frontend phase.
-    assert body["chip_used"] is None
-    # F6: an INTEGER 1, not null -- a client doing points * multiplier keeps
-    # working and gets the right answer.
-    assert body["captain_multiplier"] == 1
-    assert body["captain_bonus"] == 0
-    assert body["transfer_hits"] == 0
-    assert body["hit_deductions"] == 0
+    for key in ("chip_used", "captain_multiplier", "captain_bonus",
+                "transfer_hits", "hit_deductions"):
+        assert key not in body
     for p in _all_players(body).values():
-        assert p["is_captain"] is False
-        assert p["is_vice_captain"] is False
+        assert "points" not in p
+        assert "is_captain" not in p
+        assert "is_vice_captain" not in p
 
 
 # ---- cost ------------------------------------------------------------------
@@ -361,7 +356,6 @@ def test_a_pre_epoch_gameweek_returns_null_points_but_keeps_the_lineup(
     players = _all_players(body)
     assert len(players) == 15
     for p in players.values():
-        assert p["points"] is None
         assert p["general_points"] is None
         assert p["tactical_points"] is None
         assert p["name"]                      # still identifiable
@@ -379,16 +373,14 @@ def test_a_scored_gameweek_still_returns_numbers(
     body = _get(uid, auth_headers)
     assert body["scored"] is True
     assert body["general_points"] == 22
-    assert all(p["points"] is not None for p in _all_players(body).values())
+    assert all(p["general_points"] is not None for p in _all_players(body).values())
 
 
-# ---- F6: captain_multiplier stays an integer -------------------------------
+# ---- F6: captain compatibility fields are removed --------------------------
 
-def test_captain_multiplier_is_the_integer_one_and_is_arithmetically_inert(
+def test_captain_compatibility_fields_are_absent(
     engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers
 ):
-    """A null here would break any client doing points * multiplier. 1 keeps
-    that arithmetic correct and captaincy removed at the same time."""
     uid = make_user()
     pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, BASE + 1000,
                        "balanced", (7, 8), gameweek=GAMEWEEK)
@@ -396,15 +388,13 @@ def test_captain_multiplier_is_the_integer_one_and_is_arithmetically_inert(
                 {7: dict(minutes=90, goals_scored=1)}, gameweek=GAMEWEEK)
 
     body = _get(uid, auth_headers)
-    assert body["captain_multiplier"] == 1
-    assert isinstance(body["captain_multiplier"], int)
-    assert not isinstance(body["captain_multiplier"], bool)
-    assert body["chip_used"] is None
+    assert "captain_multiplier" not in body
+    assert "chip_used" not in body
 
     for p in _all_players(body).values():
-        assert p["is_captain"] is False
-        assert p["is_vice_captain"] is False
-        assert p["points"] * body["captain_multiplier"] == p["points"]
+        assert "is_captain" not in p
+        assert "is_vice_captain" not in p
+        assert "points" not in p
 
 
 # ---- H: team_value_available means a finance row exists -------------------

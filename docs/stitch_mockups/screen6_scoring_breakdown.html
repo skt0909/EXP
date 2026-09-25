@@ -1,0 +1,702 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Scoring Breakdown — Tactical Rules</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com" rel="preconnect">
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+          },
+          colors: {
+            lavender: {
+              50: '#faf8ff',
+              100: '#f3efff',
+              200: '#e8e1fc',
+            },
+            pitch: '#0d5c36',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-scrollbars-and-rendering">
+    /* Smooth touch scrolling with hidden scrollbar for compact horizontal cards */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    body {
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+</head>
+<body class="bg-[#faf8ff] text-slate-900 font-sans antialiased min-h-screen pb-28">
+<!-- BEGIN: StickyTopAppBar -->
+<header class="sticky top-0 z-50 bg-[#faf8ff]/95 backdrop-blur-md border-b border-[#e8ecf8] px-4 py-3 flex items-center justify-between" data-purpose="app-header">
+<div class="flex items-center gap-3">
+<!-- Back Arrow Button -->
+<button aria-label="Go Back" class="w-9 h-9 rounded-full flex items-center justify-center text-slate-800 hover:bg-slate-200/50 active:scale-95 transition-all" type="button">
+<svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<h1 class="text-base font-bold text-slate-900 tracking-tight">How Points Work</h1>
+</div>
+<div class="flex items-center gap-2">
+<!-- Help / Rules Modal trigger -->
+<button aria-label="Help and Info" class="w-8 h-8 rounded-full flex items-center justify-center text-slate-500 hover:text-slate-800" type="button">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" stroke-linecap="round"></path>
+<circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+<!-- User Avatar / Profile -->
+<button aria-label="User Profile" class="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center font-bold text-xs shadow-sm" type="button">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" fill-rule="evenodd"></path>
+</svg>
+</button>
+</div>
+</header>
+<!-- END: StickyTopAppBar -->
+<!-- BEGIN: MainContentContainer -->
+<main class="max-w-[420px] mx-auto px-4 pt-3 space-y-4">
+<!-- BEGIN: HeaderOverviewSection -->
+<section class="space-y-3" data-purpose="header-overview">
+<!-- Mode Badge Filter -->
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center gap-1.5 bg-purple-100 text-purple-900 text-xs font-bold px-3 py-1 rounded-full border border-purple-200">
+<span class="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse"></span>
+          TACTICAL GAME
+        </span>
+<span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">Single Gameweek</span>
+</div>
+<!-- Main Title -->
+<div>
+<h2 class="text-2xl font-extrabold text-[#181326] tracking-tight">Scoring Breakdown</h2>
+<p class="text-xs text-slate-600 mt-1 leading-relaxed">
+          Points bank as matches finish. Your XI, tactic, Bonus Players and subs are chosen again each Gameweek.
+        </p>
+</div>
+<!-- Stat Highlight Tiles -->
+<div class="grid grid-cols-2 gap-3 pt-1">
+<!-- Tile 1: Bonus Players -->
+<div class="bg-white rounded-2xl p-3 border border-[#e8ecf8] shadow-sm flex flex-col justify-between">
+<span class="text-[10px] font-extrabold tracking-wider uppercase text-slate-500">Bonus Players</span>
+<div class="flex items-baseline justify-between mt-1">
+<span class="text-2xl font-black text-slate-900">2</span>
+<span class="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">Tactic XI</span>
+</div>
+</div>
+<!-- Tile 2: Max Sub Bonus -->
+<div class="bg-white rounded-2xl p-3 border border-[#e8ecf8] shadow-sm flex flex-col justify-between">
+<span class="text-[10px] font-extrabold tracking-wider uppercase text-slate-500">Max Sub Bonus</span>
+<div class="flex items-baseline justify-between mt-1">
+<span class="text-2xl font-black text-[#016d35]">+2</span>
+<span class="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Earnable</span>
+</div>
+</div>
+</div>
+<!-- Compact Calculation Equation Strip -->
+<div class="bg-white rounded-xl p-2.5 border border-[#e8ecf8] shadow-xs flex items-center justify-between text-[11px] text-slate-700 font-medium">
+<span class="bg-slate-100 px-2 py-0.5 rounded-md font-semibold text-slate-800 text-[10px]">General</span>
+<span class="text-slate-400 font-bold">+</span>
+<span class="bg-purple-50 text-purple-900 border border-purple-200 px-2 py-0.5 rounded-md font-semibold text-[10px]">Tactical</span>
+<span class="text-slate-400 font-bold">+</span>
+<span class="bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md font-semibold text-[10px]">Sub Bonus</span>
+<span class="text-slate-400 font-bold">=</span>
+<span class="bg-[#181326] text-white px-2 py-0.5 rounded-md font-bold text-[10px]">GW Total</span>
+</div>
+</section>
+<!-- END: HeaderOverviewSection -->
+<!-- BEGIN: HeroTacticalDiagram -->
+<section class="bg-white rounded-2xl border border-[#e8ecf8] p-3.5 shadow-sm space-y-3" data-purpose="pitch-tactical-diagram">
+<!-- Section Tag & Title -->
+<div class="flex items-center justify-between border-b border-slate-100 pb-2">
+<div class="flex items-center gap-2">
+<span class="w-6 h-6 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">⚽</span>
+<h3 class="font-bold text-slate-900 text-sm">Your Team On The Pitch</h3>
+</div>
+<span class="bg-slate-100 text-slate-600 text-[10px] font-extrabold tracking-wider px-2 py-0.5 rounded-full uppercase">Formation 4-4-2</span>
+</div>
+<!-- Tactic Selector Strip -->
+<div class="bg-slate-50 p-2 rounded-xl border border-slate-200/80">
+<div class="flex items-center justify-between text-[11px] font-bold mb-1.5">
+<span class="text-slate-500 uppercase tracking-wider text-[9px]">Active Gameweek Tactic</span>
+<span class="text-purple-700">Balanced Active</span>
+</div>
+<div class="grid grid-cols-3 gap-1.5">
+<button class="py-1 text-center rounded-lg text-xs font-bold bg-white text-slate-500 border border-slate-200 opacity-60" type="button">
+            Attack
+          </button>
+<button class="py-1 text-center rounded-lg text-xs font-bold bg-white text-slate-500 border border-slate-200 opacity-60" type="button">
+            Defence
+          </button>
+<button class="py-1 text-center rounded-lg text-xs font-bold bg-[#181326] text-white shadow-xs" type="button">
+            Balanced ★
+          </button>
+</div>
+<p class="text-[10px] text-slate-500 mt-1.5 leading-tight text-center">
+          Your tactic decides which position your 2 Bonus Players come from.
+        </p>
+</div>
+<!-- Pitch Container with Positional Left Bands -->
+<div class="relative bg-[#0d5c36] rounded-xl overflow-hidden shadow-inner p-2.5 pt-3 border-2 border-[#094126]">
+<!-- Modern Pitch Markings -->
+<div class="absolute inset-0 pointer-events-none opacity-25">
+<!-- Halfway line & center circle -->
+<div class="absolute top-1/2 left-0 right-0 h-[1px] bg-white"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-white"></div>
+<!-- Penalty box top (GK end) -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-44 h-14 border-b border-x border-white"></div>
+<!-- Goal area top -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-6 border-b border-x border-white"></div>
+<!-- Outer pitch border lines -->
+<div class="absolute inset-1.5 border border-white/80 rounded-lg"></div>
+</div>
+<!-- Left Band Mini Points Indicators -->
+<div class="absolute left-1.5 top-2 bottom-2 w-20 flex flex-col justify-between pointer-events-none z-20 text-[8px] font-bold text-emerald-100">
+<div class="bg-emerald-950/80 backdrop-blur-xs p-1 rounded border border-emerald-500/30">
+<span class="text-white">GK</span>: G+10 | CS+4
+          </div>
+<div class="bg-emerald-950/80 backdrop-blur-xs p-1 rounded border border-emerald-500/30">
+<span class="text-white">DEF</span>: G+6 | CS+4
+          </div>
+<div class="bg-emerald-950/80 backdrop-blur-xs p-1 rounded border border-emerald-500/30">
+<span class="text-white">MID</span>: G+5 | CS+1
+          </div>
+<div class="bg-emerald-950/80 backdrop-blur-xs p-1 rounded border border-emerald-500/30">
+<span class="text-white">FWD</span>: G+4 | CS 0
+          </div>
+</div>
+<!-- Pitch 11 Generic Players Formation (4-4-2) -->
+<div class="relative z-10 pl-16 pr-1 space-y-4 py-1">
+<!-- GK Row -->
+<div class="flex justify-center relative">
+<span class="absolute -left-3 top-0 bg-yellow-400 text-slate-950 font-black text-[9px] w-4 h-4 rounded-full flex items-center justify-center shadow">1</span>
+<div class="w-7 h-7 rounded-full bg-amber-400 text-slate-900 border border-white font-extrabold text-[11px] flex items-center justify-center shadow">1</div>
+</div>
+<!-- DEF Row (4 defenders: 2, 3, 4, 5) -->
+<div class="flex justify-around items-center px-1">
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow">2</div>
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow">3</div>
+<!-- Defender 4 with Tactical Sub annotation -->
+<div class="relative">
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow ring-2 ring-amber-400">4</div>
+<span class="absolute -bottom-3 -right-2 bg-amber-500 text-slate-950 font-black text-[7px] px-1 rounded-full uppercase">Sat⇢Sun</span>
+</div>
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow">5</div>
+</div>
+<!-- MID Row (4 midfielders: 6, 7★, 8★, 9) -->
+<div class="flex justify-around items-center px-1">
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow">6</div>
+<!-- Midfielder 7 (Bonus Player) -->
+<div class="relative">
+<span class="absolute -top-2 -left-2 bg-purple-600 text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center shadow">🔒</span>
+<div class="w-7 h-7 rounded-full bg-purple-900 text-yellow-300 font-black text-[11px] flex items-center justify-center shadow ring-2 ring-yellow-400">7★</div>
+</div>
+<!-- Midfielder 8 (Bonus Player) -->
+<div class="relative">
+<span class="absolute -top-2 -left-2 bg-purple-600 text-white text-[8px] w-3.5 h-3.5 rounded-full flex items-center justify-center shadow">🔒</span>
+<div class="w-7 h-7 rounded-full bg-purple-900 text-yellow-300 font-black text-[11px] flex items-center justify-center shadow ring-2 ring-yellow-400">8★</div>
+</div>
+<!-- Midfielder 9 with Tactical Sub annotation -->
+<div class="relative">
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow ring-2 ring-amber-400">9</div>
+<span class="absolute -bottom-3 -right-2 bg-amber-500 text-slate-950 font-black text-[7px] px-1 rounded-full uppercase">Sat⇢Mon</span>
+</div>
+</div>
+<!-- FWD Row (2 forwards: 10, 11) -->
+<div class="flex justify-center gap-10 items-center">
+<div class="w-7 h-7 rounded-full bg-white text-slate-900 font-extrabold text-[11px] flex items-center justify-center shadow">10</div>
+<!-- Forward 11 (Did not play - replaced by Auto Sub) -->
+<div class="relative">
+<span class="absolute -top-2 -right-2 bg-rose-600 text-white text-[9px] w-4 h-4 rounded-full flex items-center justify-center font-black">✕</span>
+<div class="w-7 h-7 rounded-full bg-slate-300 text-slate-600 font-bold text-[11px] flex items-center justify-center shadow line-through">11</div>
+<span class="absolute -bottom-3 -left-3 bg-sky-500 text-white font-bold text-[7px] px-1 rounded-full whitespace-nowrap">Auto Sub</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bench Strip (Slots 12 to 15) -->
+<div class="space-y-1.5 pt-1">
+<div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+<span>Bench (4 Reserve Slots)</span>
+<span class="text-slate-400 text-[9px]">Pre-locked order</span>
+</div>
+<div class="grid grid-cols-2 gap-2">
+<!-- Slot 12: Backup GK -->
+<div class="p-2 rounded-xl bg-sky-50 border border-sky-200 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-sky-600 text-white font-black text-[10px] flex items-center justify-center">12</span>
+<div class="text-[10px] leading-tight">
+<div class="font-bold text-sky-950">Backup GK</div>
+<div class="text-sky-700 text-[9px]">Auto Sub (GK Only)</div>
+</div>
+</div>
+<!-- Slot 13: Outfield Auto Sub -->
+<div class="p-2 rounded-xl bg-sky-50 border border-sky-200 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-sky-600 text-white font-black text-[10px] flex items-center justify-center">13</span>
+<div class="text-[10px] leading-tight">
+<div class="font-bold text-sky-950">Outfield Sub</div>
+<div class="text-sky-700 text-[9px]">Covers #11 ✕</div>
+</div>
+</div>
+<!-- Slot 14: Tactical Sub -->
+<div class="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-amber-600 text-white font-black text-[10px] flex items-center justify-center">14</span>
+<div class="text-[10px] leading-tight">
+<div class="font-bold text-amber-950">Tactical Sub (DEF)</div>
+<div class="text-amber-800 text-[9px]">Swaps #4 (Sun)</div>
+</div>
+</div>
+<!-- Slot 15: Tactical Sub -->
+<div class="p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-amber-600 text-white font-black text-[10px] flex items-center justify-center">15</span>
+<div class="text-[10px] leading-tight">
+<div class="font-bold text-amber-950">Tactical Sub (MID)</div>
+<div class="text-amber-800 text-[9px]">Swaps #9 (Mon)</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Pitch Legend -->
+<div class="flex items-center justify-between text-[10px] text-slate-600 bg-slate-50 px-2 py-1.5 rounded-lg border border-slate-200/70">
+<span>★ = Bonus Player</span>
+<span>🔒 = Locked</span>
+<span>⇢ = Planned swap</span>
+<span>✕ = Did not play</span>
+</div>
+</section>
+<!-- END: HeroTacticalDiagram -->
+<!-- BEGIN: Section1_Appearance -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-2.5" data-purpose="scoring-section-1">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">1</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Appearance</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<div class="space-y-1.5 pt-1 text-xs">
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Played 60+ minutes</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+2</span>
+</div>
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Played 1–59 minutes</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+1</span>
+</div>
+<div class="flex items-center justify-between py-1.5">
+<span class="text-slate-700">Did not play (0 mins)</span>
+<span class="bg-[#f1f3f9] text-[#64748b] font-bold text-xs px-2.5 py-0.5 rounded-full">0</span>
+</div>
+</div>
+</article>
+<!-- END: Section1_Appearance -->
+<!-- BEGIN: Section2_Attacking -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-2.5" data-purpose="scoring-section-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">2</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Attacking</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<div class="space-y-1.5 pt-1 text-xs">
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Goal (Goalkeeper)</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+10</span>
+</div>
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Goal (Defender)</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+6</span>
+</div>
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Goal (Midfielder)</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+5</span>
+</div>
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Goal (Forward)</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+4</span>
+</div>
+<div class="flex items-center justify-between py-1.5">
+<span class="text-slate-700 font-medium">Assist (All Positions)</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+3</span>
+</div>
+</div>
+</article>
+<!-- END: Section2_Attacking -->
+<!-- BEGIN: Section3_Defensive -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-2.5" data-purpose="scoring-section-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">3</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Defensive</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<!-- Nested Clean Sheet Card -->
+<div class="bg-slate-50/80 rounded-xl p-3 border border-slate-200/70 space-y-2">
+<div class="flex items-center justify-between">
+<span class="font-bold text-xs text-slate-900">Clean Sheet (60+ mins played)</span>
+<span class="text-[9px] bg-slate-200 text-slate-700 font-bold px-1.5 py-0.5 rounded">STANDARD</span>
+</div>
+<div class="grid grid-cols-3 gap-2 pt-1">
+<div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+<div class="text-[10px] text-slate-500 font-semibold">GK &amp; DEF</div>
+<div class="text-xs font-black text-[#15803d] mt-0.5">+4</div>
+</div>
+<div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+<div class="text-[10px] text-slate-500 font-semibold">MID</div>
+<div class="text-xs font-black text-[#15803d] mt-0.5">+1</div>
+</div>
+<div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+<div class="text-[10px] text-slate-500 font-semibold">FWD</div>
+<div class="text-xs font-black text-slate-500 mt-0.5">0</div>
+</div>
+</div>
+</div>
+<div class="space-y-1.5 pt-1 text-xs">
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<div>
+<div class="text-slate-800 font-medium">Defensive Actions Tier</div>
+<div class="text-[10px] text-slate-500">10 for DEF; 12 for MID or FWD</div>
+</div>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+2</span>
+</div>
+<div class="flex items-center justify-between py-1.5">
+<div>
+<div class="text-slate-800 font-medium">Goals Conceded</div>
+<div class="text-[10px] text-slate-500">GK &amp; DEF only (-1 per 2 conceded)</div>
+</div>
+<span class="bg-[#ffe4e8] text-[#d90429] font-bold text-xs px-2.5 py-0.5 rounded-full">-1</span>
+</div>
+</div>
+</article>
+<!-- END: Section3_Defensive -->
+<!-- BEGIN: Section4_Discipline -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-2.5" data-purpose="scoring-section-4">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">4</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Discipline</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<div class="space-y-1.5 pt-1 text-xs">
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Yellow Card</span>
+<span class="bg-[#ffe4e8] text-[#d90429] font-bold text-xs px-2.5 py-0.5 rounded-full">-1</span>
+</div>
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Red Card</span>
+<span class="bg-[#ffe4e8] text-[#d90429] font-bold text-xs px-2.5 py-0.5 rounded-full">-3</span>
+</div>
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<span class="text-slate-700">Own Goal</span>
+<span class="bg-[#ffe4e8] text-[#d90429] font-bold text-xs px-2.5 py-0.5 rounded-full">-2</span>
+</div>
+<div class="flex items-center justify-between py-1.5">
+<span class="text-slate-700">Penalty Missed</span>
+<span class="bg-[#ffe4e8] text-[#d90429] font-bold text-xs px-2.5 py-0.5 rounded-full">-2</span>
+</div>
+</div>
+</article>
+<!-- END: Section4_Discipline -->
+<!-- BEGIN: Section5_Goalkeeping -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-2.5" data-purpose="scoring-section-5">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">5</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Goalkeeping</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<div class="space-y-1.5 pt-1 text-xs">
+<div class="flex items-center justify-between py-1.5 border-b border-slate-100">
+<div>
+<div class="text-slate-800 font-medium">Saves Tier</div>
+<div class="text-[10px] text-slate-500">Every 3 saves recorded in match</div>
+</div>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+1</span>
+</div>
+<div class="flex items-center justify-between py-1.5">
+<span class="text-slate-700 font-medium">Penalty Saved</span>
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+5</span>
+</div>
+</div>
+</article>
+<!-- END: Section5_Goalkeeping -->
+<!-- BEGIN: Section6_TacticsAndBonusPoints -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-3" data-purpose="scoring-section-6">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">6</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Tactics &amp; Bonus Points</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<!-- 3 Dark Navy Cards Styled Like Reference Captain/Vice Multipliers -->
+<div class="grid grid-cols-3 gap-2">
+<!-- Attack Card -->
+<div class="bg-[#181326] text-white p-2.5 rounded-xl flex flex-col justify-between border border-purple-900/40">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-black tracking-wider uppercase text-purple-300">Attack</span>
+<span class="text-[8px] bg-rose-500/20 text-rose-300 border border-rose-500/40 px-1 py-0.2 rounded">HIGH RISK</span>
+</div>
+<p class="text-[9px] text-slate-300 mt-1.5 leading-tight">2 Bonus Players are Forwards.</p>
+</div>
+<div class="mt-2.5 pt-1.5 border-t border-white/10 space-y-0.5 text-[9px]">
+<div class="flex justify-between font-semibold"><span>Goal</span><span class="text-emerald-400">+3</span></div>
+<div class="flex justify-between font-semibold"><span>Assist</span><span class="text-emerald-400">+2</span></div>
+</div>
+</div>
+<!-- Defence Card -->
+<div class="bg-[#181326] text-white p-2.5 rounded-xl flex flex-col justify-between border border-purple-900/40">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-black tracking-wider uppercase text-purple-300">Defence</span>
+<span class="text-[8px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1 py-0.2 rounded">MED RISK</span>
+</div>
+<p class="text-[9px] text-slate-300 mt-1.5 leading-tight">2 Bonus Players are Defenders.</p>
+</div>
+<div class="mt-2.5 pt-1.5 border-t border-white/10 space-y-0.5 text-[9px]">
+<div class="flex justify-between font-semibold"><span>CS 60m</span><span class="text-emerald-400">+2</span></div>
+<div class="flex justify-between font-semibold"><span>8+ Act</span><span class="text-emerald-400">+2</span></div>
+<div class="flex justify-between font-semibold"><span>10+ Act</span><span class="text-emerald-400">+3</span></div>
+</div>
+</div>
+<!-- Balanced Card (Active) -->
+<div class="bg-[#181326] text-white p-2.5 rounded-xl flex flex-col justify-between border-2 border-purple-400 ring-2 ring-purple-500/20">
+<div>
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-black tracking-wider uppercase text-purple-300">Balanced</span>
+<span class="text-[8px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1 py-0.2 rounded">LOW RISK</span>
+</div>
+<p class="text-[9px] text-slate-300 mt-1.5 leading-tight">2 Bonus Players are Midfielders.</p>
+</div>
+<div class="mt-2.5 pt-1.5 border-t border-white/10 space-y-0.5 text-[9px]">
+<div class="flex justify-between font-semibold"><span>G / A</span><span class="text-emerald-400">+1</span></div>
+<div class="flex justify-between font-semibold"><span>20+ Crtv</span><span class="text-emerald-400">+1</span></div>
+<div class="flex justify-between font-semibold"><span>40+ Crtv</span><span class="text-emerald-400">+3</span></div>
+</div>
+</div>
+</div>
+<!-- Tier Threshold Stair Diagram -->
+<div class="bg-purple-50/70 rounded-xl p-3 border border-purple-100 space-y-1.5">
+<div class="flex items-center justify-between text-[11px] font-bold text-purple-950">
+<span>Tier Threshold Rules</span>
+<span class="text-[9px] uppercase tracking-wide bg-purple-200/70 text-purple-800 px-1.5 py-0.5 rounded">Single Highest Tier</span>
+</div>
+<div class="flex items-end gap-2 pt-1 h-12">
+<div class="flex-1 bg-purple-200 h-6 rounded-t flex items-center justify-center text-[10px] font-bold text-purple-900">
+            Tier 1: +1 / +2
+          </div>
+<div class="flex-1 bg-purple-600 h-10 rounded-t flex items-center justify-center text-[10px] font-bold text-white shadow">
+            Tier 2: +3
+          </div>
+</div>
+<p class="text-[10px] text-purple-800/80 leading-snug pt-0.5">
+          Only the highest tier counts. Tiers do not add together.
+        </p>
+</div>
+</article>
+<!-- END: Section6_TacticsAndBonusPoints -->
+<!-- BEGIN: Section7_BonusPlayers -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-3" data-purpose="scoring-section-7">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">7</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Bonus Players</h3>
+</div>
+<span class="bg-[#e2e8f0] text-[#475569] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full uppercase">TACTICAL RULE</span>
+</div>
+<div class="space-y-2 text-xs text-slate-700">
+<div class="flex items-start gap-2">
+<span class="text-purple-600 font-bold">•</span>
+<span>Pick <strong>2 players</strong> from your starting XI matching your active tactic position.</span>
+</div>
+<div class="flex items-start gap-2">
+<span class="text-purple-600 font-bold">•</span>
+<span>If a Bonus Player doesn't play, the Bonus is <strong>lost</strong> and does not pass to an auto or tactical sub.</span>
+</div>
+<div class="flex items-start gap-2">
+<span class="text-purple-600 font-bold">•</span>
+<span>Bonus Players are <strong>locked (🔒)</strong> and cannot be swapped out by a Tactical Sub.</span>
+</div>
+<div class="flex items-start gap-2">
+<span class="text-purple-600 font-bold">•</span>
+<span>Attack tactic requires selecting at least 2 forwards in your starting XI formation.</span>
+</div>
+</div>
+</article>
+<!-- END: Section7_BonusPlayers -->
+<!-- BEGIN: Section8_BenchAndSubs -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-3" data-purpose="scoring-section-8">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">8</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Bench &amp; Subs</h3>
+</div>
+<span class="bg-[#e2e8f0] text-[#475569] text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full uppercase">TACTICAL RULE</span>
+</div>
+<!-- Detailed Breakdown Cards -->
+<div class="space-y-2.5">
+<!-- Auto Subs Card -->
+<div class="bg-sky-50/70 border border-sky-100 p-3 rounded-xl space-y-1.5">
+<div class="flex items-center justify-between">
+<span class="font-bold text-xs text-sky-950">Auto Subs (Slots 12 &amp; 13)</span>
+<span class="text-[9px] font-bold bg-sky-200/80 text-sky-900 px-1.5 py-0.5 rounded">AUTOMATIC</span>
+</div>
+<p class="text-[11px] text-sky-900/90 leading-relaxed">
+            Covers starters who register 0 minutes. Backup GK (Slot 12) only replaces GK. Outfield Auto Sub (Slot 13) replaces the lowest-numbered missing outfield starter provided the formation remains valid.
+          </p>
+</div>
+<!-- Tactical Subs Card -->
+<div class="bg-amber-50/70 border border-amber-100 p-3 rounded-xl space-y-1.5">
+<div class="flex items-center justify-between">
+<span class="font-bold text-xs text-amber-950">Tactical Subs (Slots 14 &amp; 15)</span>
+<span class="text-[9px] font-bold bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded">BANK &amp; STACK</span>
+</div>
+<p class="text-[11px] text-amber-900/90 leading-relaxed">
+            Pre-planned before deadline for same-position swaps. The incoming player's match must kick off after the outgoing player's match ends. <strong>Both players keep points!</strong> Outgoing points are safely banked.
+          </p>
+</div>
+<!-- Sub Bonus Row -->
+<div class="bg-white border border-[#e8ecf8] p-3 rounded-xl flex items-center justify-between">
+<div>
+<div class="text-xs font-bold text-slate-900">Sub Performance Bonus</div>
+<div class="text-[10px] text-slate-500">Incoming scores MORE than outgoing starter</div>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="bg-[#dcfce7] text-[#15803d] font-bold text-xs px-2.5 py-0.5 rounded-full">+1 each</span>
+<span class="text-[10px] font-bold text-slate-400">(Max +2)</span>
+</div>
+</div>
+</div>
+</article>
+<!-- END: Section8_BenchAndSubs -->
+<!-- BEGIN: Section9_SquadAndDeadline -->
+<article class="bg-white rounded-2xl border border-[#e8ecf8] p-4 shadow-sm space-y-3" data-purpose="scoring-section-9">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="w-5 h-5 rounded-full bg-purple-100 text-purple-800 font-bold text-xs flex items-center justify-center">9</span>
+<h3 class="font-bold text-slate-900 text-sm tracking-tight">Squad &amp; Deadline</h3>
+</div>
+<button aria-label="Section help" class="text-slate-400 hover:text-slate-700" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle><path d="M9 9a3 3 0 0 1 6 0c0 2-3 3-3 3"></path><circle cx="12" cy="17" fill="currentColor" r=".5"></circle>
+</svg>
+</button>
+</div>
+<div class="space-y-2 text-xs text-slate-700">
+<div class="flex items-start justify-between py-1 border-b border-slate-100">
+<span class="font-medium">Squad Composition</span>
+<span class="font-bold text-slate-900 text-right">15 Players (2 GK, 5 DEF, 5 MID, 3 FWD)</span>
+</div>
+<div class="flex items-start justify-between py-1 border-b border-slate-100">
+<span class="font-medium">Budget &amp; Club Limit</span>
+<span class="font-bold text-slate-900 text-right">100.0m | Max 3 per club</span>
+</div>
+<div class="flex items-start justify-between py-1 border-b border-slate-100">
+<span class="font-medium">Starting XI Requirement</span>
+<span class="font-bold text-slate-900 text-right">1 GK, min 3 DEF, min 2 MID, min 1 FWD</span>
+</div>
+<div class="flex items-start justify-between py-1 border-b border-slate-100">
+<span class="font-medium">Transfers</span>
+<span class="font-bold text-slate-900 text-right">1 Free / GW (Bank max 2, no point hits)</span>
+</div>
+</div>
+<!-- Lock Notice Card with Clock -->
+<div class="bg-purple-50/80 rounded-xl p-3 border border-purple-100 flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-purple-200 text-purple-800 flex items-center justify-center shrink-0">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<polyline points="12 6 12 12 16 14"></polyline>
+</svg>
+</div>
+<p class="text-xs font-semibold text-purple-950 leading-snug">
+          Lineups lock precisely <span class="text-purple-700 underline underline-offset-2">90 minutes</span> before the first match of each Gameweek.
+        </p>
+</div>
+</article>
+<!-- END: Section9_SquadAndDeadline -->
+</main>
+<!-- END: MainContentContainer -->
+<!-- BEGIN: BottomNavigationBar -->
+<nav class="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-[#e8ecf8] py-2 px-2" data-purpose="bottom-navigation">
+<div class="max-w-[420px] mx-auto grid grid-cols-5 text-center">
+<!-- Tab 1: Home -->
+<a class="flex flex-col items-center justify-center text-slate-400 hover:text-slate-700 py-1 transition-colors" href="#home">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-semibold mt-0.5">Home</span>
+</a>
+<!-- Tab 2: Starting XI -->
+<a class="flex flex-col items-center justify-center text-slate-400 hover:text-slate-700 py-1 transition-colors" href="#starting-xi">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-semibold mt-0.5">Starting XI</span>
+</a>
+<!-- Tab 3: Transfers -->
+<a class="flex flex-col items-center justify-center text-slate-400 hover:text-slate-700 py-1 transition-colors" href="#transfers">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-semibold mt-0.5">Transfers</span>
+</a>
+<!-- Tab 4: Leagues (Active Tab) -->
+<a class="flex flex-col items-center justify-center text-[#181326] font-bold py-1" href="#leagues">
+<svg class="w-5 h-5 text-purple-700" fill="currentColor" viewBox="0 0 24 24">
+<path d="M19 4h-2V3a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v1H5a2 2 0 0 0-2 2v2a5 5 0 0 0 4.18 4.93A6 6 0 0 0 11 16.9V19H8a1 1 0 0 0 0 2h8a1 1 0 0 0 0-2h-3v-2.1a6 6 0 0 0 3.82-2.97A5 5 0 0 0 21 8V6a2 2 0 0 0-2-2zM5 8V6h2v4.74A3 3 0 0 1 5 8zm14 0a3 3 0 0 1-2 2.74V6h2v2z"></path>
+</svg>
+<span class="text-[10px] text-purple-900 mt-0.5">Leagues</span>
+</a>
+<!-- Tab 5: Chats -->
+<a class="flex flex-col items-center justify-center text-slate-400 hover:text-slate-700 py-1 transition-colors" href="#chats">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-semibold mt-0.5">Chats</span>
+</a>
+</div>
+</nav>
+<!-- END: BottomNavigationBar -->
+</body></html>

@@ -6,6 +6,11 @@ through Celery's retry mechanism.
 """
 
 import pytest
+
+# run_ml_pipeline is commented out in Worker/tasks.py (predictions are
+# backfilled). Remove this skip when it is re-enabled.
+pytest.skip("run_ml_pipeline is disabled -- predictions are backfilled", allow_module_level=True)
+
 from celery.exceptions import Retry
 
 from Worker.celery_app import app as celery_app

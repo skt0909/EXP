@@ -14,20 +14,20 @@ export function submitGwSelection({
   gameweek,
   player_ids,
   bench_order,
-  captain_id,
-  vice_captain_id,
-  chip_used,
+  tactic,
+  bonus_player_ids,
+  swaps,
 }) {
   return request('/gw_selection', {
     method: 'POST',
     body: {
       season,
       gameweek: Number(gameweek),
+      tactic,
       player_ids,
       bench_order,
-      captain_id,
-      vice_captain_id,
-      chip_used,
+      bonus_player_ids,
+      swaps,
     },
   })
 }

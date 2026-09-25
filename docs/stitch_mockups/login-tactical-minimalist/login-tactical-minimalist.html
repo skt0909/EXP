@@ -1,0 +1,161 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>PitchSide — Manager Login</title>
+<!-- Tailwind CSS v3 CDN with forms plugin -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Custom Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: '#FAF9F6',
+            surfaceMuted: '#F4F3EF',
+            tacticalSlate: '#1D1B20',
+            tacticalPlum: '#260F33',
+            tacticalPlumHover: '#1B0925',
+            tacticalOlive: '#6C8A28',
+            tacticalOliveHover: '#5B7522',
+            borderSubtle: '#E4E5DF',
+            labelColor: '#383B36',
+          },
+          fontFamily: {
+            helvetica: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          boxShadow: {
+            'tactical-sm': '0 1px 2px 0 rgba(29, 27, 32, 0.04)',
+            'btn-shadow': '0 4px 14px 0 rgba(38, 15, 51, 0.22)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Custom Styles -->
+<style data-purpose="typography">
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+<style data-purpose="layout-adjustments">
+    /* iOS Safe Area handling */
+    .ios-safe-top {
+      padding-top: max(1.25rem, env(safe-area-inset-top));
+    }
+    .ios-safe-bottom {
+      padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+    }
+  </style>
+<!-- END: Custom Styles -->
+</head>
+<body class="bg-surface text-tacticalSlate min-h-screen flex items-center justify-center p-0 sm:p-4 select-none">
+<!-- BEGIN: MobileContainer -->
+<!-- Constrained mobile iOS viewport wrapper matching 390px native canvas -->
+<main class="w-full max-w-[420px] min-h-screen sm:min-h-[852px] sm:max-h-[880px] bg-surface sm:rounded-[44px] sm:shadow-2xl sm:border sm:border-black/5 flex flex-col justify-between px-7 ios-safe-top ios-safe-bottom relative overflow-hidden" data-purpose="login-screen">
+<!-- Top Decorative Status Bar Notch (Desktop preview visual accent) -->
+<div aria-hidden="true" class="hidden sm:block absolute top-2.5 left-1/2 -translate-x-1/2 w-28 h-4 bg-black/10 rounded-full"></div>
+<div class="w-full flex-1 flex flex-col justify-center">
+<!-- BEGIN: HeroGraphic -->
+<!-- Visual artwork representing Junior soccer illustration from DataStore -->
+<section class="w-full flex justify-center items-center mt-2 mb-1" data-purpose="brand-illustration">
+<div class="w-full max-w-[320px] h-[240px] flex items-center justify-center relative"><img alt="Tactical soccer team in action" class="w-full h-full object-contain drop-shadow-sm mix-blend-multiply animate-hero-float" loading="eager" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDYZcyMF1p8SYF7jkfwrHlxw0NCSSjwtC6QHvDxYxhYTaJA5kIOaMp2gAu7Gjj93xhSFl3GD7PYi2R2SOF2lxTLkaCk7cExWSjJ3eqhEZcCr4UeI5JAPyOgW-CanmKIelyuyScEbAkd-Lt1AV_t-FRLI8Bc6Y62TbP-21ZMhd4XcgidXyyW8KAV-yg3QYubCWvpdowUKzny4ST9SG8r9lCUgJNXb1XBmsguf3gSGR-JjpolFZAEA9ERJfExlAC1O5OxtQ"></div>
+</section>
+<!-- END: HeroGraphic -->
+<!-- BEGIN: BrandHeader -->
+<section class="text-center mb-8" data-purpose="brand-header"><div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 mb-2.5 rounded-full bg-[#8daa3c]/15 border border-[#8daa3c]/30 text-[10px] font-bold tracking-[0.08em] uppercase text-[#4f6600]"><span class="w-1.5 h-1.5 rounded-full bg-[#8daa3c]"></span>Manager Access</div><h1 class="text-[32px] font-bold tracking-tight text-[#1b1c1a] leading-none mb-2 font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">PitchSide</h1><p class="text-[14px] font-medium text-[#757967] tracking-tight font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">Welcome back, manager.</p></section>
+<!-- END: BrandHeader -->
+<!-- BEGIN: LoginForm -->
+<form class="w-full space-y-4" data-purpose="authentication-form" onsubmit="event.preventDefault();">
+<!-- Email Input Group -->
+<div class="space-y-1.5" data-purpose="form-group-email">
+<label class="block text-[13px] font-semibold text-labelColor tracking-tight" for="email">
+            Email
+          </label>
+<div class="relative flex items-center">
+<!-- Mail Icon Prefix -->
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<input autocomplete="email" class="w-full pl-10 pr-4 py-3 bg-white border border-borderSubtle rounded-xl text-[14px] text-tacticalSlate font-medium placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-tacticalOlive/30 focus:border-tacticalOlive transition duration-150 shadow-tactical-sm" id="email" inputmode="email" name="email" placeholder="manager@pitchside.ai" required="" type="email" value="manager@pitchside.ai">
+</div>
+</div>
+<!-- Password Input Group -->
+<div class="space-y-1.5" data-purpose="form-group-password">
+<label class="block text-[13px] font-semibold text-labelColor tracking-tight" for="password">
+            Password
+          </label>
+<div class="relative flex items-center">
+<!-- Lock Icon Prefix -->
+<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+<input autocomplete="current-password" class="w-full pl-10 pr-11 py-3 bg-white border border-borderSubtle rounded-xl text-[14px] text-tacticalSlate font-medium tracking-widest placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-tacticalOlive/30 focus:border-tacticalOlive transition duration-150 shadow-tactical-sm" id="password" name="password" placeholder="••••••••" required="" type="password" value="Tactical433!">
+<!-- Eye Toggle Visibility Icon -->
+<button aria-label="Toggle password visibility" class="absolute inset-y-0 right-0 pr-3.5 flex items-center text-gray-400 hover:text-tacticalSlate transition-colors focus:outline-none" data-purpose="password-toggle-button" id="toggle-password" type="button">
+<svg class="w-4 h-4" fill="none" id="eye-icon" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+<path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+<!-- Forgot Password Link -->
+<div class="flex justify-end pt-1">
+<a class="text-[13px] font-medium text-[#757967] hover:text-[#4f6600] transition-colors font-['Helvetica_Neue',Helvetica,Arial,sans-serif]" href="#forgot-password">Forgot password?</a>
+</div>
+</div>
+<!-- Primary Action Button -->
+<div class="pt-3">
+<button class="w-full py-3.5 px-6 rounded-xl bg-[#8daa3c] hover:bg-[#7d9834] active:scale-[0.99] text-white text-[13px] font-bold tracking-[0.08em] uppercase transition duration-150 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 border border-black/10 group" data-purpose="submit-login-button" type="submit"><span class="tracking-[0.08em]">LOG IN</span><svg class="w-4 h-4 text-white transition-transform duration-150 group-hover:translate-x-0.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"></path></svg></button>
+</div>
+</form>
+<!-- END: LoginForm -->
+</div>
+<!-- BEGIN: Footer -->
+<!-- Switch to sign-up flow container -->
+<footer class="w-full py-5 text-center mt-auto" data-purpose="registration-switch"><p class="text-[14px] text-[#757967] font-normal font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">Don’t have an account? <a class="font-bold text-[#4f6600] hover:text-[#2d3b00] underline decoration-[#8daa3c]/40 underline-offset-4 transition-colors ml-1" href="#signup">Sign up</a></p><div aria-hidden="true" class="w-32 h-1 bg-black/20 rounded-full mx-auto mt-4"></div></footer>
+<!-- END: Footer -->
+</main>
+<!-- END: MobileContainer -->
+<!-- BEGIN: Interactive Scripts -->
+<script data-purpose="password-visibility">
+    document.addEventListener('DOMContentLoaded', () => {
+      const toggleBtn = document.getElementById('toggle-password');
+      const passwordInput = document.getElementById('password');
+      const eyeIcon = document.getElementById('eye-icon');
+
+      if (toggleBtn && passwordInput && eyeIcon) {
+        toggleBtn.addEventListener('click', () => {
+          const isPassword = passwordInput.getAttribute('type') === 'password';
+          passwordInput.setAttribute('type', isPassword ? 'text' : 'password');
+          
+          // Switch between password tracking style and normal text
+          if (isPassword) {
+            passwordInput.classList.remove('tracking-widest');
+            eyeIcon.innerHTML = `
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18" />
+            `;
+          } else {
+            passwordInput.classList.add('tracking-widest');
+            eyeIcon.innerHTML = `
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            `;
+          }
+        });
+      }
+    });
+  </script>
+<!-- END: Interactive Scripts -->
+
+
+
+
+
+
+</body></html>

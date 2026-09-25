@@ -1,0 +1,500 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>PitchSide AI - Starting XI</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-container": "#af6eac",
+                    "on-tertiary-container": "#fe225f",
+                    "on-primary-fixed-variant": "#6a306a",
+                    "on-primary": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "surface-container-high": "#e2e7ff",
+                    "surface-container-highest": "#dae2fd",
+                    "on-tertiary-fixed": "#400010",
+                    "on-tertiary": "#ffffff",
+                    "inverse-primary": "#f7aff2",
+                    "surface-container": "#eaedff",
+                    "outline-variant": "#d2c2cd",
+                    "on-secondary-container": "#006e36",
+                    "outline": "#80737d",
+                    "on-error": "#ffffff",
+                    "surface": "#faf8ff",
+                    "primary": "#040004",
+                    "primary-fixed": "#ffd6f8",
+                    "on-secondary": "#ffffff",
+                    "secondary-container": "#00fa82",
+                    "background": "#faf8ff",
+                    "error": "#ba1a1a",
+                    "on-surface": "#131b2e",
+                    "surface-bright": "#faf8ff",
+                    "on-surface-variant": "#4f434c",
+                    "surface-dim": "#d2d9f4",
+                    "tertiary-container": "#410011",
+                    "inverse-on-surface": "#eef0ff",
+                    "tertiary-fixed": "#ffd9dc",
+                    "surface-variant": "#dae2fd",
+                    "on-secondary-fixed-variant": "#005227",
+                    "on-tertiary-fixed-variant": "#910030",
+                    "on-primary-fixed": "#37003b",
+                    "secondary-fixed": "#61ff97",
+                    "surface-container-lowest": "#ffffff",
+                    "error-container": "#ffdad6",
+                    "tertiary": "#050000",
+                    "tertiary-fixed-dim": "#ffb2ba",
+                    "on-secondary-fixed": "#00210c",
+                    "surface-container-low": "#f2f3ff",
+                    "inverse-surface": "#283044",
+                    "secondary": "#006d35",
+                    "on-background": "#131b2e",
+                    "primary-container": "#38003c",
+                    "secondary-fixed-dim": "#00e476",
+                    "primary-fixed-dim": "#f7aff2",
+                    "surface-tint": "#854884"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "md": "16px",
+                    "lg": "24px",
+                    "safe-margin": "16px",
+                    "xl": "32px",
+                    "xs": "4px",
+                    "gutter": "12px",
+                    "sm": "8px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "stats-number": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "body-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "display-lg": ["Inter"],
+                    "headline-sm": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "700"}],
+                    "stats-number": ["18px", {"lineHeight": "1", "fontWeight": "800"}],
+                    "body-lg": ["16px", {"lineHeight": "1.6", "fontWeight": "400"}],
+                    "body-md": ["14px", {"lineHeight": "1.5", "fontWeight": "400"}],
+                    "label-md": ["12px", {"lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                    "display-lg": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "800"}],
+                    "headline-sm": ["20px", {"lineHeight": "1.3", "fontWeight": "700"}]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .pitch-stripes {
+            background-image: repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 10%,
+                rgba(0, 0, 0, 0.04) 10%,
+                rgba(0, 0, 0, 0.04) 20%
+            );
+        }
+    </style>
+<meta content="mobile_tab" name="shell-type"></head>
+<body class="bg-surface text-on-surface antialiased min-h-screen relative">
+<!-- TopAppBar -->
+<header class="bg-surface flex justify-between items-center w-full px-md h-16 sticky top-0 z-50 max-w-[600px] mx-auto border-b border-outline-variant flat no shadows bg-surface-container-lowest"><div class="flex items-center justify-between w-full h-full">
+<div class="flex items-center w-1/4">
+<button class="p-1 hover:bg-surface-container-high rounded-full transition-colors">
+<span class="material-symbols-outlined text-on-surface text-[24px]">menu</span>
+</button>
+</div>
+<div class="flex items-center justify-center flex-1">
+<h1 class="text-headline-sm font-bold text-on-surface">Transfers</h1>
+</div>
+<div class="flex items-center justify-end w-1/4">
+<div class="w-9 h-9 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center cursor-pointer hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant text-[24px]">person</span>
+</div>
+</div>
+</div></header>
+<!-- Main Content -->
+<main class="max-w-[600px] mx-auto pb-40 flex flex-col"><div class="flex flex-col w-full">
+<!-- Gameweek & Budget Top Banner -->
+<div class="px-safe-margin pt-sm pb-gutter">
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-xs">
+<span class="inline-flex items-center px-sm py-xs rounded-full bg-surface-container-high text-on-surface font-label-md text-label-md">
+            GW 5 Active
+          </span>
+
+</div>
+<div class="flex items-center gap-xs">
+<span class="inline-flex items-center px-sm py-xs rounded-full bg-secondary-container text-on-secondary-container font-label-md text-label-md">
+            1 Free Transfer
+          </span>
+</div>
+</div>
+<div class="flex justify-center gap-sm pt-xs">
+<div class="bg-surface-container-low rounded-lg p-sm text-center flex-1 max-w-[160px]">
+<span class="text-on-surface-variant font-label-md text-label-md block">Bank</span>
+<span class="font-stats-number text-stats-number text-secondary">£0.5m</span>
+</div>
+<div class="bg-surface-container-low rounded-lg p-sm text-center flex-1 max-w-[160px]">
+<span class="text-on-surface-variant font-label-md text-label-md block">Transfers</span>
+<span class="font-stats-number text-stats-number text-primary-container">1 Free</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Tactical Pitch Section -->
+<div class="px-safe-margin pb-gutter">
+<div class="relative bg-secondary rounded-xl overflow-hidden shadow-sm pitch-stripes p-md flex flex-col items-center justify-between min-h-[460px]">
+<!-- Pitch Lines Background (SVG Overlay) -->
+<svg class="absolute inset-0 w-full h-full pointer-events-none opacity-20" xmlns="http://www.w3.org/2000/svg">
+<rect class="text-on-primary" fill="none" height="92%" rx="12" stroke="currentColor" stroke-width="2" width="88%" x="6%" y="4%"></rect>
+<line class="text-on-primary" stroke="currentColor" stroke-width="1.5" x1="6%" x2="94%" y1="50%" y2="50%"></line>
+<circle class="text-on-primary" cx="50%" cy="50%" fill="none" r="38" stroke="currentColor" stroke-width="1.5"></circle>
+<path class="text-on-primary" d="M 32% 4% L 32% 16% L 68% 16% L 68% 4%" fill="none" stroke="currentColor" stroke-width="1.5"></path>
+<circle class="text-on-primary" cx="50%" cy="11%" fill="currentColor" r="2.5"></circle>
+<path class="text-on-primary" d="M 32% 96% L 32% 84% L 68% 84% L 68% 96%" fill="none" stroke="currentColor" stroke-width="1.5"></path>
+<circle class="text-on-primary" cx="50%" cy="89%" fill="currentColor" r="2.5"></circle>
+</svg>
+<!-- GK Line -->
+<div class="relative z-10 w-full flex justify-center py-xs">
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-10 h-10 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[26px] text-tertiary-container" style="font-variation-settings: 'FILL' 1;">shield</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-primary-container text-on-primary font-label-md text-[10px] leading-tight text-center">
+            Raya
+          </span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£5.5m</span>
+</div>
+</div>
+<!-- DEF Line (4) -->
+<div class="relative z-10 w-full flex justify-around items-center py-xs">
+<!-- DEF 1 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-error" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Gabriel</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£6.0m</span>
+</div>
+<!-- DEF 2 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-error" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Saliba</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£6.0m</span>
+</div>
+<!-- DEF 3 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-tertiary-container" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">V. Dijk</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£6.0m</span>
+</div>
+<!-- DEF 4 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-on-surface" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Porro</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£5.5m</span>
+</div>
+</div>
+<!-- MID Line (4) with Palmer Selected to OUT -->
+<div class="relative z-10 w-full flex justify-around items-center py-xs">
+<!-- MID 1 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-error" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Saka</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£10.1m</span>
+</div>
+<!-- MID 2: ACTIVE SELECTED OUT (Palmer) -->
+<div class="flex flex-col items-center relative cursor-pointer group">
+<div class="absolute -top-7 px-sm py-0.5 rounded-full bg-error-container text-on-error-container shadow-md flex items-center gap-xs animate-bounce">
+<span class="material-symbols-outlined text-[12px]">swap_horiz</span>
+<span class="font-label-md text-[10px] font-bold tracking-wider">OUT</span>
+</div>
+<div class="w-10 h-10 rounded-full bg-error-container flex items-center justify-center shadow-md shadow-error/30 p-0.5">
+<div class="w-full h-full rounded-full bg-surface-container-lowest flex items-center justify-center">
+<span class="material-symbols-outlined text-[22px] text-primary-container" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-error text-on-error font-label-md text-[10px] leading-tight font-bold">
+            Palmer
+          </span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£10.6m</span>
+</div>
+<!-- MID 3 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-on-primary-container" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Foden</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£9.3m</span>
+</div>
+<!-- MID 4 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-tertiary-container" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Bowen</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£7.5m</span>
+</div>
+</div>
+<!-- FWD Line (2) -->
+<div class="relative z-10 w-full flex justify-center gap-xl items-center py-xs">
+<!-- FWD 1 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-on-primary-container" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Haaland</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£15.2m</span>
+</div>
+<!-- FWD 2 -->
+<div class="flex flex-col items-center cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-surface-container-lowest flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[22px] text-tertiary-container" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<span class="mt-xs px-xs py-0.5 rounded bg-surface-container-lowest text-on-surface font-label-md text-[10px] leading-tight">Watkins</span>
+<span class="text-on-primary font-label-md text-[10px] drop-shadow-sm">£9.0m</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Bench Strip -->
+<div class="px-safe-margin pb-gutter">
+<div class="bg-surface-container-lowest rounded-xl p-sm shadow-sm flex items-center justify-between">
+<div class="flex items-center gap-xs px-xs">
+<span class="material-symbols-outlined text-on-surface-variant text-[18px]">chair</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Bench</span>
+</div>
+<div class="flex items-center gap-sm">
+<div class="flex items-center gap-xs bg-surface-container-low px-sm py-1 rounded-lg">
+<span class="material-symbols-outlined text-[14px] text-on-surface-variant">shield</span>
+<span class="font-label-md text-[11px] text-on-surface">Turner £4.0m</span>
+</div>
+<div class="flex items-center gap-xs bg-surface-container-low px-sm py-1 rounded-lg">
+<span class="font-label-md text-[11px] text-on-surface">Taylor £4.0m</span>
+</div>
+<div class="flex items-center gap-xs bg-surface-container-low px-sm py-1 rounded-lg">
+<span class="font-label-md text-[11px] text-on-surface">Archer £5.0m</span>
+</div>
+<div class="flex items-center gap-xs bg-surface-container-low px-sm py-1 rounded-lg">
+<span class="font-label-md text-[11px] text-on-surface">Kabore £4.0m</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Choose Replacement Section -->
+<div class="px-safe-margin flex flex-col gap-sm pb-gutter">
+<div class="flex items-center justify-between pt-xs">
+<div class="flex flex-col">
+<span class="font-headline-sm text-headline-sm text-on-surface">Replacement for Palmer</span>
+
+</div>
+<div class="flex items-center gap-xs bg-surface-container-high px-sm py-1 rounded-full cursor-pointer hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[16px] text-on-surface">sort</span>
+<span class="font-label-md text-label-md text-on-surface">Form</span>
+</div>
+</div>
+<!-- Candidate List -->
+<div class="flex flex-col gap-xs">
+<!-- Player 1: SELECTED IN (Bruno Fernandes) -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm flex items-center justify-between relative overflow-hidden bg-gradient-to-r from-secondary-container/20 to-surface-container-lowest">
+<div class="flex items-center gap-md min-w-0">
+<div class="w-11 h-11 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]" style="font-variation-settings: 'FILL' 1;">apparel</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-xs">
+<span class="font-headline-sm text-body-lg font-bold text-on-surface truncate">B. Fernandes</span>
+
+</div>
+<div class="flex items-center gap-sm mt-0.5 text-on-surface-variant font-label-md text-[11px]">
+<span class="">Form: <strong class="text-on-surface">7.4</strong></span>
+<span class="">Pts: <strong class="text-on-surface">185</strong></span>
+
+</div>
+</div>
+</div>
+<div class="flex items-center gap-md shrink-0">
+<div class="text-right">
+<span class="font-stats-number text-stats-number text-primary-container block">£8.5m</span>
+<span class="text-secondary font-label-md text-[10px]">Saves £2.1m</span>
+</div>
+<button class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</button>
+</div>
+</div>
+<!-- Player 2: Son (Alternative) -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-md min-w-0">
+<div class="w-11 h-11 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">apparel</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-xs">
+<span class="font-headline-sm text-body-lg font-bold text-on-surface truncate">Son Heung-min</span>
+
+</div>
+<div class="flex items-center gap-sm mt-0.5 text-on-surface-variant font-label-md text-[11px]">
+<span class="">Form: <strong class="text-on-surface">6.8</strong></span>
+<span class="">Pts: <strong class="text-on-surface">174</strong></span>
+
+</div>
+</div>
+</div>
+<div class="flex items-center gap-md shrink-0">
+<div class="text-right">
+<span class="font-stats-number text-stats-number text-on-surface block">£9.8m</span>
+<span class="text-secondary font-label-md text-[10px]">Saves £0.8m</span>
+</div>
+<button class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+<!-- Player 3: Luis Diaz -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-md min-w-0">
+<div class="w-11 h-11 rounded-full bg-surface-container-high text-tertiary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">apparel</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-xs">
+<span class="font-headline-sm text-body-lg font-bold text-on-surface truncate">Luis Díaz</span>
+
+</div>
+<div class="flex items-center gap-sm mt-0.5 text-on-surface-variant font-label-md text-[11px]">
+<span class="">Form: <strong class="text-on-surface">6.9</strong></span>
+<span class="">Pts: <strong class="text-on-surface">158</strong></span>
+
+</div>
+</div>
+</div>
+<div class="flex items-center gap-md shrink-0">
+<div class="text-right">
+<span class="font-stats-number text-stats-number text-on-surface block">£7.6m</span>
+<span class="text-secondary font-label-md text-[10px]">Saves £3.0m</span>
+</div>
+<button class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+<!-- Player 4: Anthony Gordon -->
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm flex items-center justify-between hover:bg-surface-container-low transition-colors cursor-pointer">
+<div class="flex items-center gap-md min-w-0">
+<div class="w-11 h-11 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[24px]">apparel</span>
+</div>
+<div class="flex flex-col min-w-0">
+<div class="flex items-center gap-xs">
+<span class="font-headline-sm text-body-lg font-bold text-on-surface truncate">A. Gordon</span>
+
+</div>
+<div class="flex items-center gap-sm mt-0.5 text-on-surface-variant font-label-md text-[11px]">
+<span class="">Form: <strong class="text-on-surface">6.5</strong></span>
+<span class="">Pts: <strong class="text-on-surface">162</strong></span>
+
+</div>
+</div>
+</div>
+<div class="flex items-center gap-md shrink-0">
+<div class="text-right">
+<span class="font-stats-number text-stats-number text-on-surface block">£7.5m</span>
+<span class="text-secondary font-label-md text-[10px]">Saves £3.1m</span>
+</div>
+<button class="w-8 h-8 rounded-full bg-surface-container-high text-on-surface flex items-center justify-center hover:bg-surface-container-highest transition-colors">
+<span class="material-symbols-outlined text-[20px]">add</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Bottom Transfer Exchange Summary Card -->
+<div class="px-safe-margin pb-xl">
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm flex flex-col gap-sm">
+<span class="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
+        Transfer Summary
+      </span>
+<div class="flex items-center justify-between">
+<!-- Player OUT -->
+<div class="flex items-center gap-xs">
+<span class="w-5 h-5 rounded-full bg-error-container text-on-error-container flex items-center justify-center text-[12px] font-bold">
+            -
+          </span>
+<div class="flex flex-col">
+<span class="font-headline-sm text-body-md font-bold text-on-surface">C. Palmer</span>
+<span class="text-on-surface-variant font-label-md text-[11px]">£10.6m · CHE</span>
+</div>
+</div>
+<!-- Swap Icon -->
+<div class="w-8 h-8 rounded-full bg-surface-container-high flex items-center justify-center text-primary-container">
+<span class="material-symbols-outlined text-[18px]">sync_alt</span>
+</div>
+<!-- Player IN -->
+<div class="flex items-center gap-xs text-right">
+<div class="flex flex-col">
+<span class="font-headline-sm text-body-md font-bold text-secondary">B. Fernandes</span>
+<span class="text-on-surface-variant font-label-md text-[11px]">£8.5m · MUN</span>
+</div>
+<span class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-[12px] font-bold">
+            +
+          </span>
+</div>
+</div>
+<!-- Financial Recap Strip -->
+<div class="flex items-center justify-between pt-xs text-on-surface-variant font-label-md text-label-md">
+<span class="">Transfers: <strong class="text-on-surface">1 used</strong></span>
+
+<span class="">New Bank: <strong class="text-secondary">£2.6m (+£2.1m)</strong></span>
+</div>
+</div>
+</div>
+</div></main>
+<!-- Sticky Footer -->
+<div class="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-[600px] z-40 bg-gradient-to-t from-surface via-surface to-transparent pt-8 pb-3 px-md">
+<button class="w-full bg-primary-container text-on-primary font-headline-sm py-3.5 rounded-xl shadow-[0_4px_12px_rgba(56,0,60,0.2)] hover:bg-on-primary-fixed-variant transition-colors active:scale-[0.98] flex items-center justify-center gap-2">Transfer</button>
+</div>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 left-0 w-full z-50 flex justify-around items-center px-safe-margin pb-safe pt-2 max-w-[600px] left-1/2 -translate-x-1/2 bg-surface border-t border-outline-variant shadow-sm h-[72px]"><!-- Home -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container-highest transition-colors rounded-xl cursor-pointer"><span class="material-symbols-outlined text-[24px]">house</span><span class="font-label-md text-[10px] mt-1 whitespace-nowrap">Dashboard</span></div>
+<!-- Starting XI (Active) -->
+<div class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-xl px-2 py-1 active:scale-90 transition-transform cursor-pointer"><span class="material-symbols-outlined text-[24px]" style="font-variation-settings: &quot;FILL&quot; 1;">groups</span><span class="font-label-md text-[10px] mt-1 whitespace-nowrap">Starting XI</span></div>
+<!-- Transfers -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container-highest transition-colors rounded-xl cursor-pointer"><span class="material-symbols-outlined text-[24px]">swap_horiz</span><span class="font-label-md text-[10px] mt-1 whitespace-nowrap">Transfers</span></div>
+<!-- Leagues -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container-highest transition-colors rounded-xl cursor-pointer"><span class="material-symbols-outlined text-[24px]">emoji_events</span><span class="font-label-md text-[10px] mt-1 whitespace-nowrap">Leagues</span></div>
+<!-- Chats -->
+<div class="flex flex-col items-center justify-center text-on-surface-variant p-1 hover:bg-surface-container-highest transition-colors rounded-xl cursor-pointer"><span class="material-symbols-outlined text-[24px]">chat</span><span class="font-label-md text-[10px] mt-1 whitespace-nowrap">Chat</span></div></nav>
+
+
+
+
+</body></html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html><html lang="en" style="width: 390px; height: 1178px; overflow: hidden; position: relative;"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>Matches - PitchSide AI</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pitch: {
+              purple: '#38003c',
+              purpleLight: '#eeedfe',
+              purpleHover: '#e3e1fc',
+              purpleBorder: '#e6e2ea',
+              green: '#00fa82',
+              greenDark: '#00d26a',
+              bgLight: '#fbf9fe',
+              textMain: '#1c1a24'
+            }
+          }
+        }
+      }
+    };
+  </script>
+<!-- Custom styles for iOS touch optimization and badge graphics -->
+<style data-purpose="custom-styling">
+    body {
+      -webkit-tap-highlight-color: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .badge-ring {
+      box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+    }
+  </style>
+<meta content="mobile_tab" name="shell-type">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"></head>
+<body class="bg-[#fbf9fe] text-pitch-textMain min-h-screen pb-24 antialiased selection:bg-pitch-green selection:text-pitch-purple">
+<!-- BEGIN: MainContainer -->
+<div class="max-w-[420px] mx-auto min-h-screen relative flex flex-col">
+<!-- BEGIN: TopBar -->
+<header class="sticky top-0 z-40 bg-[#fbf9fe]/95 backdrop-blur-md border-b border-[#e6e2ea] px-4 py-3 flex items-center justify-between">
+<!-- Hamburger Menu Button -->
+<button aria-label="Open menu" class="p-2 -ml-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors" type="button">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Page Title -->
+<h1 class="text-[19px] font-bold tracking-tight text-pitch-textMain">My team</h1>
+<!-- User Profile Action -->
+<button aria-label="User Profile" class="w-8 h-8 rounded-full bg-[#e8eaff] text-pitch-purple flex items-center justify-center border border-[#d6d8f5] shadow-sm" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</header>
+<!-- END: TopBar -->
+<!-- BEGIN: MainContent -->
+<main class="flex-1 px-3.5 pt-3 pb-6"><div class="flex flex-col w-full pb-4">
+<!-- Top Navigation & Back Header -->
+<div class="flex items-center justify-between py-2 mb-2">
+<button class="flex items-center space-x-1.5 text-primary-container font-label-md text-label-md active:opacity-75 transition-opacity" type="button">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span class="">Match Team Selection</span>
+</button>
+</div>
+<!-- Match Summary Card -->
+<div class="bg-surface-container-lowest rounded-xl p-3.5 shadow-sm mb-3">
+<div class="flex items-center justify-between text-on-surface-variant font-label-md text-label-md mb-2"><div class="w-full flex items-center justify-center"><span class="text-tertiary-container font-label-md flex items-center gap-1"><span class="w-1.5 h-1.5 rounded-full bg-error"></span>Starts in 18d 13h 52m</span></div></div>
+<!-- Matchup Display -->
+<div class="flex items-center justify-between py-1 px-1">
+<div class="flex items-center space-x-2">
+<div class="w-8 h-8 rounded-full bg-primary-container text-on-primary font-headline-sm text-[12px] flex items-center justify-center font-bold shadow-sm">
+          ARS
+        </div>
+<div>
+<h2 class="font-headline-sm text-[15px] text-on-surface leading-tight">Arsenal</h2>
+<span class="font-label-md text-[11px] text-on-surface-variant">6 Selected</span>
+</div>
+</div>
+<div class="text-center px-2">
+<span class="font-stats-number text-stats-number text-primary-container tracking-wider">VS</span>
+</div>
+<div class="flex items-center space-x-2 text-right">
+<div>
+<h2 class="font-headline-sm text-[15px] text-on-surface leading-tight">Leeds</h2>
+<span class="font-label-md text-[11px] text-on-surface-variant">5 Selected</span>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high text-primary-container font-headline-sm text-[12px] flex items-center justify-center font-bold shadow-sm">
+          LEE
+        </div>
+</div>
+</div>
+<!-- Metadata Sub-strip -->
+<div class="mt-2.5 pt-2 flex items-center justify-between text-[11px] font-label-md text-on-surface-variant bg-surface-container-low px-2.5 py-1.5 rounded-lg"><div class="w-full flex items-center justify-center"></div></div>
+</div>
+<!-- Captaincy Helper Guidance Banner -->
+<!-- Tactical Football Pitch Canvas -->
+<div class="bg-surface-container-lowest rounded-xl p-3.5 shadow-sm border border-[#e6e2ea] mb-3">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center space-x-1.5">
+<span class="material-symbols-outlined text-[16px] text-pitch-purple">shield</span>
+<span class="text-[11px] font-bold uppercase tracking-wider text-pitch-purple font-label-md">Team Name</span>
+</div>
+<div class="flex items-center space-x-2">
+<button class="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-secondary-container text-on-secondary-container hover:bg-secondary transition-colors shadow-sm active:scale-95" type="button">
+<span class="">⚡ Suggest Name</span>
+</button>
+<span class="text-[10px] font-medium text-gray-500 font-label-md">14/25</span>
+</div>
+</div>
+<div class="relative flex items-center">
+<input class="w-full bg-[#fbf9fe] border border-[#e6e2ea] rounded-lg px-3 py-2 text-[13px] font-bold text-pitch-textMain placeholder-gray-400 focus:outline-none focus:border-pitch-purple transition-all pr-9" maxlength="25" placeholder="Enter your team name..." type="text" value="The Gunners XI">
+<button aria-label="Edit team name" class="absolute right-2 text-gray-500 hover:text-pitch-purple transition-colors p-1 flex items-center justify-center" type="button">
+<span class="material-symbols-outlined text-[16px]">edit</span>
+</button>
+</div>
+</div><div class="bg-primary-container text-white rounded-xl px-3.5 py-2.5 mb-3 shadow-sm flex items-center justify-between border border-secondary-container/20"><div class="flex items-center space-x-2"><span class="material-symbols-outlined text-secondary-container text-[18px]">stars</span><div class="leading-tight"><p class="text-[11px] font-bold text-white">Captain &amp; Vice-Captain Selection</p><p class="text-[10px] text-white/70 font-label-md">Select 1 Captain (2x pts) and 1 Vice-Captain (1.5x pts)</p></div></div><div class="flex items-center space-x-1.5"><span class="text-[10px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full shadow-sm">C: Saka</span><span class="text-[10px] font-bold bg-white text-pitch-purple px-2 py-0.5 rounded-full shadow-sm">VC: Rodrigo</span></div></div><div class="relative w-full rounded-2xl overflow-hidden shadow-md bg-gradient-to-b from-[#1b5e20] via-[#2e7d32] to-[#1b5e20] p-3 text-white">
+<!-- Pitch Field Markings (SVG overlay) -->
+<div class="absolute inset-0 pointer-events-none opacity-25">
+<svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 140" xmlns="http://www.w3.org/2000/svg">
+<!-- Penalty Area Top -->
+<rect fill="none" height="20" stroke="#ffffff" stroke-width="0.8" width="56" x="22" y="0"></rect>
+<rect fill="none" height="9" stroke="#ffffff" stroke-width="0.8" width="30" x="35" y="0"></rect>
+<path d="M 40 20 A 10 10 0 0 0 60 20" fill="none" stroke="#ffffff" stroke-width="0.8"></path>
+<!-- Center Circle and Halfway Line -->
+<line stroke="#ffffff" stroke-width="0.8" x1="0" x2="100" y1="70" y2="70"></line>
+<circle cx="50" cy="70" fill="none" r="14" stroke="#ffffff" stroke-width="0.8"></circle>
+<circle cx="50" cy="70" fill="#ffffff" r="1"></circle>
+<!-- Penalty Area Bottom -->
+<rect fill="none" height="20" stroke="#ffffff" stroke-width="0.8" width="56" x="22" y="120"></rect>
+<rect fill="none" height="9" stroke="#ffffff" stroke-width="0.8" width="30" x="35" y="131"></rect>
+<path d="M 40 120 A 10 10 0 0 1 60 120" fill="none" stroke="#ffffff" stroke-width="0.8"></path>
+</svg>
+</div>
+<!-- Players Tactical Formation Stacking: 4-3-3 -->
+<div class="relative z-10 flex flex-col justify-between space-y-4 py-2"><div class="flex items-center justify-between px-2 pt-1 pb-1 mb-1 border-b border-white/20"><div class="flex items-center space-x-1.5"><span class="text-[10px] text-white/70 font-label-md">11 Players</span></div><button type="button" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-white text-pitch-purple hover:bg-[#eeedfe] transition-all shadow-md active:scale-95"><span class="material-symbols-outlined text-[14px]">tune</span><span class="">Edit Team</span></button></div>
+<!-- FORWARDS (3) -->
+<div>
+<div class="text-[9px] uppercase tracking-widest text-center text-white/60 font-label-md mb-1.5">Forwards</div>
+<div class="flex justify-around items-center px-1"><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="relative flex items-center justify-center"><div class="w-10 h-10 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-xs shadow-md border-2 border-white/80">29</div></div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[64px]"><p class="font-label-md text-[10px] font-bold leading-tight truncate">Havertz</p><p class="font-label-md text-[9px] text-on-surface-variant leading-none">9.5 cr</p></div><div class="flex items-center space-x-1 mt-1.5"><button type="button" class="w-5 h-5 rounded-full bg-white/20 hover:bg-white/40 text-white text-[9px] font-bold flex items-center justify-center border border-white/40 transition-colors shadow-sm">C</button><button type="button" class="w-5 h-5 rounded-full bg-white/20 hover:bg-white/40 text-white text-[9px] font-bold flex items-center justify-center border border-white/40 transition-colors shadow-sm">VC</button></div></div><div class="relative flex flex-col items-center group cursor-pointer z-30"><div class="relative flex items-center justify-center"><div class="w-10 h-10 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-xs shadow-lg border-2 border-secondary-container ring-2 ring-secondary-container/50">7</div><span class="absolute -top-1.5 -right-2 bg-secondary-container text-on-secondary-container text-[9px] font-stats-number px-1.5 py-0.2 rounded-full shadow-md font-bold">C 2x</span></div><div class="mt-1 bg-surface-container-lowest text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[64px] border border-secondary-container/40"><p class="font-label-md text-[10px] font-bold leading-tight truncate text-pitch-purple">Saka</p><p class="font-label-md text-[9px] text-on-surface-variant leading-none">10.0 cr</p></div><div class="flex items-center space-x-1 mt-1.5"><button type="button" class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container text-[9px] font-bold flex items-center justify-center shadow-sm font-stats-number">C</button><button type="button" class="w-5 h-5 rounded-full bg-white/20 hover:bg-white/40 text-white text-[9px] font-bold flex items-center justify-center border border-white/40 transition-colors shadow-sm">VC</button></div><!-- Interactive Tactical Popover --><div class="absolute top-12 left-1/2 -translate-x-1/2 w-64 bg-[#fbf9fe] text-pitch-textMain rounded-xl p-3 shadow-lg border border-pitch-purple/20 z-50 backdrop-blur-md"><div class="flex items-start justify-between pb-2 border-b border-[#e6e2ea]"><div class="flex items-center space-x-2"><div class="w-7 h-7 rounded-full bg-red-700 text-white flex items-center justify-center text-[10px] font-bold shadow-sm">7</div><div><h4 class="text-[12px] font-bold text-pitch-purple leading-tight">Bukayo Saka</h4><p class="text-[10px] text-gray-500 font-label-md">ARS · Forward · 10.0 cr</p></div></div><button type="button" aria-label="Close popover" class="text-gray-400 hover:text-pitch-purple p-0.5 rounded-full transition-colors"><span class="material-symbols-outlined text-[16px]">close</span></button></div><div class="mt-2.5 space-y-1.5"><button type="button" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-secondary-container text-on-secondary-container font-headline-sm text-[11px] shadow-sm hover:bg-secondary transition-all active:scale-95"><span class="flex items-center space-x-1.5 font-bold"><span class="w-5 h-5 rounded-full bg-pitch-purple text-white flex items-center justify-center text-[11px] font-bold leading-none shadow-sm">C</span><span class="">&nbsp;Captain</span></span><span class="text-[10px] font-stats-number font-bold bg-white/40 px-1.5 py-0.5 rounded">2x Pts</span></button><button type="button" class="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-white border border-[#e6e2ea] text-pitch-purple hover:bg-[#eeedfe] font-headline-sm text-[11px] shadow-sm transition-all active:scale-95"><span class="flex items-center space-x-1.5 font-bold"><span class="w-5 h-5 rounded-full bg-surface-container-high text-pitch-purple flex items-center justify-center text-[10px] font-stats-number font-bold">VC</span><span class="">&nbsp;Vice-Captain</span></span><span class="text-[10px] font-stats-number font-bold bg-surface-container-low px-1.5 py-0.5 rounded text-gray-700">1.5x Pts</span></button></div><div class="mt-2 pt-1.5 border-t border-[#e6e2ea] flex items-center justify-between text-[10px] font-label-md text-gray-500"><span class="">Selected by 74.2%</span><span class="text-secondary font-bold flex items-center space-x-0.5"><span class="material-symbols-outlined text-[12px]">check</span><span class="">Current Captain</span></span></div></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="relative flex items-center justify-center"><div class="w-10 h-10 rounded-full bg-white text-blue-900 flex items-center justify-center font-bold text-xs shadow-md border-2 border-secondary-container">19</div><span class="absolute -top-1.5 -right-2 bg-secondary-container text-on-secondary-container text-[9px] font-stats-number px-1.5 py-0.2 rounded-full shadow-md font-bold">VC 1.5x</span></div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[64px]"><p class="font-label-md text-[10px] font-bold leading-tight truncate">Rodrigo</p><p class="font-label-md text-[9px] text-on-surface-variant leading-none">8.5 cr</p></div><div class="flex items-center space-x-1 mt-1.5"><button type="button" class="w-5 h-5 rounded-full bg-white/20 hover:bg-white/40 text-white text-[9px] font-bold flex items-center justify-center border border-white/40 transition-colors shadow-sm">C</button><button type="button" class="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container text-[9px] font-bold flex items-center justify-center shadow-sm font-stats-number">VC</button></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="relative flex items-center justify-center"><div class="w-10 h-10 rounded-full bg-white text-blue-900 flex items-center justify-center font-bold text-xs shadow-md border-2 border-white/80">29</div></div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[64px]"><p class="font-label-md text-[10px] font-bold leading-tight truncate">Gnonto</p><p class="font-label-md text-[9px] text-on-surface-variant leading-none">7.5 cr</p></div><div class="flex items-center space-x-1 mt-1.5"><button type="button" class="w-5 h-5 rounded-full bg-white/20 hover:bg-white/40 text-white text-[9px] font-bold flex items-center justify-center border border-white/40 transition-colors shadow-sm">C</button><button type="button" class="w-5 h-5 rounded-full bg-white/20 hover:bg-white/40 text-white text-[9px] font-bold flex items-center justify-center border border-white/40 transition-colors shadow-sm">VC</button></div></div></div>
+</div>
+<!-- MIDFIELDERS (3) -->
+<div><div class="text-[9px] uppercase tracking-widest text-center text-white/60 font-label-md mb-1.5">Midfielders</div><div class="flex justify-around items-center px-2"><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="relative flex items-center justify-center"><div class="w-9 h-9 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-[11px] shadow border border-white/70">8</div></div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[60px]"><p class="font-label-md text-[9px] font-bold leading-tight truncate">Ødegaard</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">9.0 cr</p></div><div class="flex space-x-1 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="relative flex items-center justify-center"><div class="w-9 h-9 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-[11px] shadow border border-white/70">41</div></div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[60px]"><p class="font-label-md text-[9px] font-bold leading-tight truncate">Rice</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">8.0 cr</p></div><div class="flex space-x-1 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="relative flex items-center justify-center"><div class="w-9 h-9 rounded-full bg-white text-blue-900 flex items-center justify-center font-bold text-[11px] shadow border border-white/70">4</div></div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1.5 py-0.5 rounded shadow text-center min-w-[60px]"><p class="font-label-md text-[9px] font-bold leading-tight truncate">Ampadu</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">6.5 cr</p></div><div class="flex space-x-1 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div></div></div>
+<!-- DEFENDERS (4) -->
+<div>
+<div class="text-[9px] uppercase tracking-widest text-center text-white/60 font-label-md mb-1.5">Defenders</div>
+<div class="grid grid-cols-4 gap-1 px-1"><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="w-9 h-9 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-[11px] shadow border border-white/70">6</div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1 py-0.5 rounded shadow text-center w-full max-w-[58px]"><p class="font-label-md text-[9px] font-bold truncate">Gabriel</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">8.5 cr</p></div><div class="flex space-x-0.5 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="w-9 h-9 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-[11px] shadow border border-white/70">2</div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1 py-0.5 rounded shadow text-center w-full max-w-[58px]"><p class="font-label-md text-[9px] font-bold truncate">Saliba</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">8.5 cr</p></div><div class="flex space-x-0.5 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="w-9 h-9 rounded-full bg-white text-blue-900 flex items-center justify-center font-bold text-[11px] shadow border border-white/70">21</div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1 py-0.5 rounded shadow text-center w-full max-w-[58px]"><p class="font-label-md text-[9px] font-bold truncate">Struijk</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">7.5 cr</p></div><div class="flex space-x-0.5 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div><div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95"><div class="w-9 h-9 rounded-full bg-white text-blue-900 flex items-center justify-center font-bold text-[11px] shadow border border-white/70">3</div><div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-1 py-0.5 rounded shadow text-center w-full max-w-[58px]"><p class="font-label-md text-[9px] font-bold truncate">Firpo</p><p class="font-label-md text-[8px] text-on-surface-variant leading-none">7.0 cr</p></div><div class="flex space-x-0.5 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div></div></div>
+</div>
+<!-- GOALKEEPER (1) -->
+<div>
+<div class="text-[9px] uppercase tracking-widest text-center text-white/60 font-label-md mb-1.5">Goalkeeper</div>
+<div class="flex justify-center items-center">
+<div class="flex flex-col items-center group cursor-pointer transition-transform active:scale-95">
+<div class="w-9 h-9 rounded-full bg-yellow-500 text-black flex items-center justify-center font-bold text-[11px] shadow border border-white/70">
+              22
+            </div>
+<div class="mt-1 bg-surface-container-lowest/95 backdrop-blur-sm text-on-surface px-2 py-0.5 rounded shadow text-center min-w-[64px]">
+<p class="font-label-md text-[10px] font-bold truncate">Raya</p>
+<p class="font-label-md text-[9px] text-on-surface-variant leading-none">8.5 cr</p>
+</div>
+<div class="flex space-x-1 mt-1"><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">C</button><button type="button" class="w-4 h-4 rounded-full bg-white/20 hover:bg-white/40 text-white text-[8px] font-bold flex items-center justify-center border border-white/40">VC</button></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Bench / Substitutes Strip -->
+<!-- Validation & Save Team Action Area -->
+<div class="mt-3 bg-surface-container-lowest rounded-xl p-3.5 shadow-sm space-y-3">
+<!-- Squad Validation Progress / Checklist -->
+<div class="flex items-center justify-between text-[11px] font-label-md text-on-surface-variant pb-2 border-b border-surface-container"><div class="w-full flex items-center justify-between"><span class="flex items-center space-x-1 text-on-surface font-medium"><span class="w-1.5 h-1.5 rounded-full bg-secondary"></span><span class="">Captain &amp; Vice-Captain selected</span></span><span class="font-bold text-pitch-purple">C: Saka · VC: Rodrigo</span></div></div>
+<!-- Main Save CTA -->
+<button class="w-full bg-primary-container hover:bg-primary text-on-primary py-3.5 px-4 rounded-xl font-headline-sm text-[15px] flex items-center justify-center space-x-2 shadow-md active:scale-[0.99] transition-all" type="button"><span class="font-bold">Save Team: The Gunners XI</span><span class="material-symbols-outlined text-[18px] text-secondary-container">check_circle</span></button>
+<div class="text-center">
+<span class="inline-flex items-center space-x-1 font-label-md text-[11px] text-on-surface-variant">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary"></span>
+
+</span>
+</div>
+</div><div class="mt-3 bg-surface-container-lowest rounded-xl p-3.5 shadow-sm border border-[#e6e2ea]"><div class="flex items-center justify-between pb-2 mb-3 border-b border-surface-container"><div><h3 class="text-[14px] font-bold text-pitch-purple flex items-center space-x-1.5"><span class="material-symbols-outlined text-[17px] text-pitch-purple">swap_horiz</span><span class="">Switch Team</span></h3><p class="text-[10px] text-on-surface-variant font-label-md mt-0.5">You have 2 teams created for this match</p></div><button type="button" class="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-[#eeedfe] text-pitch-purple hover:bg-pitch-purple hover:text-white transition-all shadow-sm active:scale-95"><span class="material-symbols-outlined text-[13px]">add</span><span class="">Create New</span></button></div><div class="space-y-2.5"><div class="p-2.5 rounded-xl border-2 border-secondary-container bg-surface-container-low/60 relative flex flex-col space-y-1.5"><div class="flex items-center justify-between"><div class="flex items-center space-x-1.5"><span class="material-symbols-outlined text-secondary text-[16px]">check_circle</span><span class="font-bold text-[13px] text-pitch-purple leading-tight">The Gunners XI</span></div><span class="text-[9px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded-full font-label-md shadow-sm">Active</span></div><div class="flex items-center justify-between text-[10px] font-label-md text-on-surface-variant pt-1 border-t border-[#e6e2ea]/60"><span class="flex items-center space-x-1.5"><span class="">11 Players</span><span class="text-gray-400">•</span><span class="">C: <strong class="text-pitch-purple">Saka</strong></span><span class="text-gray-400">•</span><span class="">VC: <strong class="text-pitch-purple">Rodrigo</strong></span></span><span class="text-secondary font-bold text-[10px]">Current</span></div></div><div class="p-2.5 rounded-xl border border-[#e6e2ea] bg-white hover:border-pitch-purple/30 transition-all flex flex-col space-y-1.5 cursor-pointer"><div class="flex items-center justify-between"><div class="flex items-center space-x-1.5"><span class="w-4 h-4 rounded-full border border-gray-400 flex items-center justify-center"><span class="w-2 h-2 rounded-full bg-transparent"></span></span><span class="font-bold text-[13px] text-pitch-textMain leading-tight">North London Boys</span></div><button type="button" class="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-surface-container-high text-pitch-purple hover:bg-pitch-purple hover:text-white transition-colors shadow-sm font-label-md active:scale-95">Select</button></div><div class="flex items-center justify-between text-[10px] font-label-md text-on-surface-variant pt-1 border-t border-[#e6e2ea]/60"><span class="flex items-center space-x-1.5"><span class="">11 Players</span><span class="text-gray-400">•</span><span class="">C: <strong class="text-pitch-textMain">Rice</strong></span><span class="text-gray-400">•</span><span class="">VC: <strong class="text-pitch-textMain">Martinelli</strong></span></span><span class="text-gray-400 text-[10px]">Ready</span></div></div></div></div>
+<!-- Reference context visual token match -->
+<div class="hidden">
+<img alt="PitchSide contest team selection guide" class="w-0 h-0" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDewa3A5J_eEgoE26CrPqM3UY3Y5GnMJI71DRpq0cY0cRy7WwTGWsDq_4eOGpRJbVGgTV0R2AD4UqDNldRljZSf0EzfSDgA9rlbNYpkey8Aa4g1veUZtPLyyKq4kRmQCSUmrlhXq-Jp5f4q48q37RisBeD4NZ80ccUe-ae_uaKVLZ2DwZ9ZQFotpOevuutcnR9lh1NWigYjYJ1pIMFf9f329ah2aF6mCpK08fT8J0yhQo7SjfqWe37YGfI9zjkafwLvBg">
+</div>
+</div></main>
+<!-- END: MainContent -->
+<!-- BEGIN: BottomNavigation -->
+<nav class="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 py-1.5 px-3 max-w-[420px] mx-auto shadow-lg pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+<div class="flex items-center justify-around">
+<!-- Nav Item 1: Home -->
+<a class="flex flex-col items-center justify-center py-1 text-gray-500 hover:text-pitch-purple transition-colors w-14" href="#">
+<svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[10px] font-medium">Home</span>
+</a>
+<!-- Nav Item 2: Matches (Active Tab Indicator) -->
+<a class="flex items-center justify-center bg-pitch-green text-pitch-purple rounded-full px-4 py-1.5 shadow-sm space-x-1.5 transition-transform active:scale-95" href="#">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<rect height="18" rx="2" ry="2" stroke-width="2" width="18" x="3" y="4"></rect>
+<line stroke-width="2" x1="16" x2="16" y1="2" y2="6"></line>
+<line stroke-width="2" x1="8" x2="8" y1="2" y2="6"></line>
+<line stroke-width="2" x1="3" x2="21" y1="10" y2="10"></line>
+</svg>
+<span class="text-xs font-bold tracking-tight">Matches</span>
+</a>
+<!-- Nav Item 3: Team / Contests -->
+<a class="flex flex-col items-center justify-center py-1 text-gray-500 hover:text-pitch-purple transition-colors w-14" href="#">
+<svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16 8v8m-4-5v5m-4-2v2m-2 4h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[10px] font-medium">Team</span>
+</a>
+<!-- Nav Item 4: Leagues -->
+<a class="flex flex-col items-center justify-center py-1 text-gray-500 hover:text-pitch-purple transition-colors w-14" href="#">
+<svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[10px] font-medium">Leagues</span>
+</a>
+<!-- Nav Item 5: Chat -->
+<a class="flex flex-col items-center justify-center py-1 text-gray-500 hover:text-pitch-purple transition-colors w-14" href="#">
+<svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[10px] font-medium">Chat</span>
+</a>
+</div>
+</nav>
+<!-- END: BottomNavigation -->
+</div>
+<!-- END: MainContainer -->
+
+
+
+
+
+
+</body></html>

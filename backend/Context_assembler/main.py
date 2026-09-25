@@ -34,6 +34,7 @@ import sys
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 # Explicit dotted imports (from Game_logic.db_utils import ...) still need
 # the repo root on sys.path to resolve Game_logic as a package -- that's
@@ -47,11 +48,12 @@ import pandas as pd
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError, SQLAlchemyError
 
 from Shared.db_utils import get_engine
+from Shared.rate_limit import RateLimitMiddleware
 from Data.auth import CurrentUser, get_current_user, router as auth_router
 from Data.players import router as players_router
 from Data.scoring_rules import router as scoring_rules_router
@@ -121,8 +123,21 @@ MAX_PLAYERS = 15
 
 INSTRUCTIONS = """You are helping a Fantasy Premier League manager make squad decisions.
 
-You are given each player's tier, not a raw predicted score. Tiers reflect
-recent form ranking, not exact point forecasts:
+You may be advising on one of two separate game modes: the Tactical game,
+where the user picks a per-gameweek starting XI under an
+attack/defence/balanced tactic, or a Dream11 contest, where the user
+drafts a one-off team against other members for a single fixture under
+its own scoring rules. Treat them as unrelated games -- do not assume
+Tactical-game concepts (tactics, gameweek-long squads, transfers) apply to
+a Dream11 team, or vice versa.
+
+You are given each player's tier, not a raw predicted score. A tier may
+have been computed for an earlier gameweek than the one being discussed if
+nothing newer has been generated yet -- treat it as that player's most
+recent known form read, not necessarily this exact gameweek's, and do not
+claim it reflects this week's fixture specifically.
+
+Tiers reflect recent form ranking, not exact point forecasts:
 - Elite: top 10% of predicted performers this gameweek
 - Strong: next 25%
 - Average: middle 40%
@@ -148,6 +163,11 @@ symbols instead of formatting. Write the way you'd explain it out loud to
 someone: full sentences, grouped into short paragraphs by topic."""
 
 app = FastAPI(title="FPL Context Assembler")
+
+# Added BEFORE CORSMiddleware so CORS wraps it: a 429 then still carries
+# the CORS headers, and the browser reports "too many requests" instead of
+# an opaque CORS failure. See Shared/rate_limit.py for the limits.
+app.add_middleware(RateLimitMiddleware)
 
 # The frontend/ dev server runs on its own Vite port, not served by
 # FastAPI, so without this the browser blocks the fetch() call.
@@ -299,14 +319,42 @@ STARTING_XI_QUERY = text(
     """
 )
 
+# Dream11 counterpart to STARTING_XI_QUERY above -- same fpl_id/internal_id
+# shape so the rest of the pipeline (predictions/price/player-info lookups)
+# doesn't need to branch on mode. public.users confirms/joins the caller's
+# identity the same way Game_logic/dream11.py's own queries do; dream11.teams
+# and dream11.team_players supply the selected squad for the given contest.
+DREAM11_TEAM_QUERY = text(
+    """
+    SELECT p.fpl_id AS fpl_id, p.id AS internal_id
+    FROM dream11.teams te
+    JOIN dream11.team_players tp ON tp.team_id = te.id
+    JOIN ml.players p ON p.id = tp.player_id
+    JOIN public.users u ON u.id = te.user_id
+    WHERE te.contest_id = :contest_id AND te.user_id = :user_id
+    """
+)
 
+
+# Latest available tier per player for the season, not an exact-gameweek
+# match. ml is backfilled-only now (no live ingest, no auto weekly rerun --
+# see celery_app.py's disabled refresh-fixtures/schedule-fixture-polls) and
+# gw_selections/starting_xi keeps advancing on its own regardless, so
+# requiring gameweek = :gameweek here would mean every player goes back to
+# "New/Insufficient Data" the moment the live gameweek moves past whatever
+# was last backfilled. Falling back to each player's most recent known tier
+# (DISTINCT ON, same pattern as PRICE_QUERY below) keeps chat useful between
+# backfills, at the cost of the tier being "as of the last backfill" rather
+# than guaranteed current for this exact gameweek -- an explicit trade-off,
+# not an oversight.
 PREDICTIONS_QUERY = text(
     """
-    SELECT player_id, tier_or_label
+    SELECT DISTINCT ON (player_id) player_id, tier_or_label
     FROM ml.ml_predictions
-    WHERE season = :season AND gameweek = :gameweek
+    WHERE season = :season
       AND player_id = ANY(:player_ids)
       AND model_version = :model_version
+    ORDER BY player_id, gameweek DESC
     """
 )
 
@@ -351,18 +399,25 @@ def is_chat_available(engine, season: str) -> bool:
     return result > 0
 
 
+# Caps what one request can make the API hold and send to Groq.
+MAX_CHAT_MESSAGE_LENGTH = 1000
+
+
 class ChatRequest(BaseModel):
     season: str
     gameweek: int
-    message: str
+    message: str = Field(max_length=MAX_CHAT_MESSAGE_LENGTH)
+    mode: Literal["tactical", "dream11"] = "tactical"
+    contest_id: int | None = None  # required when mode == "dream11"
 
 
 class ChatResponse(BaseModel):
     response: str
 
 
-def _build_prompt(context_df: pd.DataFrame, message: str) -> str:
-    lines = [INSTRUCTIONS, "", "Player context (your current starting XI):"]
+def _build_prompt(context_df: pd.DataFrame, message: str, mode: str) -> str:
+    squad_label = "Dream11 team" if mode == "dream11" else "Tactical starting XI"
+    lines = [INSTRUCTIONS, "", f"Player context (your current {squad_label}):"]
     for player_id, row in context_df.iterrows():
         price = f"£{row['price_current']}m" if pd.notna(row["price_current"]) else "price unknown"
         lines.append(
@@ -382,15 +437,25 @@ def chat(
     user_id = current_user.id
     engine = get_engine()
 
+    if req.mode == "dream11" and req.contest_id is None:
+        raise HTTPException(status_code=400, detail="contest_id is required when mode is 'dream11'")
+
     try:
         if not is_chat_available(engine, req.season):
             return ChatResponse(response=CHAT_AVAILABILITY_MESSAGE)
 
-        squad = pd.read_sql(
-            STARTING_XI_QUERY,
-            engine,
-            params={"user_id": user_id, "season": req.season, "gameweek": req.gameweek},
-        )
+        if req.mode == "dream11":
+            squad = pd.read_sql(
+                DREAM11_TEAM_QUERY,
+                engine,
+                params={"user_id": user_id, "contest_id": req.contest_id},
+            )
+        else:
+            squad = pd.read_sql(
+                STARTING_XI_QUERY,
+                engine,
+                params={"user_id": user_id, "season": req.season, "gameweek": req.gameweek},
+            )
 
         if squad.empty:
             return ChatResponse(response=NO_SQUAD_MESSAGE)
@@ -409,7 +474,6 @@ def chat(
             engine,
             params={
                 "season": req.season,
-                "gameweek": req.gameweek,
                 "player_ids": player_ids,
                 "model_version": MODEL_VERSION,
             },
@@ -419,10 +483,12 @@ def chat(
         missing_ids = [pid for pid in player_ids if pid not in tier_map]
         if missing_ids:
             logger.warning(
-                "ml.ml_predictions missing row(s) for player_id %s (season=%s, gameweek=%s, "
-                "model_version=%s) -- table may be stale or not yet populated for this "
-                "gameweek. Treating as New/Insufficient Data.",
-                missing_ids, req.season, req.gameweek, MODEL_VERSION,
+                "ml.ml_predictions has NO row at all for player_id %s (season=%s, "
+                "model_version=%s) in any gameweek -- treating as New/Insufficient Data. "
+                "(This request wanted gameweek=%s; PREDICTIONS_QUERY falls back to each "
+                "player's latest known tier regardless of gameweek, so this only fires for "
+                "a player with zero backfilled predictions ever, not merely a stale one.)",
+                missing_ids, req.season, MODEL_VERSION, req.gameweek,
             )
             for pid in missing_ids:
                 tier_map[pid] = "New/Insufficient Data"
@@ -447,7 +513,7 @@ def chat(
         raise HTTPException(status_code=500, detail="Internal server error") from e
 
     prompt = _build_prompt(
-        context_df.loc[player_ids], req.message
+        context_df.loc[player_ids], req.message, req.mode
     )
 
     logger.info("Assembled prompt:\n%s", prompt)

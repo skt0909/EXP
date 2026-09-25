@@ -28,6 +28,8 @@ consumed together by the same page and should share units.
 import logging
 from collections import Counter
 
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -79,7 +81,8 @@ INSERT_SQUAD_PLAYER_STMT = text(
 CURRENT_SQUAD_QUERY = text(
     """
     SELECT sp.player_id AS fpl_id, sp.purchase_price, mp.web_name, mp.position,
-           t.short_name AS club, COALESCE(pgs.total_points, 0) AS points
+           t.short_name AS club, COALESCE(pgs.total_points, 0) AS points,
+           fx.first_kickoff
     FROM squad_players sp
     JOIN user_squads us ON us.id = sp.user_squad_id
     JOIN ml.players mp ON mp.fpl_id = sp.player_id AND mp.season = us.season
@@ -88,6 +91,17 @@ CURRENT_SQUAD_QUERY = text(
         ON pgs.player_id = mp.id
        AND pgs.season = us.season
        AND pgs.gameweek = :gameweek
+    -- The player's earliest kickoff this gameweek (NULL on a blank
+    -- gameweek). Exposed so the client can auto-arrange the XI/bench by
+    -- kickoff order -- Gameplay/selection_rules.py's Tactical Swap timing
+    -- rule (incoming's first kickoff strictly after outgoing's last fixture
+    -- ends) is otherwise easy to violate by picking an arbitrary pair.
+    LEFT JOIN LATERAL (
+        SELECT MIN(f.kickoff_time) AS first_kickoff
+        FROM ml.fixtures f
+        WHERE f.season = us.season AND f.gameweek = :gameweek
+          AND (f.home_team_id = mp.team_id OR f.away_team_id = mp.team_id)
+    ) fx ON TRUE
     WHERE us.user_id = :user_id AND us.season = :season AND sp.is_active = TRUE
     ORDER BY mp.position, mp.web_name
     """
@@ -126,6 +140,10 @@ class CurrentSquadPlayerOut(BaseModel):
     club: str
     price: float
     points: int = 0
+    # This player's earliest kickoff in the requested gameweek, or null on a
+    # blank gameweek or when `gameweek` wasn't passed. ISO 8601 with the
+    # database's own timezone -- never re-derived client-side.
+    first_kickoff: datetime | None = None
 
 
 class CurrentSquadResponse(BaseModel):
@@ -205,6 +223,7 @@ def get_current_squad(
                 club=row.club,
                 price=row.purchase_price / 10,
                 points=row.points,
+                first_kickoff=row.first_kickoff,
             )
             for row in rows
         ],

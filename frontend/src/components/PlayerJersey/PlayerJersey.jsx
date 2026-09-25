@@ -41,9 +41,9 @@ function PlayerJersey({
   return (
     <div className={`player-jersey player-jersey--${size} ${className}`.trim()}>
       <div className="player-jersey__image-wrap">
-        {captain && <span className="player-jersey__badge player-jersey__badge--captain">C</span>}
+        {captain && <span className="player-jersey__badge player-jersey__badge--captain" title="Captain · 2x points">C</span>}
         {viceCaptain && !captain && (
-          <span className="player-jersey__badge player-jersey__badge--vice">VC</span>
+          <span className="player-jersey__badge player-jersey__badge--vice" title="Vice-Captain · 1.5x points">VC</span>
         )}
         {team ? (
           <img

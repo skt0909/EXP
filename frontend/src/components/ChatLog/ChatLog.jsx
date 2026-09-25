@@ -13,7 +13,12 @@ function ChatLog({ messages, isTyping }) {
 
   return (
     <main
-      className="flex-1 overflow-y-auto px-md py-lg [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      // pb covers the fixed composer below (mode toggle + optional contest
+      // picker + text bar), which is taller and more variable now that the
+      // toggle lives there too -- 190px clears the toggle+input case with
+      // room to spare; the contest-picker case just leaves a bit more
+      // scrollable headroom, which is harmless.
+      className="flex-1 overflow-y-auto px-md pt-lg pb-[190px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       ref={logRef}
     >
       <div className="flex flex-col gap-6">

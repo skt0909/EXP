@@ -1,0 +1,282 @@
+{
+  "screenshot": {
+    "name": "projects/6082680430787009104/files/4146841854487556914",
+    "downloadUrl": "https://lh3.googleusercontent.com/aida/AEtjO1Ul6fNQ6RFPVAEuKZuss84Xhhz3he8OM8eDB-mHWGDWOKRnE-4edBZyCva6y1vWgIH-9_dk1rZukq1XOZmbtVRzruxW7vBZYI8NitgerlSeraWB72ETp0XMyY0ew6jAiJOOK3sKgt8dXG4J3eRkW1MahpryG1hUgin6R1SPRcudfAsoOvfCRkPrQ8ZBxd1QnIgn2tTa8TaoWU2Jd9jUZj_YEO2XTd1616q-T7tEFzJMXqemJso4rVET9Hc"
+  },
+  "htmlCode": {
+    "name": "projects/6082680430787009104/files/15811509858499021765",
+    "downloadUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwMDY1YzE0M2RiMmNkNmQwNWYxMjA2MTBlMDVhNTZjEgsSBxDLrLnjgRgYAZIBIwoKcHJvamVjdF9pZBIVQhM2MDgyNjgwNDMwNzg3MDA5MTA0&filename=&opi=89354086",
+    "mimeType": "text/html"
+  },
+  "id": "6a11cfe76c3d42d5964621e15acecc12",
+  "generatedBy": "figaro_agent",
+  "width": "780",
+  "height": "2358",
+  "title": "Contest Leaderboard & Teams",
+  "prompt": "Create a high-fidelity mobile screen for \"Contest Leaderboard & Teams\" in PitchSide Intelligence / Contests mode, closely following the layout and references in {{DATA:IMAGE:IMAGE_5}} and {{DATA:SCREEN:SCREEN_6}}.\n\nDesign specifications:\n1. Header & Context:\n   - Top App Bar with back navigation arrow (\"←\"), Title \"Leaderboard\", and user avatar profile in top right.\n   - Match fixture pill / breadcrumb: \"ARS v LEE · GW6\" with small Arsenal and Leeds circular crest/club badges.\n   - Contest Name & Details:\n     - Prominent Contest title e.g. \"e\" or \"Weekend Warriors Derby\"\n     - Sub-metadata: \"1/2 members · code CNLXLKS\" with a copy code icon button.\n     - Status badges row: \"[OPEN]\" badge in soft blue pill, kickoff schedule \"Sat, Oct 10, 12:30 PM\", and a clickable pill \"❓ How points work\".\n   - Helper notification notice box: \"Rival teams stay hidden until kickoff — you can still open your own.\"\n\n2. Standings & Leaderboard Table / Cards:\n   - Section title \"Leaderboard\" with member count summary.\n   - List of enrolled manager teams:\n     - Rank #1: User's team prominently highlighted with a purple tint border / subtle gradient:\n       - Rank: \"1\"\n       - Manager & Team Info: Initial/Avatar \"S\", \"ME\" badge, Team Name \"The Gunners XI\", Manager Name \"Saket\", Captain icon (C Saka).\n       - Total Points: \"0 Pts\" (or active gameweek points preview).\n       - Expand/Inspect arrow or \"View Team XI\" preview button.\n     - Rank #2 (Pending / Locked rival team slot):\n       - Rank: \"2\"\n       - State: \"Rival Team (Hidden until kickoff)\" or placeholder \"Waiting for manager to join...\" with an \"Invite Friend\" shortcut button or code sharing trigger.\n     - If showing additional demo contest members:\n       - Rank #2: \"Alex M. · North London FC\" — \"Hidden until kickoff 🔒\"\n       - Rank #3: \"David K. · Elland Road XI\" — \"Hidden until kickoff 🔒\"\n\n3. Teams Inside Contest (Inspect Team Accordion / Roster Preview):\n   - A dedicated card section: \"Your Contest Team: The Gunners XI\"\n   - Shows a clean compact preview of the 11 starters chosen for this contest:\n     - 4-3-3 formation summary\n     - Key players with mini jersey pills: Havertz (ARS), Saka (C, ARS), Rodrigo (VC, LEE), Raya (GK, ARS), Saliba (ARS).\n     - \"Edit Lineup\" button with pencil icon (available before deadline).\n\n4. Action Footer:\n   - Sticky / prominent bottom action: \"Share Invite Code (CNLXLKS)\" with share icon or \"Invite Friends\" button in signature deep purple `#38003c` or vibrant green accent `#00d26a`.\n\n5. Visual Aesthetics:\n   - Design System: {{DATA:DESIGN_SYSTEM:DESIGN_SYSTEM_3}} (PitchSide Intelligence Light Theme, deep purple `#38003c`, clean white cards `#ffffff`, soft surface `#faf8ff`, subtle lavender borders, 8px rounded corners).\n   - Ensure the mobile 5-item bottom navbar maintains the \"Matches\" or \"Leagues\" active tab state cleanly.\n## Available Images\nYou MUST include the following images in this design. You must reference them\nby putting their exact placeholder IDs in `src` attributes or CSS\n`background-image` rules. Do NOT use external URLs or generate new\nplaceholders. Preserve these IDs exactly as written. Read each image's\nDescription to understand its subject, intended section, and visual role.\n\n- {{DATA:IMAGE:IMAGE_5}}\n  Description: image.png\n  Dimensions: 532x356\n  Aspect Ratio: 1.49\n",
+  "name": "projects/6082680430787009104/screens/6a11cfe76c3d42d5964621e15acecc12",
+  "theme": {
+    "colorMode": "LIGHT",
+    "font": "INTER",
+    "roundness": "ROUND_EIGHT",
+    "customColor": "#38003c",
+    "headlineFont": "INTER",
+    "bodyFont": "INTER",
+    "labelFont": "INTER",
+    "namedColors": {
+      "on_tertiary_fixed": "#400010",
+      "secondary_container": "#00fa82",
+      "on_primary_container": "#af6eac",
+      "tertiary": "#050000",
+      "surface": "#faf8ff",
+      "inverse_surface": "#283044",
+      "tertiary_fixed": "#ffd9dc",
+      "surface_variant": "#dae2fd",
+      "on_tertiary_fixed_variant": "#910030",
+      "primary": "#040004",
+      "tertiary_container": "#410011",
+      "on_error_container": "#93000a",
+      "on_primary_fixed_variant": "#6a306a",
+      "outline_variant": "#d2c2cd",
+      "surface_container": "#eaedff",
+      "secondary": "#006d35",
+      "on_tertiary_container": "#fe225f",
+      "on_secondary_fixed": "#00210c",
+      "on_error": "#ffffff",
+      "background": "#faf8ff",
+      "on_primary": "#ffffff",
+      "on_primary_fixed": "#37003b",
+      "on_secondary": "#ffffff",
+      "inverse_primary": "#f7aff2",
+      "primary_container": "#38003c",
+      "primary_fixed_dim": "#f7aff2",
+      "on_secondary_fixed_variant": "#005227",
+      "surface_bright": "#faf8ff",
+      "surface_container_high": "#e2e7ff",
+      "error_container": "#ffdad6",
+      "on_background": "#131b2e",
+      "surface_container_low": "#f2f3ff",
+      "on_surface_variant": "#4f434c",
+      "surface_tint": "#854884",
+      "outline": "#80737d",
+      "inverse_on_surface": "#eef0ff",
+      "tertiary_fixed_dim": "#ffb2ba",
+      "on_tertiary": "#ffffff",
+      "surface_dim": "#d2d9f4",
+      "on_surface": "#131b2e",
+      "surface_container_highest": "#dae2fd",
+      "secondary_fixed_dim": "#00e476",
+      "on_secondary_container": "#006e36",
+      "secondary_fixed": "#61ff97",
+      "surface_container_lowest": "#ffffff",
+      "primary_fixed": "#ffd6f8",
+      "error": "#ba1a1a"
+    },
+    "colorVariant": "FIDELITY",
+    "overridePrimaryColor": "#38003c",
+    "overrideSecondaryColor": "#00ff85",
+    "overrideTertiaryColor": "#e90052",
+    "overrideNeutralColor": "#0f172a",
+    "spacingScale": 2,
+    "typography": {
+      "headline-sm": {
+        "fontFamily": "Inter",
+        "fontSize": "20px",
+        "fontWeight": "700",
+        "lineHeight": "1.3"
+      },
+      "stats-number": {
+        "fontFamily": "Inter",
+        "fontSize": "18px",
+        "fontWeight": "800",
+        "lineHeight": "1"
+      },
+      "display-lg": {
+        "fontFamily": "Inter",
+        "fontSize": "32px",
+        "fontWeight": "800",
+        "lineHeight": "1.2",
+        "letterSpacing": "-0.02em"
+      },
+      "label-md": {
+        "fontFamily": "Inter",
+        "fontSize": "12px",
+        "fontWeight": "600",
+        "lineHeight": "1",
+        "letterSpacing": "0.05em"
+      },
+      "body-lg": {
+        "fontFamily": "Inter",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "1.6"
+      },
+      "body-md": {
+        "fontFamily": "Inter",
+        "fontSize": "14px",
+        "fontWeight": "400",
+        "lineHeight": "1.5"
+      },
+      "headline-md": {
+        "fontFamily": "Inter",
+        "fontSize": "24px",
+        "fontWeight": "700",
+        "lineHeight": "1.3",
+        "letterSpacing": "-0.01em"
+      }
+    },
+    "spacing": {
+      "md": "16px",
+      "base": "4px",
+      "xs": "4px",
+      "xl": "32px",
+      "gutter": "12px",
+      "sm": "8px",
+      "lg": "24px",
+      "safe-margin": "16px"
+    },
+    "headlineFontFamily": "Inter",
+    "bodyFontFamily": "Inter",
+    "labelFontFamily": "Inter"
+  },
+  "deviceType": "MOBILE",
+  "screenType": "DESIGN",
+  "screenMetadata": {
+    "agentType": "PRO_AGENT",
+    "status": "COMPLETE",
+    "displayMode": "HTML"
+  },
+  "designSystem": {
+    "name": "assets/c7cb2e6d256e4a1f8bb77da5ed434946",
+    "designSystem": {
+      "displayName": "PitchSide Intelligence",
+      "styleGuidelines": "## Brand & Style\nThe design system is engineered for the high-stakes, data-driven environment of Fantasy Premier League management. It balances the high-energy, vibrant aesthetic of the Premier League brand with a clean, \"Utility-First\" interface. \n\nThe style is **Corporate Modern with a Sporty Edge**, utilizing heavy whitespace and crisp typography to make complex statistics digestible. The emotional response should be one of confidence, speed, and analytical clarity—helping managers make \"deadline-day\" decisions without cognitive overload.\n\n## Layout & Spacing\nThe layout follows a **Mobile-First Fluid Grid** model. \n- **Margins:** Standard side margins are 16px. \n- **Vertical Rhythm:** Elements are spaced in multiples of 4px. Use 16px (md) for standard spacing between components and 8px (sm) for internal element grouping.\n- **Stacking:** On mobile, lists and cards should span the full width minus safe-margins. On larger screens (tablet), content should be contained within a 600px max-width center column to maintain the \"chat assistant\" intimacy.\n\n## Elevation & Depth\nThe system uses **Tonal Layering** with very subtle shadows to maintain a clean, modern feel.\n- **Level 0 (Background):** `#f8f9fa` - The base canvas.\n- **Level 1 (Cards/Bubbles):** `#ffffff` - Raised slightly with a 2px blur, 4% opacity black shadow.\n- **Level 2 (Active Inputs/Modals):** `#ffffff` - Higher elevation with a 10px blur, 8% opacity shadow to indicate interactivity.\n- **Separators:** Use 1px solid lines in `#e2e8f0` rather than shadows for list items to keep the interface \"flat\" and fast.\n\n## Components\n- **Chat Bubbles:** \n    - *Assistant:* White background, primary purple text, 16px radius, aligned left.\n    - *User:* Primary purple background, white text, 16px radius, aligned right.\n- **Suggested Question Chips:** Pill-shaped, transparent background with a 1px border of `#38003c`. On tap, fill with primary color.\n- **Input Field:** Rounded (8px), white surface, subtle inner border. The active state should have a 2px secondary green bottom-border.\n- **Player Cards:** Minimalist white cards with the player's shirt icon, name (bold), and price. Use the `stats-number` type for points.\n- **Header:** Minimalist white background, 1px bottom border. Small (32px) circular avatar for the user on the right, and a simplified app icon on the left.\n- **Points Badge:** Small circular or rounded-rect containers using the secondary green background with primary purple text for \"high-score\" visibility.",
+      "theme": {
+        "colorMode": "LIGHT",
+        "font": "INTER",
+        "roundness": "ROUND_EIGHT",
+        "customColor": "#38003c",
+        "headlineFont": "INTER",
+        "bodyFont": "INTER",
+        "labelFont": "INTER",
+        "namedColors": {
+          "inverse_primary": "#f7aff2",
+          "on_surface": "#131b2e",
+          "surface_tint": "#854884",
+          "error_container": "#ffdad6",
+          "on_tertiary_fixed": "#400010",
+          "on_background": "#131b2e",
+          "secondary_fixed_dim": "#00e476",
+          "on_tertiary_fixed_variant": "#910030",
+          "on_secondary_fixed_variant": "#005227",
+          "on_secondary": "#ffffff",
+          "surface_dim": "#d2d9f4",
+          "on_tertiary": "#ffffff",
+          "surface": "#faf8ff",
+          "tertiary_container": "#410011",
+          "on_primary_fixed_variant": "#6a306a",
+          "on_error_container": "#93000a",
+          "tertiary_fixed": "#ffd9dc",
+          "secondary_fixed": "#61ff97",
+          "on_primary_container": "#af6eac",
+          "on_tertiary_container": "#fe225f",
+          "on_secondary_fixed": "#00210c",
+          "on_primary_fixed": "#37003b",
+          "primary_fixed": "#ffd6f8",
+          "surface_container": "#eaedff",
+          "primary": "#040004",
+          "outline": "#80737d",
+          "inverse_surface": "#283044",
+          "secondary": "#006d35",
+          "primary_fixed_dim": "#f7aff2",
+          "surface_container_low": "#f2f3ff",
+          "background": "#faf8ff",
+          "on_primary": "#ffffff",
+          "tertiary": "#050000",
+          "on_secondary_container": "#006e36",
+          "on_surface_variant": "#4f434c",
+          "primary_container": "#38003c",
+          "surface_variant": "#dae2fd",
+          "error": "#ba1a1a",
+          "outline_variant": "#d2c2cd",
+          "inverse_on_surface": "#eef0ff",
+          "tertiary_fixed_dim": "#ffb2ba",
+          "on_error": "#ffffff",
+          "secondary_container": "#00fa82",
+          "surface_bright": "#faf8ff",
+          "surface_container_highest": "#dae2fd",
+          "surface_container_high": "#e2e7ff",
+          "surface_container_lowest": "#ffffff"
+        },
+        "designMd": "---\nname: PitchSide Intelligence\ncolors:\n  surface: '#faf8ff'\n  surface-dim: '#d2d9f4'\n  surface-bright: '#faf8ff'\n  surface-container-lowest: '#ffffff'\n  surface-container-low: '#f2f3ff'\n  surface-container: '#eaedff'\n  surface-container-high: '#e2e7ff'\n  surface-container-highest: '#dae2fd'\n  on-surface: '#131b2e'\n  on-surface-variant: '#4f434c'\n  inverse-surface: '#283044'\n  inverse-on-surface: '#eef0ff'\n  outline: '#80737d'\n  outline-variant: '#d2c2cd'\n  surface-tint: '#854884'\n  primary: '#040004'\n  on-primary: '#ffffff'\n  primary-container: '#38003c'\n  on-primary-container: '#af6eac'\n  inverse-primary: '#f7aff2'\n  secondary: '#006d35'\n  on-secondary: '#ffffff'\n  secondary-container: '#00fa82'\n  on-secondary-container: '#006e36'\n  tertiary: '#050000'\n  on-tertiary: '#ffffff'\n  tertiary-container: '#410011'\n  on-tertiary-container: '#fe225f'\n  error: '#ba1a1a'\n  on-error: '#ffffff'\n  error-container: '#ffdad6'\n  on-error-container: '#93000a'\n  primary-fixed: '#ffd6f8'\n  primary-fixed-dim: '#f7aff2'\n  on-primary-fixed: '#37003b'\n  on-primary-fixed-variant: '#6a306a'\n  secondary-fixed: '#61ff97'\n  secondary-fixed-dim: '#00e476'\n  on-secondary-fixed: '#00210c'\n  on-secondary-fixed-variant: '#005227'\n  tertiary-fixed: '#ffd9dc'\n  tertiary-fixed-dim: '#ffb2ba'\n  on-tertiary-fixed: '#400010'\n  on-tertiary-fixed-variant: '#910030'\n  background: '#faf8ff'\n  on-background: '#131b2e'\n  surface-variant: '#dae2fd'\ntypography:\n  display-lg:\n    fontFamily: Inter\n    fontSize: 32px\n    fontWeight: '800'\n    lineHeight: '1.2'\n    letterSpacing: -0.02em\n  headline-md:\n    fontFamily: Inter\n    fontSize: 24px\n    fontWeight: '700'\n    lineHeight: '1.3'\n    letterSpacing: -0.01em\n  headline-sm:\n    fontFamily: Inter\n    fontSize: 20px\n    fontWeight: '700'\n    lineHeight: '1.3'\n  body-lg:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: '1.6'\n  body-md:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: '1.5'\n  label-md:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: '600'\n    lineHeight: '1'\n    letterSpacing: 0.05em\n  stats-number:\n    fontFamily: Inter\n    fontSize: 18px\n    fontWeight: '800'\n    lineHeight: '1'\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  base: 4px\n  xs: 4px\n  sm: 8px\n  md: 16px\n  lg: 24px\n  xl: 32px\n  safe-margin: 16px\n  gutter: 12px\n---\n\n## Brand & Style\nThe design system is engineered for the high-stakes, data-driven environment of Fantasy Premier League management. It balances the high-energy, vibrant aesthetic of the Premier League brand with a clean, \"Utility-First\" interface. \n\nThe style is **Corporate Modern with a Sporty Edge**, utilizing heavy whitespace and crisp typography to make complex statistics digestible. The emotional response should be one of confidence, speed, and analytical clarity—helping managers make \"deadline-day\" decisions without cognitive overload.\n\n## Colors\nThe palette leverages the iconic contrast of the league. \n- **Primary (Deep Purple):** Used for headers, primary actions, and brand identification to establish authority.\n- **Secondary (Vibrant Green):** Reserved for \"success\" states, price rises, and CTA accents that require high visibility.\n- **Tertiary (Electric Pink):** Used sparingly for critical alerts, price falls, or \"Live\" match indicators.\n- **Neutral:** A deep navy-black is used for all body text to ensure maximum legibility against the light gray background.\n\n## Typography\nThis design system relies on a single, highly-optimized sans-serif stack to ensure performance and clarity. \n- **Headlines:** Use tighter letter-spacing and heavier weights to mimic sports editorial styles.\n- **Data Points:** Numbers (points, prices, rank) should use the `stats-number` style to stand out from descriptive text.\n- **Labels:** Use uppercase for metadata (e.g., \"GW38\", \"FIX\") to create a clear visual hierarchy.\n\n## Layout & Spacing\nThe layout follows a **Mobile-First Fluid Grid** model. \n- **Margins:** Standard side margins are 16px. \n- **Vertical Rhythm:** Elements are spaced in multiples of 4px. Use 16px (md) for standard spacing between components and 8px (sm) for internal element grouping.\n- **Stacking:** On mobile, lists and cards should span the full width minus safe-margins. On larger screens (tablet), content should be contained within a 600px max-width center column to maintain the \"chat assistant\" intimacy.\n\n## Elevation & Depth\nThe system uses **Tonal Layering** with very subtle shadows to maintain a clean, modern feel.\n- **Level 0 (Background):** `#f8f9fa` - The base canvas.\n- **Level 1 (Cards/Bubbles):** `#ffffff` - Raised slightly with a 2px blur, 4% opacity black shadow.\n- **Level 2 (Active Inputs/Modals):** `#ffffff` - Higher elevation with a 10px blur, 8% opacity shadow to indicate interactivity.\n- **Separators:** Use 1px solid lines in `#e2e8f0` rather than shadows for list items to keep the interface \"flat\" and fast.\n\n## Shapes\nThe shape language is friendly but structured. \n- **Standard Radius:** 8px (`rounded-md`) for cards and containers.\n- **Chat Bubbles:** Specifically use 16px to distinguish conversational content from static UI.\n- **Action Elements:** Use the \"Pill\" (full radius) for buttons and suggested question chips to emphasize their \"tappability\" on mobile devices.\n\n## Components\n- **Chat Bubbles:** \n    - *Assistant:* White background, primary purple text, 16px radius, aligned left.\n    - *User:* Primary purple background, white text, 16px radius, aligned right.\n- **Suggested Question Chips:** Pill-shaped, transparent background with a 1px border of `#38003c`. On tap, fill with primary color.\n- **Input Field:** Rounded (8px), white surface, subtle inner border. The active state should have a 2px secondary green bottom-border.\n- **Player Cards:** Minimalist white cards with the player's shirt icon, name (bold), and price. Use the `stats-number` type for points.\n- **Header:** Minimalist white background, 1px bottom border. Small (32px) circular avatar for the user on the right, and a simplified app icon on the left.\n- **Points Badge:** Small circular or rounded-rect containers using the secondary green background with primary purple text for \"high-score\" visibility.",
+        "colorVariant": "FIDELITY",
+        "overridePrimaryColor": "#38003c",
+        "overrideSecondaryColor": "#00ff85",
+        "overrideTertiaryColor": "#e90052",
+        "overrideNeutralColor": "#0f172a",
+        "spacingScale": 2,
+        "typography": {
+          "stats-number": {
+            "fontFamily": "Inter",
+            "fontSize": "18px",
+            "fontWeight": "800",
+            "lineHeight": "1"
+          },
+          "headline-sm": {
+            "fontFamily": "Inter",
+            "fontSize": "20px",
+            "fontWeight": "700",
+            "lineHeight": "1.3"
+          },
+          "body-md": {
+            "fontFamily": "Inter",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lineHeight": "1.5"
+          },
+          "headline-md": {
+            "fontFamily": "Inter",
+            "fontSize": "24px",
+            "fontWeight": "700",
+            "lineHeight": "1.3",
+            "letterSpacing": "-0.01em"
+          },
+          "body-lg": {
+            "fontFamily": "Inter",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "1.6"
+          },
+          "label-md": {
+            "fontFamily": "Inter",
+            "fontSize": "12px",
+            "fontWeight": "600",
+            "lineHeight": "1",
+            "letterSpacing": "0.05em"
+          },
+          "display-lg": {
+            "fontFamily": "Inter",
+            "fontSize": "32px",
+            "fontWeight": "800",
+            "lineHeight": "1.2",
+            "letterSpacing": "-0.02em"
+          }
+        },
+        "spacing": {
+          "safe-margin": "16px",
+          "base": "4px",
+          "sm": "8px",
+          "lg": "24px",
+          "xl": "32px",
+          "gutter": "12px",
+          "md": "16px",
+          "xs": "4px"
+        },
+        "headlineFontFamily": "Inter",
+        "bodyFontFamily": "Inter",
+        "labelFontFamily": "Inter"
+      }
+    },
+    "version": "1"
+  }
+}

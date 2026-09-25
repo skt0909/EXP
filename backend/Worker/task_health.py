@@ -12,10 +12,9 @@ record_task_heartbeat is called from Worker/tasks.py at the end of each
 of the eight Beat-scheduled tasks -- both on success and from inside
 their existing except block, so a task that runs but keeps failing is
 still visibly attempting to run, not indistinguishable from one Beat
-never fires at all. The five tasks that are NOT on Beat's schedule
-(run_ml_pipeline, compute_gw_scores, compute_league_standings,
-poll_and_score_dream11, poll_and_score_fpl_fixture -- one-off or
-manually-triggered) do not call this: there is no "expected interval"
+never fires at all. The tasks that are NOT on Beat's schedule
+(compute_gw_scores, compute_league_standings -- manually triggered) do
+not call this: there is no "expected interval"
 for a one-off task to go stale against, so a heartbeat for one would
 have nothing to compare itself to.
 

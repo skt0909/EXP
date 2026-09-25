@@ -1,0 +1,275 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Assist - PitchSide AI</title>
+<!-- Tailwind CSS CDN with forms and container queries plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            appBg: '#F5F5F2',
+            surfaceCard: '#FFFFFF',
+            surfaceMuted: '#F8F8F5',
+            brandOlive: '#78952D',
+            darkOlive: '#5F7823',
+            paleOlive: '#EEF3DF',
+            textPrimary: '#171816',
+            textSecondary: '#70726C',
+            textMuted: '#9A9C96',
+            appBorder: '#E5E6E1',
+            accentDark: '#1E0B25',
+          },
+          fontFamily: {
+            sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<!-- Typography & Global Utility Styles -->
+<style data-purpose="typography">
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  </style>
+<!-- Layout & Custom Scroll Styles -->
+<style data-purpose="layout">
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-appBg text-textPrimary antialiased flex justify-center min-h-screen selection:bg-paleOlive selection:text-darkOlive">
+<!-- Mobile Viewport Container -->
+<div class="w-full max-w-[420px] min-h-screen flex flex-col bg-appBg relative shadow-2xl overflow-x-hidden pb-36">
+<!-- BEGIN: TopHeader -->
+<header class="sticky top-0 z-30 bg-surfaceCard/80 backdrop-blur-md px-5 py-3.5 border-b border-appBorder/60" data-purpose="app-header">
+  <div class="flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <button aria-label="Open Navigation Menu" class="w-9 h-9 flex items-center justify-center rounded-full bg-surfaceCard shadow-xs border border-appBorder active:scale-95 transition-transform text-textPrimary" type="button">
+        <svg class="w-4 h-4 stroke-current" fill="none" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24">
+          <line x1="4" x2="20" y1="7" y2="7"></line>
+          <line x1="4" x2="14" y1="12" y2="12"></line>
+          <line x1="4" x2="18" y1="17" y2="17"></line>
+        </svg>
+      </button>
+      <span class="text-[17px] font-bold tracking-tight text-textPrimary leading-none">Assist</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <button aria-label="User Profile" class="relative w-9 h-9 rounded-full bg-surfaceCard border border-appBorder shadow-xs flex items-center justify-center text-textPrimary active:scale-95 transition-transform" type="button">
+        <svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"></path>
+          <circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"></circle>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <!-- Live Gameweek Sub-indicator -->
+  <div class="flex items-center justify-between mt-2.5 pt-1">
+    <div class="flex items-center space-x-1.5">
+      <span class="inline-flex h-2 w-2 relative">
+        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brandOlive opacity-75"></span>
+        <span class="relative inline-flex rounded-full h-2 w-2 bg-brandOlive"></span>
+      </span>
+      <span class="text-[11px] font-medium tracking-wide uppercase text-textSecondary">PitchSide AI • Gameweek 6 Advisor</span>
+    </div>
+    <span class="text-[10px] font-semibold bg-paleOlive text-darkOlive px-2 py-0.5 rounded-full uppercase tracking-wider">Tactical Live</span>
+  </div>
+</header>
+<!-- END: TopHeader -->
+<!-- BEGIN: ChatScrollContainer -->
+<main class="flex-1 px-3.5 py-4 space-y-4 no-scrollbar pb-44">
+<!-- AI Welcome Greeting Bubble -->
+<div class="flex items-start space-x-2.5" data-purpose="ai-initial-greeting">
+<!-- Bot Avatar Badge -->
+<div class="w-7 h-7 rounded-full bg-paleOlive border border-brandOlive/20 flex-shrink-0 flex items-center justify-center text-darkOlive mt-0.5 shadow-xs">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24">
+<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+</svg>
+</div>
+<!-- Bot Greeting Text Bubble -->
+<div class="bg-surfaceCard border border-appBorder rounded-2xl rounded-tl-sm px-3.5 py-2.5 max-w-[85%] shadow-xs">
+<p class="text-[13px] leading-relaxed text-textPrimary">
+            Hi, I'm PitchSide AI. Ask me about your starting XI, Bonus Players, transfers, or anything else about your squad.
+          </p>
+</div>
+</div>
+<!-- User Greeting Message -->
+<div class="flex justify-end pr-0.5" data-purpose="user-message">
+<div class="text-white px-4 py-1.5 rounded-2xl rounded-tr-xs text-[13px] font-medium shadow-sm bg-brandOlive">
+          Hi
+        </div>
+</div>
+<!-- Comprehensive AI Tactical Analysis Card -->
+<div class="flex items-start space-x-2.5" data-purpose="ai-analysis-card">
+<!-- Tactical Robot Icon Avatar -->
+<div class="w-7 h-7 rounded-full bg-paleOlive border border-brandOlive/20 flex-shrink-0 flex items-center justify-center text-darkOlive mt-1 shadow-xs">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<path d="m4.93 4.93 4.24 4.24"></path>
+<path d="m14.83 9.17 4.24-4.24"></path>
+<path d="m14.83 14.83 4.24 4.24"></path>
+<path d="m9.17 14.83-4.24 4.24"></path>
+<circle cx="12" cy="12" r="4"></circle>
+</svg>
+</div>
+<!-- Full Tactical Briefing Bubble -->
+<article class="flex-1 bg-surfaceCard border border-appBorder rounded-2xl rounded-tl-sm p-4 shadow-sm space-y-3.5 text-textPrimary text-[13px] leading-[1.48]">
+<!-- Opening paragraph -->
+<p class="text-textPrimary font-normal">
+            Hello! Looking at the current Tactical lineup you've shared, there are a few clear opportunities to tighten things up for the upcoming gameweek.
+          </p>
+<!-- Defensive Line Analysis -->
+<section class="border-t border-appBorder/70 pt-3">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[11px] font-bold uppercase tracking-wider text-textSecondary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                Defensive Line
+              </span>
+<span class="text-[10px] font-medium text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">Action Required</span>
+</div>
+<p class="text-textSecondary leading-relaxed">
+              First, the defensive line has a couple of players who are either doubtful, injured, or simply underperforming. 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-red-50 text-red-700 text-[11px] font-medium border border-red-200/60">Saliba</span> and 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-red-50 text-red-700 text-[11px] font-medium border border-red-200/60">Hughes</span> are both marked as unavailable, so they'll need to be taken off the bench entirely. 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 text-[11px] font-medium border border-amber-200/60">A. Garcia</span> is also listed as weak, which makes him a low-floor option. You still have 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-paleOlive text-darkOlive text-[11px] font-medium border border-brandOlive/20">Gabriel (Elite)</span>, who is a reliable source of points, but you'll want a partner who at least offers a stronger floor than the current weak options. If you have any affordable defenders with a strong or average tier sitting on your bench or in the transfer market, swapping one of the weak spots for them would raise the baseline of your defence.
+            </p>
+</section>
+<!-- Midfield Analysis -->
+<section class="border-t border-appBorder/70 pt-3">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[11px] font-bold uppercase tracking-wider text-textSecondary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                Midfield
+              </span>
+<span class="text-[10px] font-medium text-textSecondary bg-appBg px-1.5 py-0.5 rounded">Upgrade Priority</span>
+</div>
+<p class="text-textSecondary leading-relaxed">
+              In midfield, <span class="text-textPrimary font-medium">McConnell</span> and <span class="text-textPrimary font-medium">Reed</span> are both weak, and the midfield trio also includes a player who is unavailable (<span class="text-red-600 font-medium">P.M. Sarr</span>). That leaves you with 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-paleOlive text-darkOlive text-[11px] font-medium border border-brandOlive/20">B. Fernandes (Elite)</span>, and <span class="text-textPrimary font-medium">Hughes</span> (the midfielder, not the defender) who is average. To avoid a midfield that leans heavily on low-floor contributors, consider bringing in at least one more midfielder with a strong or average tier. Even a mid-price option that's been performing consistently can give you a steadier point stream and free up budget for other areas.
+            </p>
+</section>
+<!-- Forward Line Analysis -->
+<section class="border-t border-appBorder/70 pt-3">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[11px] font-bold uppercase tracking-wider text-textSecondary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-brandOlive"></span>
+                Forward Line
+              </span>
+<span class="text-[10px] font-medium text-darkOlive bg-paleOlive px-1.5 py-0.5 rounded">Strong Asset</span>
+</div>
+<p class="text-textSecondary leading-relaxed">
+              Your forward line is the strongest part of the squad. 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-paleOlive text-darkOlive text-[11px] font-semibold border border-brandOlive/30">Haaland</span>, 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-paleOlive text-darkOlive text-[11px] font-semibold border border-brandOlive/30">Isak</span> and 
+              <span class="inline-flex items-center px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 text-[11px] font-semibold border border-emerald-200">Thiago</span> 
+              are all in top tiers (elite, elite and strong respectively), giving you a solid foundation of high-floor attacking potential. You're unlikely to need any changes there unless you have a specific tactical reason to rotate.
+            </p>
+</section>
+<!-- Goalkeeping Analysis -->
+<section class="border-t border-appBorder/70 pt-3">
+<div class="flex items-center justify-between mb-1.5">
+<span class="text-[11px] font-bold uppercase tracking-wider text-textSecondary flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                Goalkeeping
+              </span>
+<span class="text-[10px] font-medium text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">Balanced</span>
+</div>
+<p class="text-textSecondary leading-relaxed">
+              Goalkeeping looks balanced: <span class="font-medium text-textPrimary">Raya</span> is elite and a solid starter, while <span class="font-medium text-textPrimary">Martinez</span> provides a strong backup. Keeping Raya as your number one is sensible, and Martinez can step in if you ever need rotation or if Raya's fixture looks particularly tough.
+            </p>
+</section>
+<!-- Executive Conclusion -->
+<section class="border-t border-appBorder/70 pt-3 bg-surfaceMuted -mx-4 -mb-4 p-3.5 rounded-b-2xl">
+<p class="text-[12.5px] text-textPrimary font-normal leading-relaxed">
+<strong class="font-semibold text-textPrimary">Summary:</strong> Overall, the most pressing moves would be to replace the unavailable defenders (Saliba and Hughes) and to upgrade at least one of the weak midfield spots. If you have any budget flexibility, targeting a defender in the strong tier and a midfielder in the average or strong tier should lift the floor of your starting XI without sacrificing the firepower you already have up front. Let me know if you'd like specific player suggestions within your budget, or if you have a particular fixture in mind that you want to tailor the squad to.
+            </p>
+</section>
+</article>
+</div>
+</main>
+<!-- END: ChatScrollContainer -->
+<!-- BEGIN: InputAreaAndModeControls -->
+<div class="fixed bottom-[74px] left-0 right-0 max-w-[420px] mx-auto px-3.5 z-20 pointer-events-none">
+<div class="pointer-events-auto space-y-2.5"><!-- Expanded Unified Prompt Card Container -->
+<div class="bg-surfaceCard border border-appBorder rounded-2xl p-3 shadow-lg flex flex-col space-y-2.5">
+  <!-- Text Input / Multi-line Area -->
+  <div class="flex items-start space-x-2 pt-0.5">
+    <button aria-label="AI Prompts" class="w-7 h-7 rounded-full flex items-center justify-center text-textSecondary hover:text-brandOlive hover:bg-surfaceMuted transition-colors flex-shrink-0 mt-0.5" type="button">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+        <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"></path>
+      </svg>
+    </button>
+    <textarea rows="2" class="flex-1 bg-transparent border-0 focus:ring-0 text-[13px] text-textPrimary placeholder:text-textMuted p-0 font-normal outline-none resize-none leading-relaxed" placeholder="Message PitchSide AI..."></textarea>
+  </div>
+  <!-- Bottom Controls Row: Modes on left, Send button on right -->
+  <div class="flex items-center justify-between border-t border-appBorder/70 pt-2">
+    <div class="flex items-center space-x-1.5">
+      <!-- Tactic Mode Active Pill -->
+      <button type="button" class="bg-brandOlive hover:opacity-90 text-white text-[11px] font-semibold py-1 px-2.5 rounded-full flex items-center space-x-1.5 transition-colors shadow-xs"><span class="w-1.5 h-1.5 rounded-full bg-white"></span><span class="">Tactic Mode</span></button>
+      <!-- Quick 11 Mode Pill -->
+      <button type="button" class="bg-surfaceMuted hover:bg-appBg text-textSecondary hover:text-textPrimary border border-appBorder text-[11px] font-medium py-1 px-2.5 rounded-full flex items-center transition-colors">
+        <span class="">Quick 11 Mode</span>
+      </button>
+    </div>
+    <!-- Send Button -->
+    <button aria-label="Send Message" class="w-8 h-8 rounded-full text-white flex items-center justify-center hover:opacity-90 active:scale-95 transition-all flex-shrink-0 shadow-xs bg-brandOlive" type="button">
+      <svg class="w-4 h-4 transform -rotate-45 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z"></path>
+      </svg>
+    </button>
+  </div>
+</div></div>
+</div>
+<!-- END: InputAreaAndModeControls -->
+<!-- BEGIN: FloatingBottomNavigation -->
+<nav aria-label="Main Navigation Dock" class="fixed bottom-3 left-0 right-0 max-w-[420px] mx-auto px-4 z-40 pointer-events-none">
+<div class="pointer-events-auto bg-surfaceCard/95 backdrop-blur-md border border-appBorder rounded-full py-1.5 px-3 flex justify-between items-center shadow-lg">
+<!-- Tab 1: Home -->
+<a aria-label="Home" class="w-10 h-10 rounded-full flex items-center justify-center text-textMuted hover:text-textPrimary transition-colors" href="#">
+<svg class="w-5 h-5 stroke-[1.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+<!-- Tab 2: Starting XI (Squad) -->
+<a aria-label="Starting XI" class="w-10 h-10 rounded-full flex items-center justify-center text-textMuted hover:text-textPrimary transition-colors" href="#">
+<svg class="w-5 h-5 stroke-[1.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+<!-- Tab 3: Transfers -->
+<a aria-label="Transfers" class="w-10 h-10 rounded-full flex items-center justify-center text-textMuted hover:text-textPrimary transition-colors" href="#">
+<svg class="w-5 h-5 stroke-[1.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+<!-- Tab 4: Leagues -->
+<a aria-label="Leagues" class="w-10 h-10 rounded-full flex items-center justify-center text-textMuted hover:text-textPrimary transition-colors" href="#">
+<svg class="w-5 h-5 stroke-[1.8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871a2.99 2.99 0 0 1-1.397-.348L12 13.25l-.107.052a2.99 2.99 0 0 1-1.397.348h-.871A1.125 1.125 0 0 1 8.5 15.375V18.75m6.75-9.75v1.5a2.25 2.25 0 0 1-2.25 2.25h-2a2.25 2.25 0 0 1-2.25-2.25v-1.5m6.5 0H18A3.75 3.75 0 0 0 21.75 5.25v-.375c0-.621-.504-1.125-1.125-1.125H16.5m-9 0H3.375c-.621 0-1.125.504-1.125 1.125v.375A3.75 3.75 0 0 0 6 9h1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+<!-- Tab 5: Assist AI (Active) -->
+<a aria-label="Assist" class="px-4 py-2 rounded-full bg-brandOlive text-white flex items-center justify-center shadow-xs" href="#">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a.75.75 0 0 1-.974-.94 6.012 6.012 0 0 0 1.258-3.076C4.168 15.474 3 13.824 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+</div>
+</nav>
+<!-- END: FloatingBottomNavigation -->
+</div>
+
+
+
+
+</body></html>

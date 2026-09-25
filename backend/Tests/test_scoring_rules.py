@@ -71,7 +71,7 @@ def _d11_row(**stats):
 def test_scoring_rules_needs_no_credential(rules):
     """Public by decision (see PUBLIC_ROUTES). If this ever starts 401ing, the
     "How Points Work" screens break for a signed-out visitor."""
-    assert set(rules) == {"classic", "dream11"}
+    assert set(rules) == {"classic", "tactical", "dream11"}
 
 
 def test_both_rulesets_arrive_in_one_response(rules):
@@ -185,14 +185,44 @@ def test_goalkeepers_are_published_as_ineligible_for_defcon(rules):
     assert general_points(_classic_row("GK", defensive_contributions=99), "GK") == 0
 
 
-def test_transfer_hit_is_published_as_the_manager_experiences_it(rules):
-    """Shared.rules stores HIT_COST as a positive cost the scorer subtracts;
-    the endpoint negates it so the screen can render it beside the other
-    signed values without inventing the minus itself."""
-    from Shared.rules import HIT_COST
+def test_published_tactical_values_match_the_rules_module(rules):
+    from Shared.rules import (
+        ATTACK_POINTS,
+        BALANCED_GOAL_OR_ASSIST_POINTS,
+        CREATIVITY_TIERS,
+        DC_TIERS,
+        DEFENCE_CLEAN_SHEET_POINTS,
+        FIXTURE_DURATION_MIN,
+        FREE_TRANSFER_BANK_CAP,
+        FREE_TRANSFERS_EARNED_PER_GAMEWEEK,
+        RULES_VERSION,
+    )
 
-    assert rules["classic"]["transfer_hit"] == -HIT_COST
-    assert rules["classic"]["transfer_hit"] < 0
+    tactical = rules["tactical"]
+    assert tactical["rules_version"] == RULES_VERSION
+    assert tactical["bonus_player_count"] == 2
+    assert tactical["tactical_swap_limit"] == 2
+    assert tactical["auto_sub_slots"] == [12, 13]
+    assert tactical["tactical_sub_slots"] == [14, 15]
+    assert tactical["fixture_duration_minutes"] == FIXTURE_DURATION_MIN
+    assert tactical["free_transfers_per_gameweek"] == FREE_TRANSFERS_EARNED_PER_GAMEWEEK
+    assert tactical["free_transfer_bank_cap"] == FREE_TRANSFER_BANK_CAP
+
+    assert tactical["tactics"]["attack"]["eligible_position"] == "FWD"
+    assert tactical["tactics"]["attack"]["goal"] == ATTACK_POINTS["goal"]
+    assert tactical["tactics"]["attack"]["assist"] == ATTACK_POINTS["assist"]
+
+    assert tactical["tactics"]["defence"]["eligible_position"] == "DEF"
+    assert tactical["tactics"]["defence"]["clean_sheet"] == DEFENCE_CLEAN_SHEET_POINTS
+    assert tactical["tactics"]["defence"]["defensive_contribution_tiers"] == [
+        {"threshold": threshold, "points": points} for threshold, points in DC_TIERS
+    ]
+
+    assert tactical["tactics"]["balanced"]["eligible_position"] == "MID"
+    assert tactical["tactics"]["balanced"]["goal_or_assist"] == BALANCED_GOAL_OR_ASSIST_POINTS
+    assert tactical["tactics"]["balanced"]["creativity_tiers"] == [
+        {"threshold": float(threshold), "points": points} for threshold, points in CREATIVITY_TIERS
+    ]
 
 
 # ------------------------------------- published values match Dream11 scoring
@@ -260,29 +290,27 @@ def test_published_d11_tiers_match(rules):
     )
 
 
-def test_published_multipliers_are_wired_to_the_right_fields(rules):
+def test_published_dream11_multipliers_are_wired_to_the_right_fields(rules):
     """Multipliers are applied against a whole squad in score_contest/
     score_gameweek, which need a database, so these check the wiring rather
     than the arithmetic: that each published field carries the constant it
     claims to. Catches a captain/vice transposition, which is invisible to a
     literal-table test because both values would still be "present"."""
     from Game_logic.dream11_scoring import CAPTAIN_MULTIPLIER, VICE_CAPTAIN_MULTIPLIER
-    from Shared.rules import CAPTAIN_MULTIPLIER as CLASSIC_CAPTAIN
-    from Shared.rules import TRIPLE_CAPTAIN_MULTIPLIER
 
     assert rules["dream11"]["captain_multiplier"] == CAPTAIN_MULTIPLIER
     assert rules["dream11"]["vice_captain_multiplier"] == VICE_CAPTAIN_MULTIPLIER
-    assert rules["classic"]["captain_multiplier"] == CLASSIC_CAPTAIN
-    assert rules["classic"]["triple_captain_multiplier"] == TRIPLE_CAPTAIN_MULTIPLIER
+    assert "captain_multiplier" not in rules["classic"]
+    assert "triple_captain_multiplier" not in rules["classic"]
+    assert "transfer_hit" not in rules["classic"]
+    assert "max_banked_free_transfers" not in rules["classic"]
 
-    # The ordering that makes the armbands mean anything.
     assert rules["dream11"]["vice_captain_multiplier"] < rules["dream11"]["captain_multiplier"]
-    assert rules["classic"]["captain_multiplier"] < rules["classic"]["triple_captain_multiplier"]
 
 
 def test_published_squad_shape_matches_the_rules_module(rules):
-    """The classic screen's Bench Boost note says "11 starters and 4 bench
-    subs"; Dream11's says the starting 11 is final with no bench at all."""
+    """The FPL rules publish the 15-player squad shape; Dream11's team is the
+    starting 11 only."""
     from Shared.rules import BENCH_SIZE, SQUAD_SIZE, STARTING_XI_SIZE
 
     assert rules["classic"]["squad_size"] == SQUAD_SIZE

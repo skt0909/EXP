@@ -1,0 +1,524 @@
+<!DOCTYPE html><html lang="en" style=""><head></head><body class="bg-canvas text-charcoal font-sans antialiased min-h-screen pb-28 select-none" style="font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;"><svg class="inline-defs-container" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"></svg>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>FPL Starting XI Redesign</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: '#F6F5F0',
+            card: '#FFFFFF',
+            borderSoft: '#E6E7E0',
+            olivePrimary: '#667D28',
+            oliveDark: '#2C3A16',
+            oliveLight: '#EDF2DF',
+            olivePill: '#8DAA3C',
+            pitchGreen: '#1C7440',
+            pitchDark: '#165F34',
+            charcoal: '#171816',
+            mutedGray: '#7A7C75',
+            lightGray: '#A9ACA4',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Helvetica Neue', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          boxShadow: {
+            soft: '0 2px 10px rgba(0, 0, 0, 0.04)',
+            elevated: '0 8px 24px -4px rgba(28, 50, 15, 0.08)',
+            dock: '0 -4px 20px rgba(0, 0, 0, 0.05)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- CSS Styling for Pitch Markings and Patterning -->
+<style data-purpose="pitch-styling">
+    .pitch-stripes {
+      background: repeating-linear-gradient(
+        to bottom,
+        #196E3D,
+        #196E3D 42px,
+        #156236 42px,
+        #156236 84px
+      );
+    }
+    .pitch-line {
+      border-color: rgba(255, 255, 255, 0.35);
+    }
+  </style>
+<style data-purpose="micro-interactions">
+    .jersey-shadow {
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.18));
+    }
+    .tap-effect:active {
+      transform: scale(0.97);
+      transition: transform 0.1s ease;
+    }
+  </style>
+
+
+<!-- BEGIN: MainContainer -->
+<main class="max-w-[420px] mx-auto px-4 pt-3 pb-8 flex flex-col gap-4">
+<!-- BEGIN: TopAppBar -->
+<header class="sticky top-0 z-30 bg-surface/80 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-hairline/60 -mx-4 -mt-3 mb-2" data-purpose="app-header"><div class="flex items-center space-x-3"><button aria-label="Open Menu" class="w-9 h-9 flex items-center justify-center rounded-full bg-surface shadow-subtle border border-hairline active:scale-95 transition-transform text-darkText" id="open-menu-btn"><svg class="w-4 h-4 stroke-current" fill="none" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24"><line x1="4" x2="20" y1="7" y2="7"></line><line x1="4" x2="14" y1="12" y2="12"></line><line x1="4" x2="18" y1="17" y2="17"></line></svg></button><span class="text-[17px] font-bold tracking-tight text-darkText" style="font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;">Starting XI</span></div><div class="flex items-center space-x-2"><button aria-label="Profile" class="relative w-9 h-9 rounded-full bg-surface border border-hairline shadow-subtle flex items-center justify-center text-darkText active:scale-95 transition-transform"><svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"></circle></svg></button></div></header>
+<!-- END: TopAppBar -->
+<!-- BEGIN: ModeSelection -->
+<section class="flex flex-col gap-2.5" data-purpose="mode-and-bonus-controls">
+<div class="flex items-center justify-between">
+<h2 class="text-xs uppercase tracking-wider font-semibold text-mutedGray">Select Mode</h2>
+</div>
+<!-- Segmented Control (Attack / Defence / Balanced) -->
+<div class="grid grid-cols-3 bg-[#E9EAE3] p-1 rounded-2xl gap-1">
+<button class="py-2.5 rounded-xl text-xs font-semibold text-charcoal bg-transparent tap-effect transition-all" type="button">
+          Attack
+        </button>
+<button class="py-2.5 rounded-xl text-xs font-semibold text-white bg-oliveDark shadow-sm tap-effect" type="button">
+          Defence
+        </button>
+<button class="py-2.5 rounded-xl text-xs font-semibold text-charcoal bg-transparent tap-effect transition-all" type="button">
+          Balanced
+        </button>
+</div>
+<!-- Bonus Def Pill Filter Row -->
+<div class="bg-card rounded-2xl p-3 border border-borderSoft shadow-soft flex flex-col gap-2">
+<div class="flex items-center justify-between text-xs">
+<span class="font-bold tracking-tight text-charcoal">BONUS DEF</span>
+<span class="px-2 py-0.5 rounded-full bg-oliveLight text-olivePrimary font-bold text-[11px]">2/2</span>
+</div>
+<div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+<!-- Filter Tags -->
+<span class="px-3 py-1.5 rounded-xl text-xs font-medium bg-[#F1F2EC] text-charcoal border border-borderSoft">Gabriel</span>
+<span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-oliveLight text-oliveDark border border-[#D5E1BC] flex items-center gap-1">
+<svg class="w-3 h-3 text-olivePrimary fill-current" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"></path></svg>
+            Soler
+          </span>
+<span class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-oliveLight text-oliveDark border border-[#D5E1BC] flex items-center gap-1">
+<svg class="w-3 h-3 text-olivePrimary fill-current" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"></path></svg>
+            Saliba
+          </span>
+<span class="px-3 py-1.5 rounded-xl text-xs font-medium bg-[#F1F2EC] text-charcoal border border-borderSoft">Hughes</span>
+</div>
+</div>
+<!-- Formation & Team Value Status Bar -->
+<div class="grid grid-cols-3 items-center bg-card rounded-2xl px-3.5 py-2.5 border border-borderSoft shadow-soft text-center">
+<!-- Formation Dropdown -->
+<div class="flex items-center justify-start gap-1">
+<span class="text-[10px] text-mutedGray uppercase tracking-wider font-semibold">Form:</span>
+<span class="px-2 py-0.5 rounded-lg bg-[#F1F2EC] text-xs font-bold text-charcoal border border-borderSoft">4-3-3</span>
+</div>
+<!-- Team Value -->
+<div class="flex flex-col">
+<span class="text-[10px] text-mutedGray font-medium">Team Value</span>
+<span class="text-xs font-bold text-charcoal">£99.9m</span>
+</div>
+<!-- Validated Chip -->
+<div class="flex items-center justify-end">
+<div class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-oliveLight border border-[#D8E3BE]">
+<svg class="w-3 h-3 text-olivePrimary" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+<path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[11px] font-bold text-oliveDark">4-3-3 Valid</span>
+</div>
+</div>
+</div>
+<!-- Quick Action: Auto Fill by Kickoff Order -->
+<button class="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl bg-card border border-borderSoft text-xs font-semibold text-charcoal shadow-soft tap-effect" type="button">
+<svg class="w-4 h-4 text-olivePrimary stroke-current" fill="none" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<polyline points="12 7 12 12 15 15"></polyline>
+</svg>
+<span class="">Auto-Fill by Kickoff Order</span>
+</button>
+</section>
+<!-- END: ModeSelection -->
+<!-- BEGIN: FootballPitch -->
+<section class="relative rounded-3xl overflow-hidden shadow-elevated border border-borderSoft pitch-stripes pt-5 pb-6 px-2" data-purpose="pitch-visualizer">
+<!-- Pitch Architectural Lines -->
+<div class="absolute inset-0 pointer-events-none">
+<!-- Penalty Area Top -->
+<div class="w-48 h-20 border-b-2 border-x-2 pitch-line mx-auto rounded-b-md"></div>
+<!-- Penalty Box Arc -->
+<div class="w-20 h-10 border-b-2 pitch-line mx-auto rounded-b-full"></div>
+<!-- Center Pitch Circle -->
+<div class="w-28 h-28 border-2 pitch-line rounded-full absolute top-[52%] left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-60"></div>
+<!-- Center Line -->
+<div class="w-full border-t-2 pitch-line absolute top-[52%] left-0 opacity-50"></div>
+</div>
+<!-- Tactical Pitch Badge -->
+<div class="absolute top-3 left-3 z-10">
+<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/30 backdrop-blur-sm text-white text-[10px] font-semibold tracking-wider">
+<span class="w-1.5 h-1.5 rounded-full bg-oliveLight"></span>
+          DEFENCE
+        </div>
+</div>
+<!-- Players Formation Matrix (1 - 4 - 3 - 3) -->
+<div class="relative z-10 flex flex-col justify-between h-[430px]">
+<!-- Row 1: Goalkeeper (1) -->
+<div class="flex justify-center items-center">
+<div class="flex flex-col items-center">
+<!-- Jersey: Red -->
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#DC2626"></path>
+<path d="M12 4C14 7 22 7 24 4" stroke="#FFFFFF" stroke-linecap="round" stroke-width="1.5"></path>
+</svg>
+</div>
+<!-- Name Card -->
+<div class="bg-card/95 backdrop-blur-sm px-2.5 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[58px]">
+<span class="block text-[10px] font-bold tracking-tight text-charcoal leading-tight">RAYA</span>
+<span class="block text-[8px] text-mutedGray font-medium leading-none">EVE (H)</span>
+</div>
+</div>
+</div>
+<!-- Row 2: Defenders (4) -->
+<div class="grid grid-cols-4 gap-1">
+<!-- Player: Gabriel -->
+<div class="flex flex-col items-center">
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#DC2626"></path>
+<path d="M12 4C14 7 22 7 24 4" stroke="#FFFFFF" stroke-width="1.5"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[56px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">GABRIEL</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: Soler (Starred) -->
+<div class="flex flex-col items-center relative">
+<!-- Tactical Star -->
+<div class="absolute -top-1.5 right-1 z-20 w-4 h-4 rounded-full bg-olivePrimary flex items-center justify-center text-white shadow-sm">
+<svg class="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"></path></svg>
+</div>
+<!-- Striped Red & Black Jersey -->
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" viewBox="0 0 36 36">
+<defs>
+<pattern height="36" id="stripes-red-black" patternUnits="userSpaceOnUse" width="6">
+<rect fill="#B91C1C" height="36" width="3"></rect>
+<rect fill="#171816" height="36" width="3" x="3"></rect>
+</pattern>
+</defs>
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="url(#stripes-red-black)"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[56px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">SOLER</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: Saliba (Starred) -->
+<div class="flex flex-col items-center relative">
+<div class="absolute -top-1.5 right-1 z-20 w-4 h-4 rounded-full bg-olivePrimary flex items-center justify-center text-white shadow-sm">
+<svg class="w-2.5 h-2.5 fill-current" viewBox="0 0 20 20"><path d="M10 15l-5.878 3.09 1.123-6.545L.489 6.91l6.572-.955L10 0l2.939 5.955 6.572.955-4.756 4.635 1.123 6.545z"></path></svg>
+</div>
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#DC2626"></path>
+<path d="M12 4C14 7 22 7 24 4" stroke="#FFFFFF" stroke-width="1.5"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[56px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">SALIBA</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: Hughes -->
+<div class="flex flex-col items-center">
+<!-- Gold & Black Striped Jersey -->
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" viewBox="0 0 36 36">
+<defs>
+<pattern height="36" id="stripes-amber" patternUnits="userSpaceOnUse" width="6">
+<rect fill="#D97706" height="36" width="3"></rect>
+<rect fill="#1C1917" height="36" width="3" x="3"></rect>
+</pattern>
+</defs>
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="url(#stripes-amber)"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-1.5 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[56px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">HUGHES</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+</div>
+<!-- Row 3: Midfielders (3) -->
+<div class="grid grid-cols-3 gap-3 px-3">
+<!-- Player: Nooo... -->
+<div class="flex flex-col items-center">
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#DC2626"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-2 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[62px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">NOOO...</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: Reed -->
+<div class="flex flex-col items-center">
+<!-- White Jersey -->
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#F8FAFC"></path>
+<path d="M12 4C14 7 22 7 24 4" stroke="#0F172A" stroke-width="1.2"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-2 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[62px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">REED</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: P.M.Sa... -->
+<div class="flex flex-col items-center">
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#F8FAFC"></path>
+<path d="M12 4C14 7 22 7 24 4" stroke="#0F172A" stroke-width="1.2"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-2 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[62px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">P.M.SA...</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+</div>
+<!-- Row 4: Forwards (3) -->
+<div class="grid grid-cols-3 gap-3 px-3">
+<!-- Player: Thiago -->
+<div class="flex flex-col items-center">
+<!-- Red & White Striped Jersey -->
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" viewBox="0 0 36 36">
+<defs>
+<pattern height="36" id="stripes-red-white" patternUnits="userSpaceOnUse" width="6">
+<rect fill="#DC2626" height="36" width="3"></rect>
+<rect fill="#FFFFFF" height="36" width="3" x="3"></rect>
+</pattern>
+</defs>
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="url(#stripes-red-white)"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-2 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[62px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">THIAGO</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: Haala... -->
+<div class="flex flex-col items-center">
+<!-- Sky Blue Jersey -->
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#38BDF8"></path>
+<path d="M12 4C14 7 22 7 24 4" stroke="#FFFFFF" stroke-width="1.2"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-2 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[62px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">HAALA...</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+<!-- Player: Isak -->
+<div class="flex flex-col items-center">
+<div class="relative w-8 h-8 mb-1 jersey-shadow">
+<svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+<path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#DC2626"></path>
+</svg>
+</div>
+<div class="bg-card/95 backdrop-blur-sm px-2 py-0.5 rounded-md shadow-sm border border-black/5 text-center min-w-[62px]">
+<span class="block text-[9px] font-bold text-charcoal truncate">ISAK</span>
+<span class="block text-[8px] text-mutedGray leading-none">EVE (H)</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: FootballPitch -->
+<!-- BEGIN: BenchSection -->
+<section class="flex flex-col gap-3" data-purpose="substitutes-and-tactical-swaps"><!-- Sub Type Toggle Row -->
+<div class="grid grid-cols-2 gap-2 bg-[#EAECE4] p-1 rounded-2xl">
+  <button class="py-2 rounded-xl text-xs font-semibold text-charcoal bg-transparent tap-effect transition-all" type="button">
+    Auto Sub Players
+  </button>
+  <button class="py-2 rounded-xl text-xs font-bold text-white bg-oliveDark shadow-sm tap-effect" type="button">
+    Tactical Sub (2/2)
+  </button>
+</div>
+
+<!-- TACTICAL SWAP OPTIONS Section -->
+<div class="flex flex-col gap-2.5">
+  <div class="flex items-center justify-between px-1">
+    <h3 class="text-xs uppercase tracking-wider font-bold text-charcoal">Tactical Swap Options</h3>
+  </div>
+
+  <!-- Option Card 1: Hughes -->
+  <div class="bg-card rounded-2xl p-3.5 border border-borderSoft shadow-soft flex flex-col gap-2.5">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-bold text-charcoal tracking-tight">Hughes (MID) · Kick off Sun, Oct 10 2:00 PM</span>
+    </div>
+    <div class="flex flex-col gap-2">
+      <!-- Success / Can Replace -->
+      <div class="flex items-start gap-2 p-2 rounded-xl bg-[#E8F8EE] border border-[#B6EAC7] text-[11px] text-[#135A30] leading-snug">
+        <svg class="w-4 h-4 shrink-0 text-[#196C3B] fill-current mt-0.5" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        <span class="font-medium"><strong class="font-bold text-[#0F4A26]">Can replace:</strong> Reed (Sat, Oct 10 12:30 PM), P.M.Sarr (Sat, Oct 10 12:30 PM)</span>
+      </div>
+      <!-- Disallowed / Can't Replace -->
+      <div class="flex items-start gap-2 p-2 rounded-xl bg-[#FEECEC] border border-[#FCA5A5] text-[11px] text-[#991B1B] leading-snug">
+        <svg class="w-4 h-4 shrink-0 text-[#DC2626] fill-current mt-0.5" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+        </svg>
+        <span class="font-medium"><strong class="font-bold text-[#7F1D1D]">Can't replace:</strong> N.Connell: Kicks off before N.Connell's match ends</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option Card 2: A. Garcia -->
+  <div class="bg-card rounded-2xl p-3.5 border border-borderSoft shadow-soft flex flex-col gap-2.5">
+    <div class="flex items-center justify-between">
+      <span class="text-xs font-bold text-charcoal tracking-tight">A. Garcia (DEF) · Kick off Sat, Oct 10 2:00 PM</span>
+    </div>
+    <div class="flex flex-col gap-2">
+      <!-- Success / Can Replace -->
+      <div class="flex items-start gap-2 p-2 rounded-xl bg-[#E8F8EE] border border-[#B6EAC7] text-[11px] text-[#135A30] leading-snug">
+        <svg class="w-4 h-4 shrink-0 text-[#196C3B] fill-current mt-0.5" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+        </svg>
+        <span class="font-medium"><strong class="font-bold text-[#0F4A26]">Can replace:</strong> Gabriel (Sat, Oct 10 12:30 PM)</span>
+      </div>
+      <!-- Disallowed / Can't Replace -->
+      <div class="flex items-start gap-2 p-2 rounded-xl bg-[#FEECEC] border border-[#FCA5A5] text-[11px] text-[#991B1B] leading-snug">
+        <svg class="w-4 h-4 shrink-0 text-[#DC2626] fill-current mt-0.5" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+        </svg>
+        <span class="font-medium"><strong class="font-bold text-[#7F1D1D]">Can't replace:</strong> Hughes: Kicks off before Hughes's match ends</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TACTICAL SWAPS (2/2) Section -->
+<div class="flex flex-col gap-2.5">
+  <div class="flex items-center justify-between px-1">
+    <h3 class="text-xs uppercase tracking-wider font-bold text-charcoal">Tactical Swaps</h3>
+    <span class="px-2 py-0.5 rounded-full bg-oliveLight text-olivePrimary font-bold text-[11px]">2/2</span>
+  </div>
+  <div class="bg-card rounded-2xl p-3 border border-borderSoft shadow-soft flex flex-col gap-2">
+    <!-- Confirmed Swap 1: Hughes for Reed -->
+    <div class="flex items-center justify-between py-1.5 border-b border-[#F0F1EB]">
+      <div class="flex items-center gap-2.5">
+        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-oliveLight text-oliveDark">3 MID</span>
+        <div class="w-6 h-6">
+          <svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+            <path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#7C3AED"></path>
+          </svg>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs font-bold text-charcoal leading-tight">Hughes</span>
+          <span class="text-[10px] text-mutedGray font-medium leading-none">for Reed</span>
+        </div>
+      </div>
+      <button aria-label="Remove swap Hughes" class="w-7 h-7 rounded-lg bg-[#F5F6F2] hover:bg-oliveLight text-charcoal flex items-center justify-center border border-borderSoft tap-effect transition-all" type="button">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Confirmed Swap 2: A. Garcia for Gabriel -->
+    <div class="flex items-center justify-between py-1.5">
+      <div class="flex items-center gap-2.5">
+        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-oliveLight text-oliveDark">DEF</span>
+        <div class="w-6 h-6">
+          <svg class="w-full h-full" fill="none" viewBox="0 0 36 36">
+            <path d="M8 9L12 4H24L28 9L34 14L30 18L26 15V32H10V15L6 18L2 14L8 9Z" fill="#38BDF8"></path>
+          </svg>
+        </div>
+        <div class="flex flex-col">
+          <span class="text-xs font-bold text-charcoal leading-tight">A. Garcia</span>
+          <span class="text-[10px] text-mutedGray font-medium leading-none">for Gabriel</span>
+        </div>
+      </div>
+      <button aria-label="Remove swap A. Garcia" class="w-7 h-7 rounded-lg bg-[#F5F6F2] hover:bg-oliveLight text-charcoal flex items-center justify-center border border-borderSoft tap-effect transition-all" type="button">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div></section>
+<!-- END: BenchSection -->
+<!-- BEGIN: PrimarySaveCTA -->
+<div class="pt-2">
+<button class="w-full py-4 rounded-2xl bg-oliveDark text-white font-bold text-sm tracking-wide shadow-elevated flex items-center justify-center gap-2 tap-effect" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<path d="M8 7H5a2 2 0 00-2 2v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="">Save Team</span>
+</button>
+</div>
+<!-- END: PrimarySaveCTA -->
+</main>
+<!-- END: MainContainer -->
+<!-- BEGIN: BottomNavigationDock -->
+<nav class="fixed bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[394px] bg-card/90 backdrop-blur-md border border-borderSoft rounded-full shadow-dock z-50 px-3 py-2" data-purpose="dock-navigation" style="left: 50%; transform: translateX(-50%); margin: 0px auto;">
+<div class="grid grid-cols-5 items-center">
+<!-- Item 1: Home -->
+<button class="flex flex-col items-center justify-center text-mutedGray hover:text-charcoal tap-effect transition-all" type="button">
+<div class="p-1.5 rounded-full">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 2: Starting XI (Active with solid olive capsule) -->
+<button class="flex flex-col items-center justify-center group tap-effect" type="button">
+<div class="px-3.5 py-1.5 rounded-full bg-oliveDark text-white shadow-sm flex items-center justify-center transition-all">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 3: Transfers -->
+<button class="flex flex-col items-center justify-center text-mutedGray hover:text-charcoal tap-effect transition-all" type="button">
+<div class="p-1.5 rounded-full">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 4: Leagues -->
+<button class="flex flex-col items-center justify-center text-mutedGray hover:text-charcoal tap-effect transition-all" type="button">
+<div class="p-1.5 rounded-full">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 5: Chats -->
+<button class="flex flex-col items-center justify-center text-mutedGray hover:text-charcoal tap-effect transition-all" type="button">
+<div class="p-1.5 rounded-full">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+</div>
+</nav>
+<!-- END: BottomNavigationDock -->
+
+
+
+
+
+
+
+
+</body></html>

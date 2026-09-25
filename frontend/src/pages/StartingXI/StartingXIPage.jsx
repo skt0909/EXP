@@ -18,39 +18,44 @@ import { CSS } from '@dnd-kit/utilities'
 import { fetchCurrentSquad } from '../../api/squad'
 import { fetchCurrentSelection, submitGwSelection } from '../../api/gwSelection'
 import { LockedError } from '../../api/client'
-import { fetchChipsUsed } from '../../api/chips'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
 import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
+import { computeSwapEligibility } from '../../data/tacticalSwapEligibility'
+import { kickoffLabel } from '../../data/kickoff'
+import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
 
 const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD']
 const STARTING_XI_SIZE = 11
+const DEFAULT_TACTIC = 'balanced'
+const TACTIC_BONUS_POSITION = {
+  attack: 'FWD',
+  defence: 'DEF',
+  balanced: 'MID',
+}
+const TACTICS = [
+  { id: 'attack', label: 'Attack', bonusPosition: 'FWD' },
+  { id: 'defence', label: 'Defence', bonusPosition: 'DEF' },
+  { id: 'balanced', label: 'Balanced', bonusPosition: 'MID' },
+]
 const FORMATION_OPTIONS = [
   { label: '3-4-3', counts: { DEF: 3, MID: 4, FWD: 3 } },
   { label: '3-5-2', counts: { DEF: 3, MID: 5, FWD: 2 } },
   { label: '4-3-3', counts: { DEF: 4, MID: 3, FWD: 3 } },
   { label: '4-4-2', counts: { DEF: 4, MID: 4, FWD: 2 } },
   { label: '4-5-1', counts: { DEF: 4, MID: 5, FWD: 1 } },
-  { label: '5-2-3', counts: { DEF: 5, MID: 2, FWD: 3 } },
   { label: '5-3-2', counts: { DEF: 5, MID: 3, FWD: 2 } },
   { label: '5-4-1', counts: { DEF: 5, MID: 4, FWD: 1 } },
 ]
 
-const CHIPS = [
-  { type: 'wildcard', label: 'Wildcard' },
-  { type: 'triple_captain', label: 'Triple Captain' },
-  { type: 'bench_boost', label: 'Bench Boost' },
-  { type: 'free_hit', label: 'Free Hit' },
-]
-
-function chipAvailable(chipType, chipsUsed) {
-  if (!chipsUsed) return false
-  if (chipType === 'wildcard') return chipsUsed.wildcard_remaining > 0
-  return chipsUsed[`${chipType}_available`] === true
+function benchOrderForSubmit(benchIds, squadById) {
+  const benchPlayers = benchIds.map((id) => squadById.get(id)).filter(Boolean)
+  const backupGk = benchPlayers.find((p) => p.position === 'GK')
+  const outfield = benchPlayers.filter((p) => p.position !== 'GK')
+  return backupGk ? [backupGk.player_id, ...outfield.map((p) => p.player_id)] : benchIds
 }
 
-// Mirrors starting_xi.py's _validate_selection rule-for-rule (11 starters,
-// exactly 1 GK, DEF 3-5, MID 2-5, FWD 1-3, distinct captain/vice, both in the
-// XI). This duplicates backend logic on purpose, not by oversight: there is
+// Mirrors the tactical selection rules closely enough for immediate UI
+// feedback. This duplicates backend logic on purpose, not by oversight: there is
 // no dry-run/validate endpoint (GET /gw_selection only plays back what was
 // already saved -- see that file's own docstring), and POST /gw_selection is
 // the only way to ask the server "is this legal," which would mean a round
@@ -59,7 +64,7 @@ function chipAvailable(chipType, chipsUsed) {
 // response is -- a formation that passes here can still be rejected there if
 // the two ever drift, and the submitError banner (not this check) is what
 // renders on that mismatch.
-function computeFormationErrors(startingIds, squadById, captainId, viceCaptainId) {
+function computeSelectionErrors(startingIds, benchIds, squadById, tactic, bonusPlayerIds, swaps) {
   const errors = []
   const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 }
   for (const id of startingIds) {
@@ -71,13 +76,64 @@ function computeFormationErrors(startingIds, squadById, captainId, viceCaptainId
     errors.push(`Starting XI must have exactly ${STARTING_XI_SIZE} players -- currently ${startingIds.length}`)
   }
   if (counts.GK !== 1) errors.push(`Exactly 1 goalkeeper required -- currently ${counts.GK}`)
-  if (counts.DEF < 3 || counts.DEF > 5) errors.push(`Defenders must be between 3 and 5 -- currently ${counts.DEF}`)
-  if (counts.MID < 2 || counts.MID > 5) errors.push(`Midfielders must be between 2 and 5 -- currently ${counts.MID}`)
-  if (counts.FWD < 1 || counts.FWD > 3) errors.push(`Forwards must be between 1 and 3 -- currently ${counts.FWD}`)
-  if (!captainId) errors.push('Select a captain')
-  if (!viceCaptainId) errors.push('Select a vice-captain')
-  if (captainId && viceCaptainId && captainId === viceCaptainId) {
-    errors.push('Captain and vice-captain must be different players')
+  if (counts.DEF < 3) errors.push(`At least 3 defenders required -- currently ${counts.DEF}`)
+  if (counts.MID < 3) errors.push(`At least 3 midfielders required -- currently ${counts.MID}`)
+  if (counts.FWD < 1) errors.push(`At least 1 forward required -- currently ${counts.FWD}`)
+  if (benchIds.length !== 4) errors.push(`Bench must have exactly 4 players -- currently ${benchIds.length}`)
+
+  const submittedBench = benchOrderForSubmit(benchIds, squadById)
+  if (submittedBench.length === 4) {
+    const [slot12, ...outfieldSlots] = submittedBench
+    if (squadById.get(slot12)?.position !== 'GK') errors.push('Bench slot 12 must be the backup goalkeeper')
+    if (outfieldSlots.some((id) => squadById.get(id)?.position === 'GK')) {
+      errors.push('Bench slots 13-15 must be outfield players')
+    }
+  }
+
+  const bonusPosition = TACTIC_BONUS_POSITION[tactic]
+  if (!bonusPosition) {
+    errors.push('Select a valid tactic')
+  } else {
+    if (tactic === 'attack' && counts.FWD < 2) {
+      errors.push('Attack tactic requires at least 2 starting forwards')
+    }
+    if (bonusPlayerIds.length !== 2) {
+      errors.push(`Select exactly 2 Bonus ${bonusPosition} players -- currently ${bonusPlayerIds.length}`)
+    }
+    const duplicateBonus = new Set(bonusPlayerIds).size !== bonusPlayerIds.length
+    if (duplicateBonus) errors.push('Bonus Players must be distinct')
+    for (const id of bonusPlayerIds) {
+      if (!startingIds.includes(id)) {
+        errors.push(`Bonus Player ${id} must be in the starting XI`)
+      } else if (squadById.get(id)?.position !== bonusPosition) {
+        errors.push(`Bonus Player ${squadById.get(id)?.name ?? id} must be a ${bonusPosition}`)
+      }
+    }
+  }
+
+  const tacticalBenchIds = submittedBench.slice(2, 4)
+  const usedSwapPlayers = new Set()
+  if (swaps.length > 2) errors.push(`At most 2 tactical swaps are allowed -- currently ${swaps.length}`)
+  for (const swap of swaps) {
+    const outgoing = squadById.get(swap.player_out_id)
+    const incoming = squadById.get(swap.player_in_id)
+    if (!startingIds.includes(swap.player_out_id)) {
+      errors.push('Each swap needs an outgoing starter')
+    }
+    if (bonusPlayerIds.includes(swap.player_out_id)) {
+      errors.push(`${outgoing?.name ?? 'A Bonus Player'} cannot be swapped out`)
+    }
+    if (!tacticalBenchIds.includes(swap.player_in_id)) {
+      errors.push('Each incoming player must be in Tactical Sub slot 14 or 15')
+    }
+    if (outgoing && incoming && outgoing.position !== incoming.position) {
+      errors.push(`${outgoing.name} and ${incoming.name} must play the same position`)
+    }
+    if (usedSwapPlayers.has(swap.player_out_id) || usedSwapPlayers.has(swap.player_in_id)) {
+      errors.push('A player can only be used in one tactical swap')
+    }
+    usedSwapPlayers.add(swap.player_out_id)
+    usedSwapPlayers.add(swap.player_in_id)
   }
 
   return errors
@@ -96,7 +152,7 @@ function DroppableContainer({ id, className, children }) {
   )
 }
 
-function SortablePitchPlayer({ player, isCaptain, isVice, onOpenPopover, onBench }) {
+function SortablePitchPlayer({ player, isBonus, bonusEligible, onToggleBonus, onBench }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.player_id })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -107,12 +163,14 @@ function SortablePitchPlayer({ player, isCaptain, isVice, onOpenPopover, onBench
   return (
     <div
       className="pitch-player relative w-[68px] flex flex-col items-center group cursor-pointer"
-      onClick={() => onOpenPopover(player.player_id)}
+      onClick={() => {
+        if (bonusEligible) onToggleBonus(player.player_id)
+      }}
       ref={setNodeRef}
       style={style}
     >
       {/* Drag handle stays a separate hit area: the card itself opens the
-          captain sheet on tap, so the whole card can't be the handle. */}
+          Bonus toggle on tap, so the whole card can't be the handle. */}
       <span
         aria-label={`Drag ${player.name}`}
         className="absolute -top-2 -left-2 z-30 bg-surface text-on-surface-variant rounded-full p-0.5 shadow-sm border border-outline-variant opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity cursor-grab active:cursor-grabbing"
@@ -136,12 +194,22 @@ function SortablePitchPlayer({ player, isCaptain, isVice, onOpenPopover, onBench
         <span className="material-symbols-outlined text-[14px] block">swap_horiz</span>
       </span>
 
+      {isBonus && (
+        <span
+          aria-label="Bonus Player"
+          className="mb-0.5 inline-flex h-5 items-center gap-1 rounded-full border border-primary-container/30 bg-primary-fixed px-1.5 text-primary shadow-sm"
+          title="Selected tactical performance token"
+        >
+          <DashboardIcon name="bonusStar" size={12} />
+        </span>
+      )}
       <PlayerJersey
-        captain={isCaptain}
         player={player}
-        size={isCaptain ? 'lg' : 'md'}
-        viceCaptain={isVice}
+        size={isBonus ? 'lg' : 'md'}
       />
+      <span className="mt-0.5 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-on-surface-variant shadow-sm">
+        {player.position}
+      </span>
     </div>
   )
 }
@@ -155,12 +223,13 @@ function ReserveGkPlayer({ player, canPromote, onPromote }) {
   return (
     <div className="bench-player flex items-center gap-sm p-sm bg-surface-container-lowest rounded-lg border border-outline-variant">
       <span className="w-[18px] shrink-0" aria-hidden="true" />
-      <span className="font-label-md text-[9px] text-on-surface-variant w-[42px] shrink-0">
-        Reserve GK
+      <span className="font-label-md text-[9px] text-on-surface-variant w-[72px] shrink-0">
+        12 Auto GK
       </span>
       <PlayerJersey player={player} size="xs" showName={false} />
-      <span className="font-body-md text-body-md text-on-surface truncate flex-1 min-w-0">
-        {player.name}
+      <span className="flex-1 min-w-0 flex flex-col">
+        <span className="font-body-md text-body-md text-on-surface truncate">{player.name}</span>
+        <span className="font-label-md text-[9px] text-on-surface-variant">{player.position}</span>
       </span>
       <div className="flex items-center gap-1 shrink-0">
         <button
@@ -177,7 +246,18 @@ function ReserveGkPlayer({ player, canPromote, onPromote }) {
   )
 }
 
-function SortableBenchPlayer({ player, subLabel, canMoveUp, canMoveDown, canPromote, onMoveUp, onMoveDown, onPromote }) {
+function SortableBenchPlayer({
+  player,
+  subLabel,
+  canMoveUp,
+  canMoveDown,
+  canPromote,
+  canPlanSwap,
+  onMoveUp,
+  onMoveDown,
+  onPromote,
+  onPlanSwap,
+}) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: player.player_id })
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -204,12 +284,16 @@ function SortableBenchPlayer({ player, subLabel, canMoveUp, canMoveDown, canProm
       >
         <span className="material-symbols-outlined text-[18px] block">drag_indicator</span>
       </span>
-      <span className="font-label-md text-[9px] text-on-surface-variant w-[42px] shrink-0">
+      <span className="font-label-md text-[9px] text-on-surface-variant w-[72px] shrink-0 inline-flex items-center gap-1">
+        {subLabel.includes('Tactical') && (
+          <DashboardIcon className="text-primary" name="bonusStar" size={10} />
+        )}
         {subLabel}
       </span>
       <PlayerJersey player={player} size="xs" showName={false} />
-      <span className="font-body-md text-body-md text-on-surface truncate flex-1 min-w-0">
-        {player.name}
+      <span className="flex-1 min-w-0 flex flex-col">
+        <span className="font-body-md text-body-md text-on-surface truncate">{player.name}</span>
+        <span className="font-label-md text-[9px] text-on-surface-variant">{player.position}</span>
       </span>
       <div className="flex items-center gap-1 shrink-0">
         <button
@@ -239,6 +323,15 @@ function SortableBenchPlayer({ player, subLabel, canMoveUp, canMoveDown, canProm
         >
           <span className="material-symbols-outlined text-[14px]">person_add</span>
         </button>
+        <button
+          aria-label={`Plan tactical swap for ${player.name}`}
+          className={ctrl}
+          disabled={!canPlanSwap}
+          onClick={onPlanSwap}
+          type="button"
+        >
+          <span className="material-symbols-outlined text-[14px]">published_with_changes</span>
+        </button>
       </div>
     </div>
   )
@@ -249,19 +342,25 @@ function StartingXIPage() {
   const { user_id, season, gameweek } = settings
 
   const [squad, setSquad] = useState(null)
-  const [chipsUsed, setChipsUsed] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
   const [startingIds, setStartingIds] = useState([])
   const [benchIds, setBenchIds] = useState([])
-  const [captainId, setCaptainId] = useState(null)
-  const [viceCaptainId, setViceCaptainId] = useState(null)
-  const [chipUsed, setChipUsed] = useState(null)
+  const [tactic, setTactic] = useState(DEFAULT_TACTIC)
+  const [bonusPlayerIds, setBonusPlayerIds] = useState([])
+  const [swaps, setSwaps] = useState([])
 
-  const [captainPopoverPlayerId, setCaptainPopoverPlayerId] = useState(null)
-  const [chipConfirmTarget, setChipConfirmTarget] = useState(null)
+  const [planningSwapInId, setPlanningSwapInId] = useState(null)
   const [activeDragId, setActiveDragId] = useState(null)
+  // Which of the two bench-related sections is showing -- per the "Starting
+  // XI & Team Management" mockup, Auto Sub Players and Tactical Sub share one
+  // tabbed panel instead of stacking both sections at once.
+  const [benchTab, setBenchTab] = useState('auto')
+  // {fpl_id (string) -> {first_kickoff, last_end}} from GET /gw_selection,
+  // covering all 15 squad players. Drives the Tactical Swap eligibility
+  // panel and picker -- see data/tacticalSwapEligibility.js.
+  const [fixtureWindows, setFixtureWindows] = useState({})
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
@@ -272,7 +371,7 @@ function StartingXIPage() {
 
   const sensors = useSensors(
     // distance threshold means a plain tap still registers as a click
-    // (opens the captain popover / fires button onClick) instead of
+    // (toggles Bonus / fires button onClick) instead of
     // always starting a drag -- only a deliberate press-and-move drags.
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -287,16 +386,20 @@ function StartingXIPage() {
     Promise.all([
       fetchCurrentSquad({ season, gameweek }),
       fetchCurrentSelection({ season, gameweek }),
-      fetchChipsUsed({ season, gameweek }),
     ])
-      .then(([squadData, selectionData, chipsData]) => {
+      .then(([squadData, selectionData]) => {
         if (cancelled) return
         const normalizedSquadData = {
           ...squadData,
           players: (squadData.players ?? []).map(normalizePremierLeaguePlayer),
         }
         setSquad(normalizedSquadData)
-        setChipsUsed(chipsData)
+        setFixtureWindows(selectionData.fixture_windows ?? {})
+        // Known up front now, not just discovered from a failed save --
+        // deadline_has_passed() is the same check the write path itself
+        // makes, so a manager who opens this page after the deadline sees
+        // the locked state immediately.
+        if (selectionData.deadline_passed) setLocked(true)
         if (selectionData.has_selection) {
           // Reconcile the saved selection against the CURRENT squad. A
           // transfer made after this gameweek's XI was saved leaves the
@@ -319,12 +422,15 @@ function StartingXIPage() {
 
           setStartingIds(starting)
           setBenchIds([...bench, ...unplaced])
-          // Captaincy dies with the player it was assigned to.
-          setCaptainId(squadIds.has(selectionData.captain_id) ? selectionData.captain_id : null)
-          setViceCaptainId(
-            squadIds.has(selectionData.vice_captain_id) ? selectionData.vice_captain_id : null
-          )
-          setChipUsed(selectionData.chip_used)
+          setTactic(selectionData.tactic ?? DEFAULT_TACTIC)
+          setBonusPlayerIds((selectionData.bonus_player_ids ?? []).filter((id) => starting.includes(id)))
+          setSwaps(selectionData.swaps ?? [])
+        } else {
+          setStartingIds([])
+          setBenchIds(normalizedSquadData.players.map((p) => p.player_id))
+          setTactic(DEFAULT_TACTIC)
+          setBonusPlayerIds([])
+          setSwaps([])
         }
       })
       .catch((err) => {
@@ -364,6 +470,7 @@ function StartingXIPage() {
     }
     return groups
   }, [startingIds, squadById])
+  const canUseAttack = groupedStarting.FWD.length >= 2
 
   const benchPlayers = useMemo(() => benchIds.map((id) => squadById.get(id)).filter(Boolean), [benchIds, squadById])
   // Split for display only -- benchIds itself stays one array (its order is
@@ -374,8 +481,60 @@ function StartingXIPage() {
   const benchGk = useMemo(() => benchPlayers.find((p) => p.position === 'GK') ?? null, [benchPlayers])
   const outfieldBench = useMemo(() => benchPlayers.filter((p) => p.position !== 'GK'), [benchPlayers])
   const outfieldBenchIds = useMemo(() => outfieldBench.map((p) => p.player_id), [outfieldBench])
+  const submittedBenchOrder = useMemo(() => benchOrderForSubmit(benchIds, squadById), [benchIds, squadById])
+  const tacticalBench = useMemo(
+    () => submittedBenchOrder.slice(2, 4).map((id) => squadById.get(id)).filter(Boolean),
+    [submittedBenchOrder, squadById]
+  )
+  // Real squad spend (all 15 players), not just the starting XI -- matches
+  // what the manager actually paid, same field ReplacementRow already uses.
+  const teamValue = useMemo(
+    () => (squad?.players ?? []).reduce((sum, p) => sum + (p.price ?? 0), 0),
+    [squad]
+  )
+  const bonusPosition = TACTIC_BONUS_POSITION[tactic]
+  const bonusCandidates = useMemo(
+    () => startingIds.map((id) => squadById.get(id)).filter((p) => p?.position === bonusPosition),
+    [startingIds, squadById, bonusPosition]
+  )
 
-  // Order within the starting XI is meaningless (only membership + captain
+  // Recomputed on every render that changes starters, Bonus Players, bench
+  // slots or fixture data -- per the brief, this must never go stale while
+  // the manager is still editing. Purely advisory: it decides what this
+  // screen SHOWS before a save, never what POST /gw_selection accepts --
+  // that's still validate_selection, server-side.
+  const swapEligibility = useMemo(
+    () =>
+      computeSwapEligibility({
+        starters: startingIds.map((id) => squadById.get(id)).filter(Boolean),
+        bonusPlayerIds,
+        tacticalSubs: tacticalBench,
+        fixtureWindows,
+        existingSwaps: swaps,
+      }),
+    [startingIds, squadById, bonusPlayerIds, tacticalBench, fixtureWindows, swaps]
+  )
+
+  useEffect(() => {
+    setBonusPlayerIds((prev) =>
+      prev.filter((id) => startingIds.includes(id) && squadById.get(id)?.position === bonusPosition)
+    )
+  }, [startingIds, squadById, bonusPosition])
+
+  useEffect(() => {
+    if (tactic === 'attack' && !canUseAttack) {
+      setTactic(DEFAULT_TACTIC)
+    }
+  }, [tactic, canUseAttack])
+
+  useEffect(() => {
+    const tacticalIds = new Set(submittedBenchOrder.slice(2, 4))
+    setSwaps((prev) =>
+      prev.filter((swap) => startingIds.includes(swap.player_out_id) && tacticalIds.has(swap.player_in_id))
+    )
+  }, [startingIds, submittedBenchOrder])
+
+  // Order within the starting XI is meaningless (only membership + Bonus
   // matter), so resolving "over" against every individual pitch card via
   // closestCenter caused a real bug: as a dragged card crossed into the
   // pitch, the bench list reflowed underneath the (stationary) pointer,
@@ -418,9 +577,9 @@ function StartingXIPage() {
     [outfieldBenchIds]
   )
 
-  const formationErrors = useMemo(
-    () => computeFormationErrors(startingIds, squadById, captainId, viceCaptainId),
-    [startingIds, squadById, captainId, viceCaptainId]
+  const selectionErrors = useMemo(
+    () => computeSelectionErrors(startingIds, benchIds, squadById, tactic, bonusPlayerIds, swaps),
+    [startingIds, benchIds, squadById, tactic, bonusPlayerIds, swaps]
   )
   const formationLabel = useMemo(() => {
     const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 }
@@ -458,16 +617,85 @@ function StartingXIPage() {
 
     setStartingIds(nextStartingIds)
     setBenchIds(nextBenchIds)
-    if (!nextStartingSet.has(captainId)) setCaptainId(null)
-    if (!nextStartingSet.has(viceCaptainId)) setViceCaptainId(null)
+    setBonusPlayerIds((prev) => prev.filter((id) => nextStartingSet.has(id)))
+    setSwaps((prev) => prev.filter((swap) => nextStartingSet.has(swap.player_out_id)))
+  }
+
+  // A blank gameweek (no fixture at all) sorts last, not first: such a
+  // player can start (having no fixture isn't an error for a starter) but
+  // can never be the incoming or outgoing side of a Tactical Swap (D4: "both
+  // players need a fixture this gameweek"), so he's the last player this
+  // auto-fill should push toward the swap-eligible bench slots.
+  const kickoffMs = (player) => {
+    const iso = player?.first_kickoff
+    return iso ? new Date(iso).getTime() : Number.POSITIVE_INFINITY
+  }
+
+  // Auto-arranges the XI and bench so every legal Tactical Swap the manager
+  // might plan already satisfies the timing rule (Gameplay/selection_rules.py:
+  // incoming's first kickoff strictly after outgoing's last fixture ends),
+  // instead of the manager discovering by trial and error which pairs are
+  // even eligible.
+  //
+  // The mechanism: within each outfield position, sort by kickoff and start
+  // the EARLIEST players, benching the LATEST. Because a Tactical Swap is
+  // always same-position (D4), every bench player at a position therefore
+  // has a kickoff at or after every starter at that same position -- so ANY
+  // same-position starter/bench pairing already satisfies "incoming after
+  // outgoing". Of the 3 leftover outfield players (15-player squad, 11
+  // starters, 1 bench GK), the 2 with the LATEST kickoff go into the
+  // swap-eligible Tactical slots (14, 15); the earliest of the 3 goes into
+  // the Auto Sub slot (13), which carries no timing rule at all.
+  //
+  // Caveat, stated rather than hidden: this compares each player's FIRST
+  // kickoff only. In a double Gameweek the rule actually cares about the
+  // outgoing player's LAST fixture ending -- exact for the common
+  // single-fixture case, an approximation otherwise. A kickoff-time tie
+  // between an outgoing and incoming player of the same position (two
+  // teams sharing a kickoff slot) is the one case "strictly after" can
+  // still reject; selectionErrors below will say so if it happens.
+  function autoFillByKickoff() {
+    const formation = FORMATION_OPTIONS.find((option) => option.label === formationLabel) ?? FORMATION_OPTIONS[2]
+    if (!squad) return
+
+    const byPosition = { GK: [], DEF: [], MID: [], FWD: [] }
+    for (const p of squad.players) byPosition[p.position]?.push(p)
+    for (const pos of POSITION_ORDER) byPosition[pos].sort((a, b) => kickoffMs(a) - kickoffMs(b))
+
+    const startingGk = byPosition.GK[0]
+    const startingDef = byPosition.DEF.slice(0, formation.counts.DEF)
+    const startingMid = byPosition.MID.slice(0, formation.counts.MID)
+    const startingFwd = byPosition.FWD.slice(0, formation.counts.FWD)
+    const nextStartingIds = [startingGk, ...startingDef, ...startingMid, ...startingFwd]
+      .filter(Boolean)
+      .map((p) => p.player_id)
+
+    const benchGkPlayer = byPosition.GK[1] ?? null
+    const leftoverOutfield = [
+      ...byPosition.DEF.slice(formation.counts.DEF),
+      ...byPosition.MID.slice(formation.counts.MID),
+      ...byPosition.FWD.slice(formation.counts.FWD),
+    ].sort((a, b) => kickoffMs(b) - kickoffMs(a)) // latest first
+    const tacticalSubs = leftoverOutfield.slice(0, 2) // slots 14, 15: swap-eligible
+    const autoSub = leftoverOutfield.slice(2) // slot 13: the earliest-kickoff leftover
+
+    const nextBenchIds = [benchGkPlayer, ...autoSub, ...tacticalSubs]
+      .filter(Boolean)
+      .map((p) => p.player_id)
+
+    const nextStartingSet = new Set(nextStartingIds)
+    setStartingIds(nextStartingIds)
+    setBenchIds(nextBenchIds)
+    setBonusPlayerIds((prev) => prev.filter((id) => nextStartingSet.has(id)))
+    setSwaps([])
   }
 
   function toggleStarting(player) {
     const isStarting = startingIds.includes(player.player_id)
     if (isStarting) {
       setStartingIds((prev) => prev.filter((id) => id !== player.player_id))
-      if (captainId === player.player_id) setCaptainId(null)
-      if (viceCaptainId === player.player_id) setViceCaptainId(null)
+      setBonusPlayerIds((prev) => prev.filter((id) => id !== player.player_id))
+      setSwaps((prev) => prev.filter((swap) => swap.player_out_id !== player.player_id))
       return
     }
     if (player.position === 'GK') {
@@ -489,7 +717,6 @@ function StartingXIPage() {
     const gkId = benchIds.find((id) => squadById.get(id)?.position === 'GK')
     const nextBenchIds = gkId ? [gkId, ...nextOutfieldIds] : nextOutfieldIds
     setBenchIds(nextBenchIds)
-    persistBenchOrder(nextBenchIds)
     return nextBenchIds
   }
 
@@ -501,63 +728,29 @@ function StartingXIPage() {
     reorderOutfieldBench(next)
   }
 
-  // There is no lightweight "reorder bench" endpoint on the backend -- the
-  // full POST /gw_selection (11 starters + all 4 bench ids + captain/vice) is
-  // the only write path, so a drag or an up/down tap has to resubmit
-  // everything, not just bench_order. Skipped while the CURRENT starting XI
-  // is itself invalid: submitting it now would fail on the unrelated
-  // formation errors, not the bench order, so the reorder just stays local
-  // until the user fixes the XI and hits Save Team, which sends this same
-  // bench order anyway.
-  async function persistBenchOrder(nextBenchIds) {
-    if (locked || formationErrors.length > 0) return
-    setSubmitError(null)
-    try {
-      await submitGwSelection({
-        season,
-        gameweek,
-        player_ids: startingIds,
-        bench_order: nextBenchIds,
-        captain_id: captainId,
-        vice_captain_id: viceCaptainId,
-        chip_used: chipUsed,
-      })
-      setSubmitSuccess('Bench order saved.')
-    } catch (err) {
-      if (err instanceof LockedError) setLocked(true)
-      setSubmitError(err.errors ?? [err.message])
-    }
+  function toggleBonusPlayer(playerId) {
+    const player = squadById.get(playerId)
+    if (!player || player.position !== bonusPosition) return
+    setBonusPlayerIds((prev) => {
+      if (prev.includes(playerId)) return prev.filter((id) => id !== playerId)
+      if (prev.length >= 2) return prev
+      return [...prev, playerId]
+    })
   }
 
-  function openCaptainPopover(playerId) {
-    if (!startingIds.includes(playerId)) return
-    setCaptainPopoverPlayerId(playerId)
+  function addSwap(playerInId, playerOutId) {
+    if (!playerInId || !playerOutId) return
+    setSwaps((prev) => {
+      const withoutIncoming = prev.filter((swap) => swap.player_in_id !== playerInId)
+      if (withoutIncoming.some((swap) => swap.player_out_id === playerOutId)) return withoutIncoming
+      if (withoutIncoming.length >= 2) return withoutIncoming
+      return [...withoutIncoming, { player_out_id: playerOutId, player_in_id: playerInId }]
+    })
+    setPlanningSwapInId(null)
   }
 
-  function makeCaptain(playerId) {
-    setCaptainId(playerId)
-    if (viceCaptainId === playerId) setViceCaptainId(null)
-    setCaptainPopoverPlayerId(null)
-  }
-
-  function makeViceCaptain(playerId) {
-    setViceCaptainId(playerId)
-    if (captainId === playerId) setCaptainId(null)
-    setCaptainPopoverPlayerId(null)
-  }
-
-  function handleChipTap(chipType) {
-    if (chipUsed === chipType) {
-      setChipUsed(null) // deselecting a pending (not-yet-saved) chip needs no confirmation
-      return
-    }
-    if (!chipAvailable(chipType, chipsUsed)) return
-    setChipConfirmTarget(chipType)
-  }
-
-  function confirmChipActivation() {
-    setChipUsed(chipConfirmTarget)
-    setChipConfirmTarget(null)
+  function removeSwap(playerInId) {
+    setSwaps((prev) => prev.filter((swap) => swap.player_in_id !== playerInId))
   }
 
   function findContainer(id) {
@@ -597,8 +790,8 @@ function StartingXIPage() {
     } else {
       setStartingIds((prev) => prev.filter((id) => id !== active.id))
       setBenchIds((prev) => (prev.includes(active.id) ? prev : [...prev, active.id]))
-      if (captainId === active.id) setCaptainId(null)
-      if (viceCaptainId === active.id) setViceCaptainId(null)
+      setBonusPlayerIds((prev) => prev.filter((id) => id !== active.id))
+      setSwaps((prev) => prev.filter((swap) => swap.player_out_id !== active.id))
     }
   }
 
@@ -638,14 +831,12 @@ function StartingXIPage() {
         season,
         gameweek,
         player_ids: startingIds,
-        bench_order: benchIds,
-        captain_id: captainId,
-        vice_captain_id: viceCaptainId,
-        chip_used: chipUsed,
+        bench_order: submittedBenchOrder,
+        tactic,
+        bonus_player_ids: bonusPlayerIds,
+        swaps,
       })
       setSubmitSuccess('Team saved.')
-      const refreshedChips = await fetchChipsUsed({ season, gameweek })
-      setChipsUsed(refreshedChips)
     } catch (err) {
       // Past the deadline the DB trigger enforce_selection_lock_fn rejects the
       // write and the backend turns it into a clean 422. That's an expected
@@ -668,50 +859,84 @@ function StartingXIPage() {
     return <div className="w-full px-safe-margin py-lg font-body-md text-body-md text-on-surface-variant">No squad found for this season yet -- select your squad first.</div>
   }
 
-  const captainPopoverPlayer = captainPopoverPlayerId != null ? squadById.get(captainPopoverPlayerId) : null
-  const chipConfirmLabel = CHIPS.find((c) => c.type === chipConfirmTarget)?.label
   const activeDragPlayer = activeDragId != null ? squadById.get(activeDragId) : null
 
   return (
     <>
       <FplHeader title="Starting XI" />
-      <main className="w-full flex flex-col pb-[180px]">
-        {/* flex-wrap, not overflow-x-auto: a scrolling strip left the last
-            chip visibly cut off at the viewport edge with no affordance
-            telling you to swipe -- it just looked broken. Wrapping to a
-            second row guarantees all 4 real chips (the backend's actual
-            VALID_CHIPS -- wildcard, triple_captain, bench_boost, free_hit)
-            are always fully visible at any width, phones included. */}
-        <div className="flex flex-wrap gap-2 px-md py-sm border-b border-surface-container w-full">
-          {CHIPS.map((chip) => {
-            const active = chipUsed === chip.type
-            const available = chipAvailable(chip.type, chipsUsed)
-            return (
-              <button
-                className={`px-4 py-1.5 rounded-full font-label-md text-label-md border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                  active
-                    ? 'bg-primary-container text-on-primary border-primary-container shadow-sm'
-                    : 'border-outline-variant text-on-surface-variant hover:bg-surface-container-high'
-                }`}
-                disabled={!available && !active}
-                key={chip.type}
-                onClick={() => handleChipTap(chip.type)}
-                type="button"
-              >
-                {chip.label}
-              </button>
-            )
-          })}
-        </div>
+      <main className="w-full flex flex-col pb-[180px] bg-[#FBF9F5] min-h-screen">
+        <section className="mx-4 mt-3 rounded-[20px] border border-[#E5E6E1] bg-white p-4 shadow-sm flex flex-col gap-3">
+          <h2 className="font-label-md text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Select Mode</h2>
+          <div className="grid grid-cols-3 gap-1 rounded-full bg-[#F0F0EA] p-1" role="tablist" aria-label="Tactic">
+            {TACTICS.map((option) => {
+              const active = tactic === option.id
+              const disabled = option.id === 'attack' && !canUseAttack
+              return (
+                <button
+                  aria-pressed={active}
+                  className={`h-10 rounded-full font-label-md text-label-md transition-all disabled:opacity-40 disabled:cursor-not-allowed ${
+                    active
+                      ? 'bg-[#667D28] text-white shadow-sm'
+                      : 'text-on-surface-variant hover:bg-white hover:text-on-surface'
+                  }`}
+                  disabled={disabled}
+                  key={option.id}
+                  onClick={() => setTactic(option.id)}
+                  title={disabled ? 'Attack needs at least 2 starting forwards' : undefined}
+                  type="button"
+                >
+                  {option.label}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center justify-between gap-sm border-t border-[#E5E6E1] pt-3">
+            <span className="font-label-md text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+              Bonus {bonusPosition}
+            </span>
+            <span className={`rounded-full px-2 py-1 font-label-md text-[10px] font-bold ${bonusPlayerIds.length === 2 ? 'bg-[#EDF2DF] text-[#667D28]' : 'bg-error-container text-error'}`}>
+              {bonusPlayerIds.length}/2
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {bonusCandidates.length === 0 ? (
+              <span className="font-body-md text-body-md text-on-surface-variant">
+                No eligible starters in this formation.
+              </span>
+            ) : (
+              bonusCandidates.map((player) => {
+                const active = bonusPlayerIds.includes(player.player_id)
+                const full = bonusPlayerIds.length >= 2 && !active
+                return (
+                  <button
+                    aria-pressed={active}
+                    className={`px-3 py-1.5 rounded-full border font-label-md text-label-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      active
+                        ? 'bg-[#EDF2DF] text-[#667D28] border-[#CBD8A8]'
+                        : 'bg-white border-[#E5E6E1] text-on-surface hover:bg-[#F7F7F2]'
+                    }`}
+                    disabled={full}
+                    key={player.player_id}
+                    onClick={() => toggleBonusPlayer(player.player_id)}
+                    type="button"
+                  >
+                    {active && <DashboardIcon className="inline-block mr-1 align-[-2px]" name="bonusStar" size={12} />}
+                    {player.name}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </section>
 
-        <div className="flex justify-between items-center gap-sm mt-md mb-sm px-md">
+        <div className="mx-4 mt-3 grid grid-cols-[1fr_auto] items-center gap-3 rounded-t-[20px] border border-[#E5E6E1] bg-white p-4 shadow-sm">
           <label className="flex items-center gap-2">
             <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
               Formation
             </span>
             <select
               aria-label="Formation"
-              className="rounded-lg border border-outline-variant bg-surface-container-lowest px-2 h-9 font-label-md text-label-md text-on-surface focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+              className="rounded-full border border-[#E5E6E1] bg-[#FBF9F5] px-3 h-9 font-label-md text-label-md font-bold text-on-surface focus:border-[#667D28] focus:ring-1 focus:ring-[#667D28] outline-none"
               onChange={(e) => applyFormation(e.target.value)}
               value={formationLabel}
             >
@@ -722,26 +947,41 @@ function StartingXIPage() {
               ))}
             </select>
           </label>
+          <div className="flex flex-col items-end shrink-0">
+            <span className="font-label-md text-[10px] text-on-surface-variant">Team Value</span>
+            <span className="font-headline-sm text-body-md text-on-surface">£{teamValue.toFixed(1)}m</span>
+          </div>
           <div
-            className="bg-surface-container-lowest px-3 py-1.5 rounded-full flex items-center gap-2 shadow-sm border border-outline-variant"
+            className="col-span-2 bg-[#EDF2DF] px-3 py-2 rounded-full flex items-center justify-center gap-2 border border-[#CBD8A8]"
             data-testid="formation-pill"
           >
             <span className="font-label-md text-label-md text-on-surface">{formationLabel}</span>
-            {formationErrors.length === 0 ? (
+            {selectionErrors.length === 0 ? (
               <>
-                <span className="material-symbols-outlined text-secondary text-[16px]">
-                  check_circle
-                </span>
+                <DashboardIcon className="text-[#667D28]" name="check" size={16} strokeWidth={2.4} />
                 <span className="font-label-md text-[10px] text-on-surface-variant whitespace-nowrap">
                   Valid
                 </span>
               </>
             ) : (
               <span className="font-label-md text-[10px] text-error whitespace-nowrap">
-                {formationErrors.length} issue{formationErrors.length === 1 ? '' : 's'}
+                {selectionErrors.length} issue{selectionErrors.length === 1 ? '' : 's'}
               </span>
             )}
           </div>
+        </div>
+
+        <div className="mx-4 mb-3">
+          <button
+            className="w-full h-11 rounded-b-[20px] border-x border-b border-[#E5E6E1] bg-white text-on-surface font-label-md text-label-md font-bold flex items-center justify-center gap-2 hover:bg-[#F7F7F2] active:bg-[#EDF2DF] transition-colors"
+            data-testid="auto-fill-by-kickoff"
+            onClick={autoFillByKickoff}
+            title="Starts the earliest-kickoff players per position and puts the two latest-kickoff outfield subs in the Tactical slots, so any same-position swap you plan is automatically timing-legal."
+            type="button"
+          >
+            <DashboardIcon className="text-[#667D28]" name="timer" size={18} />
+            Auto-Fill by Kickoff Order
+          </button>
         </div>
 
         <DndContext
@@ -764,9 +1004,9 @@ function StartingXIPage() {
                     <SortablePitchPlayer
                       key={p.player_id}
                       player={p}
-                      isCaptain={captainId === p.player_id}
-                      isVice={viceCaptainId === p.player_id}
-                      onOpenPopover={openCaptainPopover}
+                      isBonus={bonusPlayerIds.includes(p.player_id)}
+                      bonusEligible={p.position === bonusPosition}
+                      onToggleBonus={toggleBonusPlayer}
                       onBench={toggleStarting}
                     />
                   ))}
@@ -775,7 +1015,34 @@ function StartingXIPage() {
             </DroppableContainer>
           </SortableContext>
 
-          <section className="px-md mt-md">
+          <div className="flex bg-surface-container-high p-1 rounded-xl mx-md mt-md" role="tablist" aria-label="Bench view">
+            <button
+              aria-pressed={benchTab === 'auto'}
+              className={`flex-1 py-2 text-center rounded-lg font-headline-sm text-body-md transition-all ${
+                benchTab === 'auto'
+                  ? 'bg-primary-container text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+              onClick={() => setBenchTab('auto')}
+              type="button"
+            >
+              Auto Sub Players
+            </button>
+            <button
+              aria-pressed={benchTab === 'tactical'}
+              className={`flex-1 py-2 text-center rounded-lg font-headline-sm text-body-md transition-all ${
+                benchTab === 'tactical'
+                  ? 'bg-primary-container text-on-primary shadow-sm'
+                  : 'text-on-surface-variant hover:text-on-surface'
+              }`}
+              onClick={() => setBenchTab('tactical')}
+              type="button"
+            >
+              Tactical Sub{swaps.length > 0 ? ` (${swaps.length}/2)` : ''}
+            </button>
+          </div>
+
+          <section className={`px-md mt-md ${benchTab === 'auto' ? '' : 'hidden'}`}>
             <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-sm">
               Bench
             </h3>
@@ -800,16 +1067,206 @@ function StartingXIPage() {
                     canMoveDown={i < outfieldBench.length - 1}
                     canMoveUp={i > 0}
                     canPromote={startingIds.length < STARTING_XI_SIZE}
+                    canPlanSwap={i >= 1}
                     key={p.player_id}
                     onMoveDown={() => moveOutfieldBench(i, 1)}
                     onMoveUp={() => moveOutfieldBench(i, -1)}
                     onPromote={() => toggleStarting(p)}
+                    onPlanSwap={() => setPlanningSwapInId(p.player_id)}
                     player={p}
-                    subLabel={`${['1st', '2nd', '3rd'][i] ?? `${i + 1}th`} Sub`}
+                    subLabel={['13 Auto Sub', '14 Tactical', '15 Tactical'][i] ?? `${i + 13}`}
                   />
                 ))}
               </SortableContext>
             </DroppableContainer>
+          </section>
+
+          {/* Advisory only -- shows what the picker below will accept before
+              the manager opens it, using the exact same eligibility data
+              (fixture_windows from GET /gw_selection) and the identical
+              strictly-after rule the server enforces at submission
+              (Gameplay/selection_rules.py::last_fixture_end). Never gates
+              Save Team; selectionErrors below is what does that. */}
+          {tacticalBench.length > 0 && (
+            <section className={`px-md mt-md ${benchTab === 'tactical' ? '' : 'hidden'}`}>
+              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-sm">
+                Tactical Swap Options
+              </h3>
+              <div className="flex flex-col gap-sm">
+                {swapEligibility.map(({ incoming, incomingWindow, eligible, ineligible }) => (
+                  <article
+                    className="bg-surface-container-lowest rounded-xl p-sm border border-outline-variant shadow-sm flex flex-col gap-1.5"
+                    key={incoming.player_id}
+                  >
+                    <p className="font-body-md text-body-md font-bold text-on-surface">
+                      {incoming.name}{' '}
+                      <span className="font-label-md text-label-md font-normal text-on-surface-variant">
+                        ({incoming.position}) · kicks off{' '}
+                        {incomingWindow ? kickoffLabel(incomingWindow.first_kickoff) : 'no fixture this gameweek'}
+                      </span>
+                    </p>
+                    {eligible.length > 0 && (
+                      <div className="flex items-start gap-xs bg-secondary-container/25 text-on-secondary-container font-label-md text-label-md font-semibold p-xs rounded-lg border border-secondary-container/50">
+                        <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          check_circle
+                        </span>
+                        <span>
+                          Can replace:{' '}
+                          <span className="font-bold">
+                            {eligible
+                              .map((p) => {
+                                const w = fixtureWindows[p.player_id] ?? fixtureWindows[String(p.player_id)]
+                                return `${p.name}${w ? ` (${kickoffLabel(w.first_kickoff)})` : ''}`
+                              })
+                              .join(', ')}
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    {ineligible.map((p) => (
+                      <div
+                        className="flex items-start gap-xs bg-error-container/60 text-on-error-container font-label-md text-label-md p-xs rounded-lg border border-error-container leading-tight"
+                        key={p.player_id}
+                      >
+                        <span className="material-symbols-outlined text-[16px] mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>
+                          cancel
+                        </span>
+                        <span>
+                          Can&apos;t replace {p.name}: {p.reason}
+                        </span>
+                      </div>
+                    ))}
+                    {eligible.length === 0 && ineligible.length === 0 && (
+                      <p className="font-label-md text-label-md text-on-surface-variant">
+                        No same-position, non-Bonus starter to compare against.
+                      </p>
+                    )}
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className={`px-md mt-md ${benchTab === 'tactical' ? '' : 'hidden'}`}>
+            <div className="flex items-center justify-between mb-sm">
+              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
+                Tactical Swaps
+              </h3>
+              <span className="font-label-md text-label-md text-on-surface-variant">{swaps.length}/2</span>
+            </div>
+            <div className="bg-surface-container-low rounded-xl p-2 border border-outline-variant shadow-sm flex flex-col gap-2">
+              {tacticalBench.length === 0 ? (
+                <p className="font-body-md text-body-md text-on-surface-variant px-2 py-1">
+                  Put outfield players in slots 14 and 15 to plan swaps.
+                </p>
+              ) : (
+                tacticalBench.map((incoming, i) => {
+                  const existing = swaps.find((swap) => swap.player_in_id === incoming.player_id)
+                  const outgoing = existing ? squadById.get(existing.player_out_id) : null
+                  const eligibility = swapEligibility[i] ?? { eligible: [], ineligible: [] }
+                  const plannedOutgoingIds = new Set(swaps
+                    .filter((swap) => swap.player_in_id !== incoming.player_id)
+                    .map((swap) => swap.player_out_id))
+                  // Same-position, non-Bonus, timing-eligible AND not already
+                  // spoken for by the other swap slot.
+                  const pickable = eligibility.eligible.filter((p) => !plannedOutgoingIds.has(p.player_id))
+                  const blocked = [
+                    ...eligibility.ineligible,
+                    ...eligibility.eligible
+                      .filter((p) => plannedOutgoingIds.has(p.player_id))
+                      .map((p) => ({ ...p, reason: 'already planned as the other Tactical Sub’s swap' })),
+                  ]
+                  return (
+                    <div
+                      className="bg-surface-container-lowest border border-outline-variant rounded-lg p-sm flex flex-col gap-sm"
+                      key={incoming.player_id}
+                    >
+                      <div className="flex items-center gap-sm">
+                        <span className="font-label-md text-[10px] text-on-surface-variant w-[72px] shrink-0">
+                          Slot {14 + i}
+                        </span>
+                        <PlayerJersey player={incoming} size="xs" showName={false} />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-body-md text-body-md text-on-surface truncate">{incoming.name}</p>
+                          <p className="font-label-md text-[10px] text-on-surface-variant">
+                            {incoming.position}
+                            {outgoing ? ` · for ${outgoing.name} (${outgoing.position})` : ' · No planned swap'}
+                          </p>
+                        </div>
+                        {existing ? (
+                          locked ? (
+                            <span
+                              className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant bg-surface-container border border-outline-variant"
+                              title="Deadline passed"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">lock</span>
+                            </span>
+                          ) : (
+                            <button
+                              aria-label={`Remove swap for ${incoming.name}`}
+                              className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant bg-surface-container border border-outline-variant hover:bg-surface-container-high"
+                              onClick={() => removeSwap(incoming.player_id)}
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">close</span>
+                            </button>
+                          )
+                        ) : (
+                          !locked && (
+                            <button
+                              aria-label={`Choose outgoing player for ${incoming.name}`}
+                              className="w-8 h-8 rounded flex items-center justify-center text-on-surface-variant bg-surface-container border border-outline-variant hover:bg-surface-container-high disabled:opacity-30 disabled:cursor-not-allowed"
+                              disabled={(pickable.length === 0 && blocked.length === 0) || swaps.length >= 2}
+                              onClick={() => setPlanningSwapInId(incoming.player_id)}
+                              type="button"
+                            >
+                              <span className="material-symbols-outlined text-[16px]">add</span>
+                            </button>
+                          )
+                        )}
+                      </div>
+                      {!locked && planningSwapInId === incoming.player_id && (
+                        <div className="flex flex-col gap-2">
+                          {pickable.length === 0 && blocked.length === 0 ? (
+                            <span className="font-body-md text-body-md text-on-surface-variant">
+                              No same-position non-Bonus starter available.
+                            </span>
+                          ) : (
+                            <>
+                              <div className="flex flex-wrap gap-2">
+                                {pickable.map((candidate) => (
+                                  <button
+                                    className="px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container text-on-surface font-label-md text-label-md hover:bg-surface-container-high"
+                                    key={candidate.player_id}
+                                    onClick={() => addSwap(incoming.player_id, candidate.player_id)}
+                                    type="button"
+                                  >
+                                    {candidate.name}
+                                  </button>
+                                ))}
+                              </div>
+                              {blocked.length > 0 && (
+                                <ul className="flex flex-col gap-1">
+                                  {blocked.map((candidate) => (
+                                    <li
+                                      className="flex flex-col gap-0.5 px-3 py-1.5 rounded-lg border border-outline-variant bg-surface-container-low text-on-surface-variant opacity-70"
+                                      key={candidate.player_id}
+                                    >
+                                      <span className="font-label-md text-label-md">{candidate.name}</span>
+                                      <span className="font-label-md text-[10px] text-error">{candidate.reason}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </section>
 
           <DragOverlay>
@@ -822,9 +1279,9 @@ function StartingXIPage() {
           </DragOverlay>
         </DndContext>
 
-        {formationErrors.length > 0 && (
+        {selectionErrors.length > 0 && (
           <div className="mx-md mt-md bg-error-container text-on-error-container rounded-lg p-sm flex flex-col gap-xs" role="alert">
-            {formationErrors.map((msg, i) => (
+            {selectionErrors.map((msg, i) => (
               <p key={i}>{msg}</p>
             ))}
           </div>
@@ -859,7 +1316,7 @@ function StartingXIPage() {
           <button
             className="w-full bg-primary-container text-on-primary rounded-xl py-3.5 font-headline-sm text-headline-sm flex items-center justify-center gap-2 shadow-md active:scale-[0.98] transition-all disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed"
             data-testid="save-team"
-            disabled={formationErrors.length > 0 || submitting}
+            disabled={selectionErrors.length > 0 || submitting}
             onClick={handleSave}
             type="button"
           >
@@ -868,42 +1325,6 @@ function StartingXIPage() {
           </button>
         )}
       </div>
-
-      {captainPopoverPlayer && (
-        <div className="fixed inset-0 z-[60] bg-black/40 flex items-end justify-center p-md" onClick={() => setCaptainPopoverPlayerId(null)}>
-          <div className="w-full max-w-[600px] bg-surface-container-lowest rounded-xl p-md shadow-lg flex flex-col gap-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-headline-sm text-headline-sm text-primary">{captainPopoverPlayer.name}</h2>
-            <button className="flex items-center gap-sm p-sm rounded-lg border border-outline-variant hover:bg-surface-container-low transition-colors font-body-md text-body-md text-on-surface text-left" onClick={() => makeCaptain(captainPopoverPlayer.player_id)}>
-              <span className="w-6 h-6 rounded-full bg-primary-container text-on-primary flex items-center justify-center font-stats-number text-[11px]">C</span>
-              Make Captain
-            </button>
-            <button className="flex items-center gap-sm p-sm rounded-lg border border-outline-variant hover:bg-surface-container-low transition-colors font-body-md text-body-md text-on-surface text-left" onClick={() => makeViceCaptain(captainPopoverPlayer.player_id)}>
-              <span className="w-6 h-6 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-stats-number text-[11px]">V</span>
-              Make Vice-Captain
-            </button>
-            <button className="px-4 py-2 rounded-lg border border-outline-variant font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors" onClick={() => setCaptainPopoverPlayerId(null)}>
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {chipConfirmTarget && (
-        <div className="fixed inset-0 z-[60] bg-black/40 flex items-end justify-center p-md" onClick={() => setChipConfirmTarget(null)}>
-          <div className="w-full max-w-[600px] bg-surface-container-lowest rounded-xl p-md shadow-lg flex flex-col gap-sm" onClick={(e) => e.stopPropagation()}>
-            <h2 className="font-headline-sm text-headline-sm text-primary">Activate {chipConfirmLabel} for this gameweek?</h2>
-            <p className="font-body-md text-body-md text-on-surface-variant">This can't be undone this season once you save your team.</p>
-            <div className="flex gap-sm justify-end mt-sm">
-              <button className="px-4 py-2 rounded-lg border border-outline-variant font-label-md text-label-md text-on-surface hover:bg-surface-container-low transition-colors" onClick={() => setChipConfirmTarget(null)}>
-                Cancel
-              </button>
-              <button className="px-4 py-2 rounded-lg bg-primary-container text-on-primary font-label-md text-label-md shadow-sm active:scale-95 transition-all" onClick={confirmChipActivation}>
-                Activate
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   )
 }

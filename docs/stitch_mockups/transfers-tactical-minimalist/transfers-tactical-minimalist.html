@@ -1,0 +1,361 @@
+<!DOCTYPE html><html lang="en" style=""><head></head><body class="bg-appBg text-textPrimary antialiased selection:bg-olivePale selection:text-oliveDark flex justify-center min-h-screen" style="font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif !important;"><svg class="inline-defs-container" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"></svg>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>FPL Transfers - Clean Sports UI</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            appBg: '#F5F5F2',
+            surface: '#FFFFFF',
+            surfaceSubtle: '#F8F8F5',
+            borderLight: '#E5E6E1',
+            textPrimary: '#171816',
+            textSecondary: '#70726C',
+            textMuted: '#9A9C96',
+            olivePrimary: '#78952D',
+            oliveDark: '#5F7823',
+            olivePale: '#EEF3DF',
+            pitchGreen: '#235D3A',
+            pitchLine: 'rgba(255, 255, 255, 0.22)',
+            cardRed: '#E15241',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          boxShadow: {
+            subtle: '0 2px 8px -2px rgba(23, 24, 22, 0.05)',
+            elevated: '0 8px 24px -4px rgba(23, 24, 22, 0.08)',
+            dock: '0 10px 30px -4px rgba(0, 0, 0, 0.12)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Custom Layout & Pitch Styles -->
+<style data-purpose="custom-styling">
+    /* Hide scrollbars but allow scrolling */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* Tactile Pitch Texture */
+    .pitch-bg {
+      background: linear-gradient(180deg, #1C4D30 0%, #205937 50%, #1A492D 100%);
+    }
+
+    /* Pitch Markings Overlay */
+    .pitch-markings {
+      background-image: 
+        radial-gradient(circle at 50% 50%, transparent 40px, rgba(255,255,255,0.15) 41px, rgba(255,255,255,0.15) 42px, transparent 43px),
+        linear-gradient(to bottom, rgba(255,255,255,0.15) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 50%;
+      background-position: center center, center top;
+      background-repeat: no-repeat;
+    }
+  </style>
+<!-- END: Custom Layout & Pitch Styles -->
+
+
+<!-- Mobile Container Envelope (390px default profile) -->
+<div class="w-full max-w-[390px] min-h-screen flex flex-col relative pb-32 pt-2 px-3 sm:px-4">
+<!-- BEGIN: Header -->
+<header class="sticky top-0 z-30 bg-surface/80 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-borderLight/60 mb-3 -mx-3 sm:-mx-4" data-purpose="screen-header">
+<div class="flex items-center space-x-3">
+<button aria-label="Open navigation menu" class="w-9 h-9 flex items-center justify-center rounded-full bg-surface shadow-subtle border border-borderLight active:scale-95 transition-transform text-textPrimary" type="button">
+<svg class="w-4 h-4 stroke-current" fill="none" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24">
+<line x1="4" x2="20" y1="7" y2="7"></line>
+<line x1="4" x2="14" y1="12" y2="12"></line>
+<line x1="4" x2="18" y1="17" y2="17"></line>
+</svg>
+</button>
+<span class="text-[17px] font-bold tracking-tight text-textPrimary" style="color: rgb(29, 27, 32);">Transfers</span>
+</div>
+<div class="flex items-center space-x-2">
+<button aria-label="User account" class="relative w-9 h-9 rounded-full bg-surface border border-borderLight shadow-subtle flex items-center justify-center text-textPrimary active:scale-95 transition-transform" type="button">
+<svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"></path>
+<circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"></circle>
+</svg>
+</button>
+</div>
+</header>
+<!-- END: Header -->
+<!-- BEGIN: Gameweek & Transfer Bank Telemetry Card -->
+<section class="bg-surface rounded-[16px] border border-borderLight p-3.5 shadow-subtle mb-3" data-purpose="telemetry-summary">
+<!-- Status Top Bar -->
+<div class="flex items-center justify-between mb-2.5 pb-2 border-b border-borderLight/70">
+<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-surfaceSubtle text-textSecondary border border-borderLight">
+          GW6 Active
+        </span>
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-olivePale text-oliveDark">
+          0 Free Transfers
+        </span>
+</div>
+<!-- Metrics Dual Grid -->
+<div class="grid grid-cols-2 gap-2">
+<div class="bg-surfaceSubtle rounded-[12px] py-2 px-3 text-center border border-borderLight/50">
+<p class="text-[11px] font-medium text-textSecondary uppercase tracking-wider">Bank</p>
+<p class="text-[17px] font-bold text-textPrimary tracking-tight">£0.0m</p>
+</div>
+<div class="bg-surfaceSubtle rounded-[12px] py-2 px-3 text-center border border-borderLight/50">
+<p class="text-[11px] font-medium text-textSecondary uppercase tracking-wider">Transfers</p>
+<p class="text-[17px] font-bold text-textPrimary tracking-tight">0 Free</p>
+</div>
+</div>
+</section>
+<!-- END: Gameweek & Transfer Bank Telemetry Card -->
+<!-- BEGIN: Football Pitch Squad View -->
+<section class="relative pitch-bg rounded-[18px] px-2 py-5 text-white overflow-hidden shadow-subtle border border-emerald-900/30 mb-3 min-h-[460px] flex flex-col justify-between" data-purpose="squad-pitch-view"><div class="absolute inset-0 pointer-events-none opacity-20"><svg height="100%" width="100%" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="pitch-stripes" width="100%" height="48" patternUnits="userSpaceOnUse"><rect width="100%" height="24" fill="rgba(0,0,0,0.06)"></rect><rect y="24" width="100%" height="24" fill="rgba(255,255,255,0.04)"></rect></pattern></defs><rect width="100%" height="100%" fill="url(#pitch-stripes)"></rect><rect fill="none" height="calc(100% - 24px)" rx="10" stroke="#FFFFFF" stroke-width="1.5" width="calc(100% - 20px)" x="10" y="12"></rect><line stroke="#FFFFFF" stroke-width="1.5" x1="10" x2="calc(100% - 10px)" y1="50%" y2="50%"></line><circle cx="50%" cy="50%" fill="none" r="42" stroke="#FFFFFF" stroke-width="1.5"></circle><circle cx="50%" cy="50%" fill="#FFFFFF" r="2.5"></circle><rect fill="none" height="52" stroke="#FFFFFF" stroke-width="1.5" width="52%" x="24%" y="12"></rect><rect fill="none" height="22" stroke="#FFFFFF" stroke-width="1.5" width="28%" x="36%" y="12"></rect><circle cx="50%" cy="42" fill="#FFFFFF" r="2"></circle><rect fill="none" height="52" stroke="#FFFFFF" stroke-width="1.5" width="52%" x="24%" y="calc(100% - 64px)"></rect><rect fill="none" height="22" stroke="#FFFFFF" stroke-width="1.5" width="28%" x="36%" y="calc(100% - 34px)"></rect><circle cx="50%" cy="calc(100% - 42px)" fill="#FFFFFF" r="2"></circle></svg></div><div class="relative z-10 flex flex-col justify-between h-full space-y-4"><div class="flex justify-around px-12 pt-1"><div class="flex flex-col items-center cursor-pointer"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#1E56A0" stroke="#113D75" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#85B6FF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#0D3B73"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#0D3B73"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1.5 py-0.5 rounded shadow text-center min-w-[54px] border border-borderLight/60 leading-tight"><p class="text-[10px] font-bold tracking-tight truncate">Marti...</p><p class="text-[9px] font-medium text-textSecondary">£5.0m</p></div></div><div class="flex flex-col items-center cursor-pointer"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#D91E2A" stroke="#9B0C16" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#FFFFFF"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#FFFFFF"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1.5 py-0.5 rounded shadow text-center min-w-[54px] border border-borderLight/60 leading-tight"><p class="text-[10px] font-bold tracking-tight truncate">Raya</p><p class="text-[9px] font-medium text-textSecondary">£5.5m</p></div></div></div><div class="grid grid-cols-5 gap-1 text-center"><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#7C2C3B" stroke="#521520" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#95C5E8" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#95C5E8"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#95C5E8"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">A. Gar...</p><p class="text-[8px] font-medium text-textSecondary">£4.5m</p></div></div><div class="flex flex-col items-center relative"><span class="absolute -top-2 left-1/2 -translate-x-1/2 bg-cardRed text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full shadow-sm flex items-center space-x-1 border border-white z-20 whitespace-nowrap" style="animation: 1.8s cubic-bezier(0.4, 0, 0.6, 1) 0s infinite normal none running badge-pulse; box-shadow: rgba(225, 82, 65, 0.65) 0px 0px 8px;"><style>@keyframes badge-pulse { 0%, 100% { transform: translate(-50%, 0) scale(1); filter: brightness(1); } 50% { transform: translate(-50%, -1px) scale(1.06); filter: brightness(1.15); box-shadow: 0 0 12px rgba(225, 82, 65, 0.85); } } @keyframes arrow-shift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(1.5px); } }</style><span class="inline-block" style="animation: arrow-shift 1.2s ease-in-out infinite;">⇄</span><span class="">OUT</span></span><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#DC2626" stroke="#991B1B" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#FFFFFF"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#FFFFFF"></path></svg><div class="mt-1 bg-cardRed text-white px-1 py-0.5 rounded shadow w-full truncate border border-cardRed leading-tight"><p class="text-[9px] font-bold truncate">Gabriel</p><p class="text-[8px] font-medium opacity-90">£6.0m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#E69500" stroke="#8F5500" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#1F1F1F" stroke-width="2.5" stroke-linecap="round"></path><line x1="18" y1="10" x2="18" y2="36" stroke="#1F1F1F" stroke-width="2.5"></line><line x1="22" y1="10" x2="22" y2="36" stroke="#1F1F1F" stroke-width="2.5"></line><line x1="26" y1="10" x2="26" y2="36" stroke="#1F1F1F" stroke-width="2.5"></line></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Hughes</p><p class="text-[8px] font-medium text-textSecondary">£4.0m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#DC2626" stroke="#991B1B" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#FFFFFF"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#FFFFFF"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Saliba</p><p class="text-[8px] font-medium text-textSecondary">£6.0m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#D91E2A" stroke="#8B0D15" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><line x1="18" y1="10" x2="18" y2="36" stroke="#1F1F1F" stroke-width="2.5"></line><line x1="22" y1="10" x2="22" y2="36" stroke="#1F1F1F" stroke-width="2.5"></line><line x1="26" y1="10" x2="26" y2="36" stroke="#1F1F1F" stroke-width="2.5"></line></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Soler</p><p class="text-[8px] font-medium text-textSecondary">£4.5m</p></div></div></div><div class="grid grid-cols-5 gap-1 text-center"><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#DC2626" stroke="#991B1B" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#1F1F1F"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#1F1F1F"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">B. Fern...</p><p class="text-[8px] font-medium text-textSecondary">£8.5m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#1B3B8A" stroke="#0F255B" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><line x1="19" y1="10" x2="19" y2="36" stroke="#D91E2A" stroke-width="3"></line><line x1="25" y1="10" x2="25" y2="36" stroke="#D91E2A" stroke-width="3"></line></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Hughes</p><p class="text-[8px] font-medium text-textSecondary">£5.0m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#DC2626" stroke="#991B1B" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Ncoo...</p><p class="text-[8px] font-medium text-textSecondary">£5.5m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#0F172A"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#0F172A"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">P.M. Sa...</p><p class="text-[8px] font-medium text-textSecondary">£5.0m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#FFFFFF" stroke="#CBD5E1" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#0F172A" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#0F172A"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#0F172A"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Reed</p><p class="text-[8px] font-medium text-textSecondary">£4.5m</p></div></div></div><div class="grid grid-cols-3 gap-6 px-6 text-center pb-1"><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#6CB7E8" stroke="#3D88BB" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#FFFFFF"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#FFFFFF"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1.5 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Haala...</p><p class="text-[8px] font-medium text-textSecondary">£15.2m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#DC2626" stroke="#991B1B" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round"></path><path d="M5 12L9 20L12 18L8 11L5 12Z" fill="#FFFFFF"></path><path d="M39 12L35 20L32 18L36 11L39 12Z" fill="#FFFFFF"></path></svg><div class="mt-1 bg-surface text-textPrimary px-1.5 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Isak</p><p class="text-[8px] font-medium text-textSecondary">£8.5m</p></div></div><div class="flex flex-col items-center"><svg class="w-9 h-8 drop-shadow-md shrink-0" viewBox="0 0 44 38" fill="none"><path d="M14 6L5 12L9 20L14 17V36H30V17L35 20L39 12L30 6C28 10 16 10 14 6Z" fill="#D91E2A" stroke="#8B0D15" stroke-width="1"></path><path d="M17 6C17 9 27 9 27 6" stroke="#1F1F1F" stroke-width="2.5" stroke-linecap="round"></path><line x1="18" y1="10" x2="18" y2="36" stroke="#FFFFFF" stroke-width="2.5"></line><line x1="22" y1="10" x2="22" y2="36" stroke="#FFFFFF" stroke-width="2.5"></line><line x1="26" y1="10" x2="26" y2="36" stroke="#FFFFFF" stroke-width="2.5"></line></svg><div class="mt-1 bg-surface text-textPrimary px-1.5 py-0.5 rounded shadow border border-borderLight/60 w-full truncate leading-tight"><p class="text-[9px] font-bold truncate">Thiago</p><p class="text-[8px] font-medium text-textSecondary">£6.0m</p></div></div></div></div></section>
+<!-- END: Football Pitch Squad View -->
+<!-- BEGIN: Transfer History Accordion Banner -->
+<section class="bg-surface rounded-[16px] border border-borderLight p-3 shadow-subtle mb-3" data-purpose="transfer-history">
+<div class="flex items-center justify-between cursor-pointer">
+<div class="flex items-center space-x-2">
+<svg class="w-4 h-4 text-textSecondary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<polyline points="12 6 12 12 16 14"></polyline>
+</svg>
+<span class="text-[13px] font-semibold text-textPrimary">Transfer History</span>
+<span class="w-4 h-4 rounded-full bg-surfaceSubtle border border-borderLight text-[10px] font-medium text-textSecondary flex items-center justify-center">1</span>
+</div>
+<svg class="w-4 h-4 text-textSecondary" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M18 15l-6-6-6 6"></path>
+</svg>
+</div>
+<!-- Historical Record Item -->
+<div class="mt-2.5 pt-2 border-t border-borderLight/60 flex items-center justify-between text-[11px]">
+<div>
+<div class="flex items-center space-x-1 font-medium text-textPrimary">
+<span class="text-cardRed font-semibold">Giuzeppi</span>
+<span class="text-textMuted">→</span>
+<span class="text-oliveDark font-semibold">P.M. Sarr</span>
+</div>
+<p class="text-[10px] text-textMuted mt-0.5">GW6 • 1am, 3 Sep 2026 4:14 PM</p>
+</div>
+<span class="px-2 py-0.5 bg-olivePale text-oliveDark font-semibold text-[10px] rounded-full">
+          Free
+        </span>
+</div>
+</section>
+<!-- END: Transfer History Accordion Banner -->
+<!-- BEGIN: Replacement Selector Sheet -->
+<section class="bg-surface rounded-[18px] border border-borderLight p-3.5 shadow-subtle mb-3" data-purpose="replacement-selector">
+<!-- Header Row with Dynamic Budget Constraint -->
+<div class="flex items-center justify-between mb-2.5">
+<div>
+<h2 class="text-[15px] font-semibold text-textPrimary leading-tight">Replacement for Gabriel</h2>
+<p class="text-[11px] text-textSecondary">240 DEF available</p>
+</div>
+<span class="text-[11px] font-semibold bg-surfaceSubtle text-textPrimary px-2.5 py-1 rounded-full border border-borderLight">
+          Max: <span class="text-oliveDark font-bold">£6.0m</span>
+</span>
+</div>
+<!-- Search Input Filter -->
+<div class="relative mb-2.5">
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-textMuted">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<circle cx="11" cy="11" r="8"></circle>
+<line x1="21" x2="16.65" y1="21" y2="16.65"></line>
+</svg>
+</div>
+<input class="w-full pl-9 pr-3 py-1.5 bg-surfaceSubtle border border-borderLight rounded-[12px] text-[12px] text-textPrimary placeholder-textMuted focus:outline-none focus:ring-1 focus:ring-olivePrimary focus:bg-white transition-all" placeholder="Search DEF replacements..." type="text">
+</div>
+<!-- Filter Chips Row -->
+<div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar mb-3 pb-0.5">
+<button class="px-2.5 py-1 bg-olivePrimary text-white rounded-full text-[11px] font-medium whitespace-nowrap shadow-xs">
+          Price: High to Low
+        </button>
+<button class="px-2.5 py-1 bg-surfaceSubtle text-textSecondary border border-borderLight rounded-full text-[11px] font-medium whitespace-nowrap hover:bg-borderLight/40 transition">
+          Price: Low to High
+        </button>
+<button class="px-2.5 py-1 bg-surfaceSubtle text-textSecondary border border-borderLight rounded-full text-[11px] font-medium whitespace-nowrap hover:bg-borderLight/40 transition">
+          Next Opponent
+        </button>
+</div>
+<!-- Replacement List Group -->
+<div class="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+<!-- Player Row 1: J. Timber -->
+<div class="flex items-center justify-between p-2 rounded-[12px] bg-surfaceSubtle hover:bg-[#F2F2EC] border border-borderLight/70 transition-colors">
+<div class="flex items-center space-x-2.5">
+<div class="w-8 h-8 rounded-full bg-red-600 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+              JT
+            </div>
+<div>
+<div class="flex items-center space-x-1.5">
+<span class="text-[13px] font-semibold text-textPrimary">J. Timber</span>
+<span class="text-[10px] text-textMuted">ARS</span>
+</div>
+<p class="text-[10px] text-textSecondary">GW5: 0 • Season: 41 • CHE (A)</p>
+</div>
+</div>
+<div class="flex items-center space-x-2">
+<div class="text-right">
+<p class="text-[13px] font-bold text-textPrimary leading-tight">£5.5m</p>
+<p class="text-[9px] text-oliveDark font-semibold">-£0.5m</p>
+</div>
+<button aria-label="Add J. Timber" class="w-7 h-7 rounded-full bg-surface border border-borderLight hover:bg-olivePale hover:border-olivePrimary text-textPrimary hover:text-oliveDark flex items-center justify-center transition-colors shadow-xs">
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+</button>
+</div>
+</div>
+<!-- Player Row 2: Virgil -->
+<div class="flex items-center justify-between p-2 rounded-[12px] bg-surfaceSubtle hover:bg-[#F2F2EC] border border-borderLight/70 transition-colors">
+<div class="flex items-center space-x-2.5">
+<div class="w-8 h-8 rounded-full bg-red-700 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+              VV
+            </div>
+<div>
+<div class="flex items-center space-x-1.5">
+<span class="text-[13px] font-semibold text-textPrimary">Virgil</span>
+<span class="text-[10px] text-textMuted">LIV</span>
+</div>
+<p class="text-[10px] text-textSecondary">GW5: 0 • Season: 45 • BOU (A)</p>
+</div>
+</div>
+<div class="flex items-center space-x-2">
+<div class="text-right">
+<p class="text-[13px] font-bold text-textPrimary leading-tight">£5.5m</p>
+<p class="text-[9px] text-oliveDark font-semibold">-£0.5m</p>
+</div>
+<button aria-label="Add Virgil" class="w-7 h-7 rounded-full bg-surface border border-borderLight hover:bg-olivePale hover:border-olivePrimary text-textPrimary hover:text-oliveDark flex items-center justify-center transition-colors shadow-xs">
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+</button>
+</div>
+</div>
+<!-- Player Row 3: O'Reilly -->
+<div class="flex items-center justify-between p-2 rounded-[12px] bg-surfaceSubtle hover:bg-[#F2F2EC] border border-borderLight/70 transition-colors">
+<div class="flex items-center space-x-2.5">
+<div class="w-8 h-8 rounded-full bg-sky-500 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+              OR
+            </div>
+<div>
+<div class="flex items-center space-x-1.5">
+<span class="text-[13px] font-semibold text-textPrimary">O'Reilly</span>
+<span class="text-[10px] text-textMuted">MCI</span>
+</div>
+<p class="text-[10px] text-textSecondary">GW5: 0 • Season: 9 • SUN (H)</p>
+</div>
+</div>
+<div class="flex items-center space-x-2">
+<div class="text-right">
+<p class="text-[13px] font-bold text-textPrimary leading-tight">£5.4m</p>
+<p class="text-[9px] text-oliveDark font-semibold">-£0.6m</p>
+</div>
+<button aria-label="Add O'Reilly" class="w-7 h-7 rounded-full bg-surface border border-borderLight hover:bg-olivePale hover:border-olivePrimary text-textPrimary hover:text-oliveDark flex items-center justify-center transition-colors shadow-xs">
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+</button>
+</div>
+</div>
+<!-- Player Row 4: Tarkowski -->
+<div class="flex items-center justify-between p-2 rounded-[12px] bg-surfaceSubtle hover:bg-[#F2F2EC] border border-borderLight/70 transition-colors">
+<div class="flex items-center space-x-2.5">
+<div class="w-8 h-8 rounded-full bg-blue-800 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+              JT
+            </div>
+<div>
+<div class="flex items-center space-x-1.5">
+<span class="text-[13px] font-semibold text-textPrimary">Tarkowski</span>
+<span class="text-[10px] text-textMuted">EVE</span>
+</div>
+<p class="text-[10px] text-textSecondary">GW5: 0 • Season: 23 • FUL (H)</p>
+</div>
+</div>
+<div class="flex items-center space-x-2">
+<div class="text-right">
+<p class="text-[13px] font-bold text-textPrimary leading-tight">£5.1m</p>
+<p class="text-[9px] text-oliveDark font-semibold">-£0.9m</p>
+</div>
+<button aria-label="Add Tarkowski" class="w-7 h-7 rounded-full bg-surface border border-borderLight hover:bg-olivePale hover:border-olivePrimary text-textPrimary hover:text-oliveDark flex items-center justify-center transition-colors shadow-xs">
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"></path></svg>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Replacement Selector Sheet -->
+<!-- BEGIN: Transfer Summary & Action Bar -->
+<section class="bg-surface rounded-[16px] border border-borderLight p-3.5 shadow-subtle mb-16" data-purpose="checkout-summary">
+<div class="grid grid-cols-3 text-center pb-3 border-b border-borderLight/70 mb-3">
+<div>
+<span class="text-[10px] uppercase font-semibold text-textSecondary block">Transfers</span>
+<span class="text-[13px] font-bold text-textPrimary">0 <span class="font-normal text-[11px] text-textSecondary">(0 Free)</span></span>
+</div>
+<div>
+<span class="text-[10px] uppercase font-semibold text-textSecondary block">Cost</span>
+<span class="text-[13px] font-bold text-textPrimary">0 pts</span>
+</div>
+<div>
+<span class="text-[10px] uppercase font-semibold text-textSecondary block">New Bank</span>
+<span class="text-[13px] font-bold text-oliveDark">£0.0m</span>
+</div>
+</div>
+<!-- Confirm Button (Inactive/Active aesthetic) -->
+<button class="w-full py-3 px-4 bg-olivePrimary/90 hover:bg-olivePrimary active:bg-oliveDark text-white font-semibold rounded-[12px] text-[14px] flex items-center justify-center space-x-2 transition-colors shadow-sm" type="button">
+<span class="">Confirm Transfers</span>
+<svg class="w-4 h-4 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<polyline points="20 6 9 17 4 12"></polyline>
+</svg>
+</button>
+</section>
+<!-- END: Transfer Summary & Action Bar -->
+<!-- BEGIN: Master Floating Frosted Bottom Navigation Dock -->
+<nav class="fixed bottom-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[360px] bg-surface/90 backdrop-blur-md rounded-full border border-borderLight shadow-dock px-3 py-1.5 flex items-center justify-between z-50" data-purpose="floating-nav-dock">
+<!-- 1: Home Dashboard -->
+<button aria-label="Home" class="p-2 text-textMuted hover:text-textPrimary transition-colors flex items-center justify-center">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+<polyline points="9 22 9 12 15 12 15 22"></polyline>
+</svg>
+</button>
+<!-- 2: Starting XI / Pitch -->
+<button aria-label="Starting XI" class="p-2 text-textMuted hover:text-textPrimary transition-colors flex items-center justify-center">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<rect height="16" rx="2" width="18" x="3" y="4"></rect>
+<line x1="12" x2="12" y1="4" y2="20"></line>
+<circle cx="12" cy="12" r="3"></circle>
+</svg>
+</button>
+<!-- 3: Transfers (ACTIVE SIGNATURE PILL) -->
+<button aria-label="Transfers Active" class="px-4 py-2 bg-olivePrimary rounded-full text-white flex items-center justify-center shadow-sm">
+<svg class="w-5 h-5 stroke-[2.2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+</svg>
+</button>
+<!-- 4: Leagues / Trophy -->
+<button aria-label="Leagues" class="p-2 text-textMuted hover:text-textPrimary transition-colors flex items-center justify-center">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+<path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+<path d="M4 22h16"></path>
+<path d="M10 14.66V17c0 .55-.45 1-1 1H7"></path>
+<path d="M14 14.66V17c0 .55.45 1 1 1h2"></path>
+<path d="M18 2H6v7a6 6 0 0 0 12 0V2z"></path>
+</svg>
+</button>
+<!-- 5: Chats / Community -->
+<button aria-label="Chats" class="p-2 text-textMuted hover:text-textPrimary transition-colors flex items-center justify-center">
+<svg class="w-5 h-5 stroke-[2]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+</svg>
+</button>
+</nav>
+<!-- END: Master Floating Frosted Bottom Navigation Dock -->
+</div>
+
+
+
+
+
+
+
+
+</body></html>

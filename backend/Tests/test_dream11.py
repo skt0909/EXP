@@ -179,20 +179,51 @@ def _join_contest(user_id, code):
     )
 
 
-def _submit_team(contest_id, user_id, player_ids, captain_id, vice_captain_id):
+def _submit_team(contest_id, user_id, player_ids, captain_id, vice_captain_id, team_name=None):
     return client.post(
         f"/dream11/contests/{contest_id}/team",
-        json={"player_ids": player_ids, "captain_id": captain_id, "vice_captain_id": vice_captain_id},
+        json={
+            "player_ids": player_ids, "captain_id": captain_id, "vice_captain_id": vice_captain_id,
+            "team_name": team_name,
+        },
         headers=_auth_headers(user_id),
     )
 
 
-def _edit_team(contest_id, user_id, player_ids, captain_id, vice_captain_id):
+def _edit_team(contest_id, user_id, player_ids, captain_id, vice_captain_id, team_name=None):
     return client.patch(
         f"/dream11/contests/{contest_id}/team",
-        json={"player_ids": player_ids, "captain_id": captain_id, "vice_captain_id": vice_captain_id},
+        json={
+            "player_ids": player_ids, "captain_id": captain_id, "vice_captain_id": vice_captain_id,
+            "team_name": team_name,
+        },
         headers=_auth_headers(user_id),
     )
+
+
+def _save_team(fixture_id, user_id, name, player_ids, captain_id, vice_captain_id):
+    return client.post(
+        "/dream11/saved-teams",
+        json={
+            "fixture_id": fixture_id, "name": name, "player_ids": player_ids,
+            "captain_id": captain_id, "vice_captain_id": vice_captain_id,
+        },
+        headers=_auth_headers(user_id),
+    )
+
+
+def _get_saved_teams(fixture_id, user_id):
+    return client.get(
+        "/dream11/saved-teams", params={"fixture_id": fixture_id}, headers=_auth_headers(user_id)
+    )
+
+
+def _delete_saved_team(saved_team_id, user_id):
+    return client.delete(f"/dream11/saved-teams/{saved_team_id}", headers=_auth_headers(user_id))
+
+
+def _delete_contest(contest_id, user_id):
+    return client.delete(f"/dream11/contests/{contest_id}", headers=_auth_headers(user_id))
 
 
 def _get_team(contest_id, target_user_id, as_user_id=None):
@@ -371,6 +402,57 @@ def test_get_contest_pool_unknown_contest_404(engine, make_user):
     assert resp.status_code == 404
 
 
+# ---------------------------------------------------------------- fixture pool (no contest)
+#
+# GET /dream11/fixtures/{id}/players -- lets a team be built/saved before any
+# contest exists. Same POOL_QUERY -> PRICE_INPUT_QUERY -> _compute_prices
+# pipeline create_contest uses to freeze dream11.player_prices, just never
+# persisted -- so this is the live preview a contest created moments later
+# would actually charge.
+
+def test_get_fixture_pool_matches_what_a_contest_would_freeze(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 8000)
+
+    resp = client.get(f"/dream11/fixtures/{fixture_id}/players", headers=_auth_headers(creator))
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == len(pool) == 30
+    assert {p["player_id"] for p in body} == {p["fpl_id"] for p in pool}
+    assert all(p["credit_price"] >= 6.0 for p in body)
+    assert {p["is_home_team"] for p in body} == {True, False}
+
+    # Creating a real contest on the SAME fixture right after must freeze
+    # the identical prices this preview just showed -- same pipeline, same
+    # inputs, nothing persisted here to have moved the rolling averages.
+    contest = _create_contest(fixture_id, creator)
+    contest_prices = _contest_prices(engine, contest["contest_id"])
+    preview_prices = {p["player_id"]: p["credit_price"] for p in body}
+    fpl_to_internal = {p["fpl_id"]: p["internal_id"] for p in pool}
+    for fpl_id, price in preview_prices.items():
+        assert contest_prices[fpl_to_internal[fpl_id]] == price
+
+
+def test_get_fixture_pool_unknown_fixture_404(make_user):
+    resp = client.get("/dream11/fixtures/99999999/players", headers=_auth_headers(make_user()))
+    assert resp.status_code == 404
+
+
+def test_get_fixture_pool_feeds_a_savable_team(engine, make_user, make_team, make_player):
+    """The actual point of this endpoint: build a team from its pool and
+    save it, with no contest ever created."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 8100)
+
+    resp = client.get(f"/dream11/fixtures/{fixture_id}/players", headers=_auth_headers(creator))
+    assert resp.status_code == 200
+    team = _pick_valid_team(pool)
+
+    saved = _save_team(fixture_id, creator, "Built From Preview", team, team[0], team[1])
+    assert saved.status_code == 200, saved.json()
+
+
 def test_get_leaderboard_orders_scored_members_before_unscored(engine, make_user, make_team, make_player):
     creator = make_user()
     joiner = make_user()
@@ -394,6 +476,57 @@ def test_get_leaderboard_orders_scored_members_before_unscored(engine, make_user
     assert [r["user_id"] for r in body["rows"]] == [joiner, creator]
     assert body["rows"][0]["total_points"] == 42
     assert body["rows"][0]["has_submitted_team"] is False
+
+
+def test_leaderboard_shows_entry_name_over_account_team_name(engine, make_user, make_team, make_player):
+    """The actual bug report this fixes: naming a team when submitting it
+    must show THAT name on the leaderboard, not the account's own
+    public.users.team_name -- which is what every row showed before
+    entry_name existed at all (dream11.teams had no name column)."""
+    named = make_user()
+    unnamed = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7700)
+    contest = _create_contest(fixture_id, named)
+    cid = contest["contest_id"]
+    _join_contest(unnamed, contest["code"])
+    team = _pick_valid_team(pool)
+
+    _submit_team(cid, named, team, captain_id=team[0], vice_captain_id=team[1], team_name="Guaranteed Cheap Team")
+    _submit_team(cid, unnamed, team, captain_id=team[0], vice_captain_id=team[1])  # no team_name at all
+
+    resp = client.get(f"/dream11/contests/{cid}/leaderboard", headers=_auth_headers(named))
+
+    assert resp.status_code == 200
+    rows = {r["user_id"]: r for r in resp.json()["rows"]}
+    assert rows[named]["team_name"] == "Guaranteed Cheap Team"
+    # No name given -> the account's own team_name, exactly as before this
+    # feature existed -- make_user's own default, not hardcoded here.
+    with engine.connect() as conn:
+        account_name = conn.execute(
+            text("SELECT team_name FROM users WHERE id = :uid"), {"uid": unnamed}
+        ).scalar()
+    assert rows[unnamed]["team_name"] == account_name
+
+
+def test_edit_team_can_rename_the_entry(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7750)
+    contest = _create_contest(fixture_id, creator)
+    cid = contest["contest_id"]
+    team = _pick_valid_team(pool)
+    _submit_team(cid, creator, team, captain_id=team[0], vice_captain_id=team[1], team_name="First Name")
+
+    # Editing without a new name must leave the existing one alone.
+    resp1 = _edit_team(cid, creator, team, captain_id=team[1], vice_captain_id=team[0])
+    assert resp1.status_code == 200, resp1.json()
+    leaderboard1 = client.get(f"/dream11/contests/{cid}/leaderboard", headers=_auth_headers(creator)).json()
+    assert next(r for r in leaderboard1["rows"] if r["user_id"] == creator)["team_name"] == "First Name"
+
+    # Editing WITH a new name must actually rename it.
+    resp2 = _edit_team(cid, creator, team, captain_id=team[0], vice_captain_id=team[1], team_name="Renamed")
+    assert resp2.status_code == 200, resp2.json()
+    leaderboard2 = client.get(f"/dream11/contests/{cid}/leaderboard", headers=_auth_headers(creator)).json()
+    assert next(r for r in leaderboard2["rows"] if r["user_id"] == creator)["team_name"] == "Renamed"
 
 
 def test_get_leaderboard_self_heals_stale_points_without_a_scoring_checkpoint(
@@ -1074,10 +1207,9 @@ def test_edit_team_valid_succeeds_before_lock(engine, make_user, make_team, make
 
 
 def test_edit_team_rejected_after_lock(engine, make_user, make_team, make_player):
-    """The trigger that blocks submit_team after lock (enforce_contest_lock_fn)
-    fires only on INSERT INTO dream11.teams, which edit_team never does --
-    so this specifically proves edit_team's own explicit is_locked check is
-    what's stopping this, not a leftover DB protection."""
+    """edit_team's own is_locked check answers first; since migration
+    e6a4b9d2c815 enforce_contest_lock_fn also guards dream11.team_players,
+    so the database refuses the change too (see the kickoff tests below)."""
     creator = make_user()
     fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5100)
     contest = _create_contest(fixture_id, creator)
@@ -1103,6 +1235,81 @@ def test_edit_team_rejected_after_lock(engine, make_user, make_team, make_player
             {"cid": contest["contest_id"], "uid": creator},
         ))
     assert {r.player_id for r in rows} == {p["internal_id"] for p in pool if p["fpl_id"] in original}
+
+
+def _kick_off_now(engine, fixture_id):
+    """The match has started but the 5-minute lock sweep hasn't run yet:
+    kickoff is in the past, contests.is_locked is still FALSE."""
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE ml.fixtures SET kickoff_time = now() - INTERVAL '1 minute' WHERE id = :f"),
+            {"f": fixture_id},
+        )
+
+
+def _stored_lineup(engine, contest_id, user_id):
+    with engine.connect() as conn:
+        return {r.player_id for r in conn.execute(
+            text(
+                "SELECT tp.player_id FROM dream11.team_players tp "
+                "JOIN dream11.teams t ON t.id = tp.team_id WHERE t.contest_id = :cid AND t.user_id = :uid"
+            ),
+            {"cid": contest_id, "uid": user_id},
+        )}
+
+
+def test_team_is_locked_at_kickoff_before_the_lock_sweep_runs(engine, make_user, make_team, make_player):
+    """is_locked is set by a sweep every 5 minutes. Before this, both
+    submitting and editing still worked for up to 5 minutes after kickoff."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5150)
+    contest = _create_contest(fixture_id, creator)
+    joiner = make_user()
+    assert _join_contest(joiner, contest["code"]).status_code == 200
+    original = _pick_valid_team(pool)
+    assert _submit_team(contest["contest_id"], creator, original, captain_id=original[0], vice_captain_id=original[1]).status_code == 200
+
+    _kick_off_now(engine, fixture_id)
+
+    new_team = _pick_different_valid_team(pool, exclude_ids=set(original))
+    edit = _edit_team(contest["contest_id"], creator, new_team, captain_id=new_team[0], vice_captain_id=new_team[1])
+    assert edit.status_code == 422, edit.json()
+    assert edit.json()["detail"] == ["Contest is locked, team can no longer be edited"]
+    assert _stored_lineup(engine, contest["contest_id"], creator) == {
+        p["internal_id"] for p in pool if p["fpl_id"] in original
+    }
+
+    late = _submit_team(contest["contest_id"], joiner, original, captain_id=original[0], vice_captain_id=original[1])
+    assert late.status_code == 422, late.json()
+    assert late.json()["detail"] == "Contest is locked, team can no longer be submitted"
+
+
+def test_database_refuses_pick_changes_after_kickoff_but_scoring_can_write(engine, make_user, make_team, make_player):
+    """The guarantee doesn't depend on the API: a direct write to a pick is
+    refused once the match is live. Scoring's own columns stay writable --
+    dream11_scoring writes final_points/final_minutes after kickoff."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 5160)
+    contest = _create_contest(fixture_id, creator)
+    team = _pick_valid_team(pool)
+    assert _submit_team(contest["contest_id"], creator, team, captain_id=team[0], vice_captain_id=team[1]).status_code == 200
+
+    _kick_off_now(engine, fixture_id)
+
+    team_filter = "team_id = (SELECT id FROM dream11.teams WHERE contest_id = :cid AND user_id = :uid)"
+    params = {"cid": contest["contest_id"], "uid": creator}
+    with pytest.raises(Exception, match="Contest is locked"):
+        with engine.begin() as conn:
+            conn.execute(text(f"UPDATE dream11.team_players SET is_captain = NOT is_captain WHERE {team_filter}"), params)
+    with pytest.raises(Exception, match="Contest is locked"):
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE dream11.teams SET entry_name = 'late' WHERE contest_id = :cid AND user_id = :uid"), params)
+
+    with engine.begin() as conn:  # scoring's write still goes through
+        updated = conn.execute(
+            text(f"UPDATE dream11.team_players SET final_points = 3, final_minutes = 90 WHERE {team_filter}"), params
+        ).rowcount
+    assert updated == 11
 
 
 def test_edit_team_with_no_existing_team_rejected_404(engine, make_user, make_team, make_player):
@@ -1702,7 +1909,12 @@ def test_contest_summary_exposes_is_finalized(engine, make_user, make_team, make
     body = client.get(f"/dream11/contests/{cid}", headers=_auth_headers(creator)).json()
 
     assert body["is_finalized"] is True
-    assert body["is_locked"] is False, "finalization is independent of the kickoff lock"
+    # Finalizing also locks (dream11_scoring.STAMP_CONTEST_FINALIZED_STMT):
+    # it can now happen within a minute of the match finishing, before the
+    # 5-minute kickoff-lock sweep, and a finished contest must not accept
+    # team edits. is_finalized is still the only field meaning "settled".
+    assert body["is_locked"] is True
+    assert body["void_reason"] is None
 
 
 # ---------------------------------------------------------------- double gameweeks
@@ -1950,7 +2162,35 @@ def test_poll_halftime_sets_is_live_true_and_stays_updatable(engine, make_team, 
     assert row2.goals_scored == 1  # successfully updated -- proves is_live=TRUE stays correctable
 
 
-def test_poll_fulltime_settles_and_blocks_further_update(engine, make_team, make_player, monkeypatch):
+def test_poll_fulltime_stays_live_until_the_final_checkpoint(engine, make_team, make_player, monkeypatch):
+    """kickoff+115 is a guess at when the match ended, before FPL's late
+    corrections -- so 'fulltime' must NOT settle. Only 'final' (fixture
+    finished) does."""
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 6150, gameweek=1)
+    target = pool[0]
+
+    monkeypatch.setattr(
+        live_poll, "fetch_json",
+        lambda path: {"elements": [{"id": target["fpl_id"], "stats": {"minutes": 90, "assists": 0}}]},
+    )
+    live_poll.poll_fixture_checkpoint(engine, fixture_id, "fulltime")
+    # FPL credits a late assist after the whistle; the final poll must land it.
+    monkeypatch.setattr(
+        live_poll, "fetch_json",
+        lambda path: {"elements": [{"id": target["fpl_id"], "stats": {"minutes": 90, "assists": 1}}]},
+    )
+    summary = live_poll.poll_fixture_checkpoint(engine, fixture_id, "final")
+    assert target["fpl_id"] in summary["updated"]
+
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT is_live, assists FROM ml.player_gw_stats WHERE player_id = :pid AND season = :s AND gameweek = 1"),
+            {"pid": target["internal_id"], "s": TEST_SEASON},
+        ).first()
+    assert (row.is_live, row.assists) == (False, 1)
+
+
+def test_poll_final_settles_and_blocks_further_update(engine, make_team, make_player, monkeypatch):
     fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 6100, gameweek=1)
     target = pool[0]
 
@@ -1958,7 +2198,7 @@ def test_poll_fulltime_settles_and_blocks_further_update(engine, make_team, make
         live_poll, "fetch_json",
         lambda path: {"elements": [{"id": target["fpl_id"], "stats": {"minutes": 90, "goals_scored": 1, "total_points": 6}}]},
     )
-    summary = live_poll.poll_fixture_checkpoint(engine, fixture_id, "fulltime")
+    summary = live_poll.poll_fixture_checkpoint(engine, fixture_id, "final")
     assert target["fpl_id"] in summary["updated"]
 
     with engine.connect() as conn:
@@ -1973,7 +2213,7 @@ def test_poll_fulltime_settles_and_blocks_further_update(engine, make_team, make
         live_poll, "fetch_json",
         lambda path: {"elements": [{"id": target["fpl_id"], "stats": {"minutes": 90, "goals_scored": 2, "total_points": 12}}]},
     )
-    summary2 = live_poll.poll_fixture_checkpoint(engine, fixture_id, "fulltime")
+    summary2 = live_poll.poll_fixture_checkpoint(engine, fixture_id, "final")
     assert target["fpl_id"] in summary2["already_settled"]
     assert target["fpl_id"] not in summary2["updated"]
 
@@ -1983,3 +2223,209 @@ def test_poll_fulltime_settles_and_blocks_further_update(engine, make_team, make
             {"pid": target["internal_id"], "s": TEST_SEASON},
         ).first()
     assert row2.goals_scored == 1  # unchanged -- second poll's data was correctly rejected, not applied
+
+
+# ---------------------------------------------------------------- saved teams
+#
+# A saved team is scoped to a fixture, not a contest -- see
+# Migrations/versions/f9a3c7e18d62's docstring. It reuses _validate_team's
+# formation/pool-membership rules (test_submit_team_* above already covers
+# those in detail) against a zero-priced pool, so only one invalid-lineup
+# case is re-asserted here: enough to confirm save_team goes through the
+# same validation rather than skipping it.
+
+def test_save_team_valid_succeeds(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7000)
+    team = _pick_valid_team(pool)
+
+    resp = _save_team(fixture_id, creator, "My Best XI", team, captain_id=team[0], vice_captain_id=team[1])
+
+    assert resp.status_code == 200, resp.json()
+    body = resp.json()
+    assert body["name"] == "My Best XI"
+    assert body["fixture_id"] == fixture_id
+    assert {p["player_id"] for p in body["players"]} == set(team)
+    assert sum(1 for p in body["players"] if p["is_captain"]) == 1
+    assert sum(1 for p in body["players"] if p["is_vice_captain"]) == 1
+
+    with engine.connect() as conn:
+        rows = list(conn.execute(
+            text("SELECT player_id FROM dream11.saved_team_players WHERE saved_team_id = :id"),
+            {"id": body["saved_team_id"]},
+        ))
+    assert len(rows) == 11
+
+
+def test_save_team_over_budget_rejected(engine, make_user, make_team, make_player):
+    """A manager must not be able to save a lineup that's already over
+    budget at CURRENT prices -- save_team prices the pool live
+    (PRICE_INPUT_QUERY -> _compute_prices), the same numbers the picker
+    itself shows, so this is the same rule submit_team enforces, just
+    against a live preview instead of a contest's frozen prices."""
+    creator = make_user()
+    # Every pool player not named here gets no rolling_points row at all
+    # (floored at PRICE_FLOOR=6.0); the 11 picked below all get a much
+    # higher rolling average than the rest of the pool, which _compute_prices
+    # scales to the PRICE_CEILING (11.0) -- 11 * 11.0 = 121, over the 100 cap.
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7020)
+    team = _pick_valid_team(pool)
+    with engine.begin() as conn:
+        for fpl_id in team:
+            internal_id = next(p["internal_id"] for p in pool if p["fpl_id"] == fpl_id)
+            _seed_prior_points(engine, internal_id, gameweek=0, total_points=20)
+        # _compute_prices floors EVERYONE if every rolling value it sees is
+        # identical (no ranking possible with a single distinct value) --
+        # this second, much lower data point is what makes the 11 above
+        # actually scale up toward the ceiling instead of also flooring.
+        someone_else = next(p for p in pool if p["fpl_id"] not in team)
+        _seed_prior_points(engine, someone_else["internal_id"], gameweek=0, total_points=0)
+
+    resp = _save_team(fixture_id, creator, "Too Expensive", team, captain_id=team[0], vice_captain_id=team[1])
+
+    assert resp.status_code == 422, resp.json()
+    assert any("exceeds budget cap" in e for e in resp.json()["detail"])
+
+    with engine.connect() as conn:
+        count = conn.execute(
+            text("SELECT COUNT(*) FROM dream11.saved_teams WHERE name = 'Too Expensive'")
+        ).scalar()
+    assert count == 0
+
+
+def test_save_team_does_not_require_joining_any_contest(engine, make_user, make_team, make_player):
+    """The whole point: no contest exists at all yet, and saving still works --
+    unlike submit_team, which 422s without a prior join."""
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7050)
+    team = _pick_valid_team(pool)
+
+    resp = _save_team(fixture_id, creator, "No Contest Yet", team, captain_id=team[0], vice_captain_id=team[1])
+
+    assert resp.status_code == 200, resp.json()
+
+
+def test_save_team_invalid_lineup_rejected(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7100)
+    team = _pick_valid_team(pool)[:10]  # 10, not 11 -- same case test_submit_team_wrong_count_rejected uses
+
+    resp = _save_team(fixture_id, creator, "Bad Team", team, captain_id=team[0], vice_captain_id=team[1])
+
+    assert resp.status_code == 422
+    assert "team must contain exactly 11 players, got 10" in resp.json()["detail"]
+
+
+def test_save_team_blank_name_rejected(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7150)
+    team = _pick_valid_team(pool)
+
+    resp = _save_team(fixture_id, creator, "   ", team, captain_id=team[0], vice_captain_id=team[1])
+
+    assert resp.status_code == 422
+    assert "name must not be blank" in resp.json()["detail"]
+
+
+def test_get_saved_teams_scoped_to_caller_and_fixture(engine, make_user, make_team, make_player):
+    owner = make_user()
+    other_user = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7200)
+    other_fixture_id, *_rest2, other_pool = _seed_fixture_and_pool(engine, make_team, make_player, 7250)
+    team = _pick_valid_team(pool)
+    other_team = _pick_valid_team(other_pool)
+
+    assert _save_team(fixture_id, owner, "Team A", team, team[0], team[1]).status_code == 200
+    assert _save_team(fixture_id, owner, "Team B", team, team[1], team[0]).status_code == 200
+    # A different user's saved team on the SAME fixture must not leak in.
+    assert _save_team(fixture_id, other_user, "Not Yours", team, team[0], team[1]).status_code == 200
+    # A different FIXTURE, same owner, must not leak in either.
+    assert _save_team(other_fixture_id, owner, "Wrong Fixture", other_team, other_team[0], other_team[1]).status_code == 200
+
+    resp = _get_saved_teams(fixture_id, owner)
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert {t["name"] for t in body} == {"Team A", "Team B"}
+    assert body[0]["name"] == "Team B"  # newest first
+
+
+def test_delete_saved_team_owner_only(engine, make_user, make_team, make_player):
+    owner = make_user()
+    other_user = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7300)
+    team = _pick_valid_team(pool)
+    saved = _save_team(fixture_id, owner, "Delete Me", team, team[0], team[1]).json()
+
+    forbidden = _delete_saved_team(saved["saved_team_id"], other_user)
+    assert forbidden.status_code == 403
+
+    resp = _delete_saved_team(saved["saved_team_id"], owner)
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["deleted"] is True
+
+    assert _get_saved_teams(fixture_id, owner).json() == []
+
+
+def test_delete_saved_team_unknown_id_404(make_user):
+    resp = _delete_saved_team(999999, make_user())
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------- delete contest
+
+def test_delete_contest_by_creator_before_lock_succeeds(engine, make_user, make_team, make_player):
+    creator = make_user()
+    joiner = make_user()
+    fixture_id, *_rest, pool = _seed_fixture_and_pool(engine, make_team, make_player, 7400)
+    contest = _create_contest(fixture_id, creator)
+    cid = contest["contest_id"]
+    _join_contest(joiner, contest["code"])
+    team = _pick_valid_team(pool)
+    _submit_team(cid, joiner, team, captain_id=team[0], vice_captain_id=team[1])
+
+    resp = _delete_contest(cid, creator)
+
+    assert resp.status_code == 200, resp.json()
+    assert resp.json()["deleted"] is True
+
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT 1 FROM dream11.contests WHERE id = :id"), {"id": cid}).first() is None
+        assert conn.execute(text("SELECT 1 FROM dream11.contest_members WHERE contest_id = :id"), {"id": cid}).first() is None
+        assert conn.execute(text("SELECT 1 FROM dream11.teams WHERE contest_id = :id"), {"id": cid}).first() is None
+        assert conn.execute(text("SELECT 1 FROM dream11.player_prices WHERE contest_id = :id"), {"id": cid}).first() is None
+
+
+def test_delete_contest_by_non_creator_rejected(engine, make_user, make_team, make_player):
+    creator = make_user()
+    joiner = make_user()
+    fixture_id, *_rest, _pool = _seed_fixture_and_pool(engine, make_team, make_player, 7500)
+    contest = _create_contest(fixture_id, creator)
+    cid = contest["contest_id"]
+    _join_contest(joiner, contest["code"])
+
+    resp = _delete_contest(cid, joiner)
+
+    assert resp.status_code == 403
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT 1 FROM dream11.contests WHERE id = :id"), {"id": cid}).first() is not None
+
+
+def test_delete_contest_after_lock_rejected(engine, make_user, make_team, make_player):
+    creator = make_user()
+    fixture_id, *_rest, _pool = _seed_fixture_and_pool(engine, make_team, make_player, 7600)
+    contest = _create_contest(fixture_id, creator)
+    cid = contest["contest_id"]
+    _lock_contest(engine, cid)
+
+    resp = _delete_contest(cid, creator)
+
+    assert resp.status_code == 422, resp.json()
+    assert "locked" in resp.json()["detail"][0]
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT 1 FROM dream11.contests WHERE id = :id"), {"id": cid}).first() is not None
+
+
+def test_delete_contest_unknown_id_404(make_user):
+    resp = _delete_contest(999999, make_user())
+    assert resp.status_code == 404

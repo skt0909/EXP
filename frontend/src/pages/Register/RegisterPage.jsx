@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import FormField from '../../components/FormField/FormField'
 import { useAuth } from '../../auth/AuthContext'
+import AuthBrand from '../../components/AuthBrand/AuthBrand'
 
 const MIN_PASSWORD_LENGTH = 8
 
@@ -61,15 +62,10 @@ function RegisterPage() {
 
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col antialiased">
-      <main className="relative z-10 flex-grow flex flex-col items-center justify-center w-full max-w-[600px] mx-auto px-safe-margin py-xl">
-        <div className="mb-xl flex flex-col items-center text-center">
-          <h1 className="font-display-lg text-display-lg text-primary tracking-tight">PitchSide</h1>
-          <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
-            Manager Registration
-          </p>
-        </div>
+      <main className="relative z-10 flex-grow flex flex-col items-center justify-center w-full max-w-[440px] mx-auto px-safe-margin py-lg">
+        <AuthBrand subtitle="Manager registration" />
 
-        <div className="w-full bg-surface-container-lowest/85 backdrop-blur-md border border-white/30 shadow-sm rounded-xl p-md md:p-lg">
+        <div className="w-full bg-surface-container-lowest border border-outline-variant shadow-sm rounded-xl p-md md:p-lg">
           <form className="flex flex-col w-full gap-md" noValidate onSubmit={handleSubmit}>
             <FormField
               autoComplete="email"

@@ -368,18 +368,10 @@ def test_validate_transfers_requires_the_allowance():
 def test_transfers_no_longer_references_chip_state():
     """B6, structurally. FREE_CHIPS and the 20-transfer cap are gone entirely.
 
-    `chip_active` SURVIVES as a response key, deliberately: it is client-facing
-    and the frontend is out of scope until Phase 5, so it stays inert rather
-    than disappearing from the payload -- the same stance the dashboard takes
-    with its captaincy keys. What is gone is the placeholder VARIABLE and
-    everything that fed it.
-
-    Counting occurrences would be brittle, since the docstring discusses the
-    behaviour that used to exist. This asserts the two things that matter:
-    nothing computes it, and the response hands back a literal False.
+    Phase 5 removed the temporary `chip_active=False` response key too, so this
+    asserts there is no remaining chip-state dependency in the transfer module.
     """
     import pathlib as _pathlib
-    import re as _re
 
     src = _pathlib.Path(r"d:\Exp\backend\Gameplay\transfers.py").read_text(encoding="utf-8")
     # The IMPORTS, not the bare strings: the module docstring discusses both
@@ -388,8 +380,6 @@ def test_transfers_no_longer_references_chip_state():
     rules_import = src.split("from Shared.rules import (")[1].split(")")[0]
     assert "FREE_CHIPS" not in rules_import
     assert "MAX_TRANSFERS_PER_GAMEWEEK" not in rules_import
-    assert _re.search(r"^\s*chip_active\s*=\s*(?!False)", src, _re.M) is None, \
-        "nothing may COMPUTE chip_active any more -- only the literal False"
-    assert "chip_active=False," in src
+    assert "chip_active" not in src
 
 

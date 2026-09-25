@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import FplHeader from '../../components/FplHeader/FplHeader'
+import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
 import {
   createLeague,
   fetchLeagueTable,
@@ -146,7 +147,7 @@ function LeaguesPage() {
   return (
     <>
       <FplHeader title="Leagues" />
-      <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
+      <main className="w-full px-4 py-3 pb-28 flex flex-col gap-4 bg-[#FBF9F5] min-h-screen">
         {/* Season label and the joined-count subtitle are real, useful
             context -- just not what the <h1> is for. They now sit below
             the header bar as their own element, same as any other page's
@@ -280,12 +281,18 @@ function LeaguesPage() {
         <p className="font-body-md text-body-md text-on-surface-variant">Loading leagues…</p>
       ) : (
         <>
-          <section aria-label="My leagues" className="flex flex-col gap-md">
-            <h2 className="font-headline-sm text-headline-sm text-primary">My Leagues</h2>
+          <section aria-label="My leagues" className="flex flex-col gap-3">
+            <h2 className="font-headline-sm text-headline-sm text-on-surface">My Leagues</h2>
             {leagues.length === 0 ? (
-              <p className="font-body-md text-body-md text-on-surface-variant">
-                No leagues joined yet — create one or join with a code.
-              </p>
+              <div className="flex flex-col items-center rounded-[20px] border border-[#E5E6E1] bg-white px-5 py-8 text-center shadow-sm">
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#F0F0EA] text-on-surface-variant">
+                  <DashboardIcon name="trophy" size={23} />
+                </span>
+                <h3 className="font-headline-sm text-body-md text-on-surface">No leagues joined yet</h3>
+                <p className="mt-2 max-w-[280px] font-body-md text-body-md leading-relaxed text-on-surface-variant">
+                  Create your own competition or enter an invite code above.
+                </p>
+              </div>
             ) : (
               <div className="flex flex-col gap-sm">
                 {leagues.map((league) => (
@@ -340,7 +347,28 @@ function LeaguesPage() {
             )}
           </section>
 
-          <section className="flex flex-col gap-md">
+          <button
+            className="flex w-full items-center justify-between rounded-[20px] border border-[#E5E6E1] bg-white p-4 text-left shadow-sm transition-all hover:bg-[#F7F7F2] active:scale-[0.99] disabled:cursor-default disabled:opacity-60"
+            disabled={!selectedLeague}
+            onClick={() => document.getElementById('league-standings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+            type="button"
+          >
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EDF2DF] text-[#78952D]">
+                <DashboardIcon name="leagues" size={20} />
+              </span>
+              <span className="min-w-0">
+                <span className="block font-label-md text-label-md font-bold text-on-surface">League Table</span>
+                <span className="mt-0.5 block truncate font-body-md text-body-md text-on-surface-variant">
+                  {selectedLeague ? `View ${selectedLeague.name} standings` : 'Choose a league to view its table'}
+                </span>
+              </span>
+            </span>
+            <DashboardIcon className="shrink-0 text-on-surface-variant" name="chevronRight" size={20} />
+          </button>
+
+          {selectedLeague && (
+          <section className="flex flex-col gap-md scroll-mt-20" id="league-standings">
             <h2 className="font-headline-sm text-headline-sm text-primary flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-outline">table_rows</span>
               {selectedLeague?.name ?? 'League Table'}
@@ -407,10 +435,11 @@ function LeaguesPage() {
               </div>
             ) : (
               <p className="font-body-md text-body-md text-on-surface-variant">
-                Choose a league to view its table.
+                No standings are available for this league yet.
               </p>
             )}
           </section>
+          )}
         </>
       )}
       </main>

@@ -12,7 +12,7 @@ because nothing surfaces it.
 So this endpoint serves the constants THEMSELVES -- imported from the modules
 that apply them, never retyped:
 
-    classic -> Shared.rules, used by Results/scoring.py's _component_score
+    classic -> Shared.rules, used by Results/tactical_scoring.py's general_points
     dream11 -> Game_logic.dream11_scoring, used by calculate_dream11_points
 
 Extracting scoring.py's remaining inline literals into Shared.rules was part of
@@ -33,7 +33,7 @@ PUBLIC_ROUTES with that reasoning, so the route-coverage guard stays honest.
 """
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from Shared import rules as classic
 from Game_logic import dream11_scoring as d11
@@ -87,14 +87,35 @@ class ClassicScoringRules(BaseModel):
     red_card: int
     own_goal: int
     penalty_missed: int
-    captain_multiplier: float
-    triple_captain_multiplier: float
-    transfer_hit: int
-    max_banked_free_transfers: int
     squad_size: int
     starting_xi_size: int
     bench_size: int
     max_per_club: int
+
+
+class TacticBonusRules(BaseModel):
+    eligible_position: str
+    goal: int | None = None
+    assist: int | None = None
+    clean_sheet: int | None = None
+    defensive_contribution_tiers: list[dict] = Field(default_factory=list)
+    goal_or_assist: int | None = None
+    creativity_tiers: list[dict] = Field(default_factory=list)
+
+
+class TacticalScoringRules(BaseModel):
+    rules_version: int
+    tactics: dict[str, TacticBonusRules]
+    bonus_player_count: int
+    tactical_swap_limit: int
+    auto_sub_slots: list[int]
+    tactical_sub_slots: list[int]
+    fixture_duration_minutes: int
+    free_transfers_per_gameweek: int
+    free_transfer_bank_cap: int
+    squad_size: int
+    starting_xi_size: int
+    bench_size: int
 
 
 class Dream11ScoringRules(BaseModel):
@@ -116,6 +137,7 @@ class Dream11ScoringRules(BaseModel):
 
 class ScoringRulesResponse(BaseModel):
     classic: ClassicScoringRules
+    tactical: TacticalScoringRules
     dream11: Dream11ScoringRules
 
 
@@ -165,18 +187,46 @@ def get_scoring_rules() -> ScoringRulesResponse:
             red_card=classic.RED_CARD_POINTS,
             own_goal=classic.OWN_GOAL_POINTS,
             penalty_missed=classic.PENALTY_MISSED_POINTS,
-            captain_multiplier=classic.CAPTAIN_MULTIPLIER,
-            triple_captain_multiplier=classic.TRIPLE_CAPTAIN_MULTIPLIER,
-            # Negated at the boundary: HIT_COST is a positive cost the scorer
-            # subtracts, but every other value here is signed as the manager
-            # experiences it, and a screen listing "+4" beside a penalty would
-            # be actively misleading.
-            transfer_hit=-classic.HIT_COST,
-            max_banked_free_transfers=classic.MAX_BANKED_FREE_TRANSFERS,
             squad_size=classic.SQUAD_SIZE,
             starting_xi_size=classic.STARTING_XI_SIZE,
             bench_size=classic.BENCH_SIZE,
             max_per_club=classic.MAX_PER_CLUB,
+        ),
+        tactical=TacticalScoringRules(
+            rules_version=classic.RULES_VERSION,
+            tactics={
+                "attack": TacticBonusRules(
+                    eligible_position="FWD",
+                    goal=classic.ATTACK_POINTS["goal"],
+                    assist=classic.ATTACK_POINTS["assist"],
+                ),
+                "defence": TacticBonusRules(
+                    eligible_position="DEF",
+                    clean_sheet=classic.DEFENCE_CLEAN_SHEET_POINTS,
+                    defensive_contribution_tiers=[
+                        {"threshold": threshold, "points": points}
+                        for threshold, points in classic.DC_TIERS
+                    ],
+                ),
+                "balanced": TacticBonusRules(
+                    eligible_position="MID",
+                    goal_or_assist=classic.BALANCED_GOAL_OR_ASSIST_POINTS,
+                    creativity_tiers=[
+                        {"threshold": float(threshold), "points": points}
+                        for threshold, points in classic.CREATIVITY_TIERS
+                    ],
+                ),
+            },
+            bonus_player_count=2,
+            tactical_swap_limit=2,
+            auto_sub_slots=[12, 13],
+            tactical_sub_slots=[14, 15],
+            fixture_duration_minutes=classic.FIXTURE_DURATION_MIN,
+            free_transfers_per_gameweek=classic.FREE_TRANSFERS_EARNED_PER_GAMEWEEK,
+            free_transfer_bank_cap=classic.FREE_TRANSFER_BANK_CAP,
+            squad_size=classic.SQUAD_SIZE,
+            starting_xi_size=classic.STARTING_XI_SIZE,
+            bench_size=classic.BENCH_SIZE,
         ),
         dream11=Dream11ScoringRules(
             goal=PositionPoints(**d11.GOAL_POINTS),

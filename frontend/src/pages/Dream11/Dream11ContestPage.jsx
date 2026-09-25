@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import OpponentTeamPanel from '../../components/OpponentTeam/OpponentTeamPanel'
 import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import { CONTEST_STATUS, CONTEST_STATUS_CLASSES, contestStatus, isContestLocked } from '../../data/contestStatus'
 import { fetchContestLeaderboard } from '../../api/dream11'
 import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
+import DetailHeader from '../../components/DetailHeader/DetailHeader'
 
 function kickoffLabel(kickoffTime) {
   if (!kickoffTime) return 'Kickoff time TBC'
@@ -16,6 +18,57 @@ function kickoffLabel(kickoffTime) {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+// Individually-drawn "waiting for rival" rows past this count collapse into
+// one summary row -- a 50-cap public contest with 3 members shouldn't render
+// 47 empty slots.
+const MAX_DRAWN_SLOTS = 5
+
+/**
+ * The unfilled seats in a contest that hasn't locked yet, styled after the
+ * leaderboard rows above them so an open slot reads as "a real seat, not
+ * taken yet" rather than a different kind of thing on the page.
+ */
+function OpenSlots({ contest, onInvite }) {
+  const open = Math.max(0, contest.max_members - contest.member_count)
+  if (open === 0) return null
+
+  const drawn = Math.min(open, MAX_DRAWN_SLOTS)
+  const overflow = open - drawn
+
+  return (
+    <>
+      {Array.from({ length: drawn }, (_, i) => (
+        <div
+          className="w-full bg-surface-container-lowest rounded-xl p-md border border-dashed border-outline-variant flex items-center gap-md"
+          data-testid="open-slot"
+          key={i}
+        >
+          <span className="material-symbols-outlined text-[28px] text-outline-variant w-8 shrink-0 text-center">
+            person_add
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block italic font-bold text-on-surface-variant">Waiting for rival…</span>
+            <span className="block text-on-surface-variant text-xs">Share code to start match</span>
+          </span>
+          <button
+            className="shrink-0 bg-surface-container-high text-on-surface font-label-md text-label-md px-3 py-1.5 rounded-full flex items-center gap-1"
+            onClick={onInvite}
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[16px]">share</span>
+            Invite
+          </button>
+        </div>
+      ))}
+      {overflow > 0 && (
+        <p className="font-label-md text-label-md text-on-surface-variant text-center py-1">
+          {overflow} more open spot{overflow === 1 ? '' : 's'}
+        </p>
+      )}
+    </>
+  )
 }
 
 /**
@@ -35,6 +88,33 @@ function Dream11ContestPage() {
   const [selectedUserId, setSelectedUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  async function copyCode(code) {
+    try {
+      await navigator.clipboard.writeText(code)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard access can be denied (permissions, non-HTTPS, older
+      // browsers) -- the code is already on-screen as plain text, so a
+      // failed copy just means the user selects it manually instead.
+    }
+  }
+
+  async function shareCode(contest) {
+    const text = `Join my "${contest.name}" contest on PitchSide — code ${contest.code}`
+    if (navigator.share) {
+      try {
+        await navigator.share({ text })
+      } catch {
+        // AbortError when the user cancels the native share sheet -- not a
+        // failure worth surfacing.
+      }
+    } else {
+      copyCode(contest.code)
+    }
+  }
 
   function handleBack() {
     if (window.history.state?.idx > 0) navigate(-1)
@@ -63,6 +143,10 @@ function Dream11ContestPage() {
   }, [contestId, user_id])
 
   const contest = data?.contest ?? null
+  // Locked from kickoff, not only once the 5-minute lock sweep sets
+  // is_locked -- see data/contestStatus.js.
+  const locked = isContestLocked(contest)
+  const status = contest ? contestStatus(contest) : null
   const rows = data?.rows ?? []
   const selectedRow = rows.find((row) => row.user_id === selectedUserId) ?? null
 
@@ -77,23 +161,7 @@ function Dream11ContestPage() {
       ) : (
         <>
           <div>
-            {/* Back-arrow + static h1, same convention as the "How Points
-                Work" screens (ScoringPageHeader) -- this is a drill-down from
-                a contest card, not a BottomNav destination, so it doesn't get
-                the hamburger/account/toggle header. The h1 must name the
-                PAGE, never the contest -- contest.name moved to the
-                subtitle below, alongside the rest of the contest's details. */}
-            <div className="flex items-center gap-sm -ml-1 mb-1">
-              <button
-                aria-label="Go back"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors"
-                onClick={handleBack}
-                type="button"
-              >
-                <span className="material-symbols-outlined">arrow_back</span>
-              </button>
-              <h1 className="font-headline-sm text-headline-sm text-on-surface">Leaderboard</h1>
-            </div>
+            <DetailHeader onBack={handleBack} title="Leaderboard" />
             <div className="flex items-center gap-xs">
               <TeamBadge shortName={contest.home_team} size="sm" />
               <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
@@ -102,18 +170,32 @@ function Dream11ContestPage() {
               <TeamBadge shortName={contest.away_team} size="sm" />
             </div>
             <h2 className="font-display-lg text-display-lg text-primary">{contest.name}</h2>
-            <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
-              {contest.member_count}/{contest.max_members} members · code {contest.code}
+            <p className="font-body-md text-body-md text-on-surface-variant mt-sm flex items-center gap-1.5 flex-wrap">
+              <span>
+                {contest.member_count}/{contest.max_members} members · code{' '}
+                <span className="font-bold text-on-surface tracking-wider">{contest.code}</span>
+              </span>
+              <button
+                aria-label="Copy invite code"
+                className="inline-flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors"
+                data-testid="copy-code"
+                onClick={() => copyCode(contest.code)}
+                type="button"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {copied ? 'check' : 'content_copy'}
+                </span>
+                <span className="font-label-md text-label-md">{copied ? 'Copied' : 'Copy'}</span>
+              </button>
             </p>
             <div className="flex items-center gap-2 mt-sm">
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${
-                  contest.is_locked
-                    ? 'bg-secondary text-on-secondary'
-                    : 'bg-surface-container-high text-on-surface-variant'
+                  CONTEST_STATUS_CLASSES[status.status]
                 }`}
+                data-testid="dream11-contest-status"
               >
-                {contest.is_locked ? 'Locked' : 'Open'}
+                {status.label}
               </span>
               <span className="font-label-md text-label-md text-on-surface-variant">
                 {kickoffLabel(contest.kickoff_time)}
@@ -136,7 +218,28 @@ function Dream11ContestPage() {
 
           <section aria-label="Leaderboard" className="flex flex-col gap-sm">
             <h2 className="font-headline-sm text-headline-sm text-primary">Leaderboard</h2>
-            {!contest.is_locked && (
+            {status.status === CONTEST_STATUS.CANCELLED && (
+              <div
+                className="bg-error-container text-on-error-container rounded-lg p-sm"
+                data-testid="dream11-contest-cancelled"
+                role="status"
+              >
+                <p className="font-label-md text-label-md">
+                  {status.detail} — this contest has been cancelled. There is no result, and no points count.
+                </p>
+              </div>
+            )}
+            {status.status === CONTEST_STATUS.LIVE && (
+              <p className="font-label-md text-label-md text-on-surface-variant">
+                The match is live — teams are locked and can no longer be changed.
+              </p>
+            )}
+            {status.status === CONTEST_STATUS.COMPLETED && (
+              <p className="font-label-md text-label-md text-on-surface-variant">
+                Final result — these points and ranks won&apos;t change.
+              </p>
+            )}
+            {!locked && (
               <p className="font-label-md text-label-md text-on-surface-variant">
                 Rival teams stay hidden until kickoff — you can still open your own.
               </p>
@@ -159,7 +262,8 @@ function Dream11ContestPage() {
                   type="button"
                 >
                   <span className="font-stats-number text-stats-number text-on-surface-variant w-8 shrink-0">
-                    {row.rank || index + 1}
+                    {/* A cancelled contest has no result, so no ranks either. */}
+                    {status.status === CONTEST_STATUS.CANCELLED ? '–' : row.rank || index + 1}
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="font-bold text-primary flex items-center gap-2">
@@ -185,19 +289,40 @@ function Dream11ContestPage() {
                 </button>
               )
             })}
+            {!locked && <OpenSlots contest={contest} onInvite={() => shareCode(contest)} />}
           </section>
 
           {selectedRow && (
             <OpponentTeamPanel
               contestId={contestId}
-              isLocked={contest.is_locked}
+              isLocked={locked}
               isSelf={selectedRow.user_id === user_id}
               kickoffTime={contest.kickoff_time}
               onClose={() => setSelectedUserId(null)}
               opponent={selectedRow}
             />
           )}
+
+          {/* Only while there's a seat left to fill -- a full or locked
+              contest has no one left to invite. */}
+          {!locked && contest.member_count < contest.max_members && (
+            <div className="h-16" aria-hidden="true" />
+          )}
         </>
+      )}
+
+      {contest && !locked && contest.member_count < contest.max_members && (
+        <div className="fixed bottom-[72px] left-1/2 -translate-x-1/2 w-full max-w-[600px] z-40 px-md py-sm bg-surface/95 backdrop-blur-lg border-t border-outline-variant">
+          <button
+            className="w-full bg-primary text-on-primary rounded-lg py-3 font-label-md text-label-md flex items-center justify-center gap-2"
+            data-testid="share-invite-code"
+            onClick={() => shareCode(contest)}
+            type="button"
+          >
+            <span className="material-symbols-outlined text-[18px]">ios_share</span>
+            {`Share Invite Code (${contest.code})`}
+          </button>
+        </div>
       )}
     </main>
   )

@@ -35,8 +35,6 @@ REAL_GAMEWEEK = 4
 # Real fpl_ids already ingested, with real ml.ml_predictions rows for
 # REAL_SEASON/REAL_GAMEWEEK/main.MODEL_VERSION.
 SQUAD_FPL_IDS = [1, 5, 6, 256, 8, 237, 21, 381, 449, 430, 249]
-CAPTAIN_FPL_ID = 430  # Haaland
-VICE_CAPTAIN_FPL_ID = 381  # Salah
 
 
 @pytest.fixture(scope="session")
@@ -64,25 +62,23 @@ def real_squad_user(engine):
 
         gw_selection_id = conn.execute(
             text(
-                "INSERT INTO gw_selections (user_id, season, gameweek, captain_id, vice_captain_id, is_locked) "
-                "VALUES (:uid, :s, :gw, :cap, :vc, false) RETURNING id"
+                "INSERT INTO gw_selections (user_id, season, gameweek, tactic, is_locked) "
+                "VALUES (:uid, :s, :gw, 'balanced', false) RETURNING id"
             ),
-            {"uid": user_id, "s": REAL_SEASON, "gw": REAL_GAMEWEEK, "cap": CAPTAIN_FPL_ID, "vc": VICE_CAPTAIN_FPL_ID},
+            {"uid": user_id, "s": REAL_SEASON, "gw": REAL_GAMEWEEK},
         ).scalar()
 
+        # enforce_bonus_count_fn requires exactly 2 Bonus Players per
+        # selection -- the first two starters stand in for them here; which
+        # two makes no difference to what this file actually tests (the
+        # prompt builder's handling of predicted points).
         for i, fpl_id in enumerate(SQUAD_FPL_IDS, start=1):
             conn.execute(
                 text(
-                    "INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_captain, is_vice_captain) "
-                    "VALUES (:gsid, :pid, :slot, :cap, :vc)"
+                    "INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_bonus) "
+                    "VALUES (:gsid, :pid, :slot, :is_bonus)"
                 ),
-                {
-                    "gsid": gw_selection_id,
-                    "pid": fpl_id,
-                    "slot": i,
-                    "cap": fpl_id == CAPTAIN_FPL_ID,
-                    "vc": fpl_id == VICE_CAPTAIN_FPL_ID,
-                },
+                {"gsid": gw_selection_id, "pid": fpl_id, "slot": i, "is_bonus": i <= 2},
             )
 
     yield user_id

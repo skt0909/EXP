@@ -1,0 +1,747 @@
+<!DOCTYPE html><html lang="en" style=""><head></head><body class="bg-appBg text-darkText font-sans antialiased min-h-screen flex justify-center selection:bg-olivePillBg selection:text-oliveDark" style="font-family: &quot;Helvetica Neue&quot;, Helvetica, Arial, sans-serif;"><svg class="inline-defs-container" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"></svg>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>Fantasy Football Dashboard</title>
+<!-- Tailwind CSS CDN with forms and container queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            appBg: '#F4F4F1',
+            surface: '#FFFFFF',
+            surfaceSubtle: '#F7F7F4',
+            darkText: '#171816',
+            secondaryText: '#73756F',
+            mutedText: '#A0A29C',
+            hairline: '#E5E6E0',
+            olivePrimary: '#8DAA3C',
+            oliveDark: '#667D28',
+            olivePillBg: '#EDF2DF',
+            pitchGreen: '#176B3A',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Inter', 'sans-serif'],
+          },
+          boxShadow: {
+            subtle: '0 2px 8px rgba(0, 0, 0, 0.04)',
+            nav: '0 -2px 12px rgba(0, 0, 0, 0.05)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Custom Pitch & Layout Styles -->
+<style data-purpose="pitch-styling">
+    /* Subtle lawn grass alternating horizontal stripes */
+    .pitch-stripes {
+      background-color: #176B3A;
+      background-image: repeating-linear-gradient(
+        0deg,
+        rgba(0, 0, 0, 0.04) 0px,
+        rgba(0, 0, 0, 0.04) 34px,
+        rgba(255, 255, 255, 0.03) 34px,
+        rgba(255, 255, 255, 0.03) 68px
+      );
+    }
+    /* Pitch court markings with delicate translucency */
+    .pitch-line {
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+    /* Kit drop shadow for realistic look */
+    .kit-shadow {
+      filter: drop-shadow(0 3px 4px rgba(0, 0, 0, 0.25));
+    }
+    /* Hide scrollbar for clean native app look */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+    * {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<!-- END: Custom Pitch & Layout Styles -->
+
+
+<!-- Mobile Container Wrapper -->
+<div class="w-full max-w-[428px] min-h-screen bg-appBg flex flex-col relative pb-28">
+<!-- BEGIN: iOS Status Bar Simulation -->
+<div class="w-full px-6 pt-3 pb-1 flex justify-between items-center text-xs font-semibold text-darkText select-none" data-purpose="status-bar">
+<span class="">9:41</span>
+<div class="flex items-center space-x-1.5">
+<!-- Cellular Signal Icon -->
+<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 16 16">
+<rect height="4" rx="0.5" width="2" x="1" y="10"></rect>
+<rect height="6" rx="0.5" width="2" x="5" y="8"></rect>
+<rect height="9" rx="0.5" width="2" x="9" y="5"></rect>
+<rect height="12" rx="0.5" width="2" x="13" y="2"></rect>
+</svg>
+<!-- Wifi Icon -->
+<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 16 16">
+<path d="M8 12.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zm-4.24-2.83a6 6 0 0 1 8.48 0 .75.75 0 0 0 1.06-1.06 7.5 7.5 0 0 0-10.6 0 .75.75 0 0 0 1.06 1.06zm-2.83-2.83a10 10 0 0 1 14.14 0 .75.75 0 1 0 1.06-1.06 11.5 11.5 0 0 0-16.26 0 .75.75 0 1 0 1.06 1.06z"></path>
+</svg>
+<!-- Battery Icon -->
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+<rect fill="none" height="12" rx="2.5" stroke="currentColor" stroke-width="2" width="17" x="2" y="6"></rect>
+<rect fill="currentColor" height="8" rx="1.2" width="10" x="4" y="8"></rect>
+<path d="M20 10v4" stroke="currentColor" stroke-linecap="round" stroke-width="2"></path>
+</svg>
+</div>
+</div>
+<!-- END: iOS Status Bar Simulation -->
+<!-- BEGIN: Top Navigation Header -->
+<header class="sticky top-0 z-30 bg-surface/80 backdrop-blur-md px-5 py-3.5 flex items-center justify-between border-b border-hairline/60" data-purpose="app-header">
+<div class="flex items-center space-x-3">
+<button aria-label="Open Menu" class="w-9 h-9 flex items-center justify-center rounded-full bg-surface shadow-subtle border border-hairline active:scale-95 transition-transform text-darkText" id="open-menu-btn">
+<svg class="w-4 h-4 stroke-current" fill="none" stroke-linecap="round" stroke-width="2.2" viewBox="0 0 24 24">
+<line x1="4" x2="20" y1="7" y2="7"></line>
+<line x1="4" x2="14" y1="12" y2="12"></line>
+<line x1="4" x2="18" y1="17" y2="17"></line>
+</svg>
+</button>
+<span class="text-[17px] font-bold tracking-tight text-darkText">Dashboard<br></span>
+</div>
+<div class="flex items-center space-x-2">
+
+<button aria-label="Profile" class="relative w-9 h-9 rounded-full bg-surface border border-hairline shadow-subtle flex items-center justify-center text-darkText active:scale-95 transition-transform"><svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"></circle></svg></button>
+</div>
+</header>
+<!-- END: Top Navigation Header -->
+<!-- Main Scrollable Content -->
+<main class="flex-1 px-4 pt-3 space-y-3.5" data-purpose="dashboard-content">
+<!-- BEGIN: Gameweek Selector & Deadline Notice -->
+<section class="flex flex-col items-center justify-center space-y-2 pt-1" data-purpose="gameweek-controller">
+<div class="flex items-center justify-between w-full bg-surface rounded-2xl px-4 py-2.5 border border-hairline shadow-subtle">
+<button aria-label="Previous Gameweek" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surfaceSubtle text-secondaryText active:scale-95 transition-transform border border-hairline">
+<svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<div class="flex items-center space-x-2">
+<span class="font-bold text-sm tracking-tight text-darkText">Gameweek 5</span>
+<span class="bg-oliveDark text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">Open</span>
+</div>
+<button aria-label="Next Gameweek" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-surfaceSubtle text-secondaryText active:scale-95 transition-transform border border-hairline">
+<svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+<div class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-surface border border-hairline text-secondaryText text-xs font-medium shadow-subtle">
+<span class="w-2 h-2 rounded-full bg-oliveDark"></span>
+<span class="">Deadline: <strong class="text-darkText font-semibold">15d 17h</strong></span>
+</div>
+</section>
+<!-- END: Gameweek Selector & Deadline Notice -->
+<!-- BEGIN: Summary Score Cards -->
+<section class="grid grid-cols-2 gap-3" data-purpose="summary-score-cards">
+<div class="bg-surface rounded-2xl p-4 border border-hairline shadow-subtle flex flex-col justify-between">
+<div class="flex items-center justify-between">
+<span class="text-[10px] font-bold tracking-wider text-mutedText uppercase">GW Points</span>
+<span class="w-2 h-2 rounded-full bg-oliveDark"></span>
+</div>
+<div class="my-2">
+<span class="text-4xl font-extrabold tracking-tight text-darkText leading-none">0</span>
+</div>
+<div class="inline-flex items-center space-x-1 text-xs font-semibold text-oliveDark bg-olivePillBg px-2 py-0.5 rounded-full w-fit">
+<svg class="w-3 h-3 fill-current" viewBox="0 0 12 12">
+<path d="M6 2l4.5 7h-9z"></path>
+</svg>
+<span class="">Avg: --</span>
+</div>
+</div>
+<div class="flex flex-col space-y-2.5">
+<div class="bg-surface rounded-2xl p-3 px-3.5 border border-hairline shadow-subtle flex items-center justify-between">
+<div>
+<div class="text-[9px] font-bold tracking-wider text-mutedText uppercase">Season Total</div>
+<div class="text-xl font-extrabold text-darkText leading-tight mt-0.5">0</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-olivePillBg flex items-center justify-center text-oliveDark">
+<svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z" stroke-linecap="round" stroke-linejoin="round"></path>
+<path d="M5 7H3a2 2 0 00-2 2 4 4 0 004 4h0M19 7h2a2 2 0 012 2 4 4 0 01-4 4h0" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</div>
+<div class="bg-surface rounded-2xl p-3 px-3.5 border border-hairline shadow-subtle flex items-center justify-between">
+<div>
+<div class="text-[9px] font-bold tracking-wider text-mutedText uppercase">Overall Rank</div>
+<div class="text-xl font-extrabold text-darkText leading-tight mt-0.5">--</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-surfaceSubtle flex items-center justify-center text-secondaryText border border-hairline">
+<svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Summary Score Cards -->
+<!-- BEGIN: Value Recording Notice Banner -->
+<section class="w-full bg-surface border border-hairline rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-subtle" data-purpose="status-notification">
+<div class="flex items-center space-x-2.5">
+<div class="w-6 h-6 rounded-full bg-olivePillBg flex items-center justify-center shrink-0">
+<svg class="w-3.5 h-3.5 text-oliveDark stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<line x1="12" x2="12" y1="8" y2="12"></line>
+<line x1="12" x2="12.01" y1="16" y2="16"></line>
+</svg>
+</div>
+<p class="text-xs text-darkText font-medium leading-tight">Team value wasn't recorded for this gameweek.</p>
+</div>
+<span class="text-[10px] font-bold text-mutedText uppercase tracking-wider">Notice</span>
+</section>
+<!-- END: Value Recording Notice Banner -->
+<!-- BEGIN: Football Pitch View -->
+<section class="relative w-full rounded-2xl overflow-hidden border border-hairline shadow-subtle pitch-stripes min-h-[500px] flex flex-col justify-between p-3 select-none" data-purpose="pitch-formation"><!-- Pitch Court Structural Markings -->
+<div aria-hidden="true" class="absolute inset-0 pointer-events-none">
+  <!-- Outer pitch boundary border -->
+  <div class="absolute inset-2.5 border pitch-line rounded-lg"></div>
+  <!-- Center line -->
+  <div class="absolute left-2.5 right-2.5 top-1/2 border-b pitch-line"></div>
+  <!-- Center circle -->
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 border pitch-line rounded-full"></div>
+  <!-- Center spot -->
+  <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 bg-white/20 rounded-full"></div>
+  <!-- Top penalty area (Goalkeeper box) -->
+  <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-44 h-16 border-b border-x pitch-line rounded-b"></div>
+  <!-- Top goal area -->
+  <div class="absolute top-2.5 left-1/2 -translate-x-1/2 w-24 h-7 border-b border-x pitch-line rounded-b"></div>
+  <!-- Top penalty arc -->
+  <div class="absolute top-[74px] left-1/2 -translate-x-1/2 w-16 h-7 border-b pitch-line rounded-b-full"></div>
+</div>
+
+<!-- Pitch Top Bar: Defence Pill Indicator -->
+<div class="relative z-10 flex items-center justify-between mb-2">
+  <div class="bg-black/40 backdrop-blur-md text-white text-[10px] font-bold px-2.5 py-1 rounded-md tracking-wider flex items-center space-x-1.5 border border-white/10 shadow-sm">
+    <svg class="w-3 h-3 stroke-current" fill="none" stroke-width="2.5" viewBox="0 0 24 24">
+      <path d="M12 3l8 4v6c0 5-8 8-8 8s-8-3-8-8V7l8-4z" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    <span class="uppercase tracking-wider">DEFENCE</span>
+  </div>
+</div>
+
+<!-- Pitch Player Rows (1 - 4 - 3 - 3) Formation -->
+<div class="relative z-10 flex-1 flex flex-col justify-around py-1 space-y-3.5">
+  <!-- 1. Goalkeeper Row (1 Player) -->
+  <div class="flex justify-center" data-purpose="row-goalkeeper">
+    <div class="flex flex-col items-center cursor-pointer group">
+      <!-- Jersey SVG (Red Kit) -->
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#DC2626"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+          <path d="M4 10 L8 15" stroke="#991B1B" stroke-width="1"></path>
+          <path d="M36 10 L32 15" stroke="#991B1B" stroke-width="1"></path>
+        </svg>
+      </div>
+      <!-- Player Card Badge -->
+      <div class="mt-1 bg-surface rounded-md shadow px-2 py-0.5 text-center min-w-[62px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9.5px] font-bold text-darkText truncate leading-tight uppercase">RAYA</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5 space-x-1">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. Defenders Row (4 Players) -->
+  <div class="grid grid-cols-4 gap-1 px-1" data-purpose="row-defenders">
+    <!-- GABRIEL -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#DC2626"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[66px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">GABRIEL</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- SOLER (Star / Form badge) -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <defs>
+            <pattern height="40" id="soler-stripes-fixed" patternUnits="userSpaceOnUse" width="6">
+              <rect fill="#DC2626" height="40" width="3"></rect>
+              <rect fill="#171816" height="40" width="3" x="3"></rect>
+            </pattern>
+          </defs>
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="url(#soler-stripes-fixed)"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+        </svg>
+        <span class="absolute -top-1 -right-1 bg-oliveDark text-white w-3.5 h-3.5 rounded-full flex items-center justify-center shadow border border-white">
+          <svg class="w-2.5 h-2.5 fill-current" stroke="none" viewBox="0 0 24 24">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </span>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[66px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">SOLER</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- SALIBA (Star badge) -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#DC2626"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+        </svg>
+        <span class="absolute -top-1 -right-1 bg-oliveDark text-white w-3.5 h-3.5 rounded-full flex items-center justify-center shadow border border-white">
+          <svg class="w-2.5 h-2.5 fill-current" stroke="none" viewBox="0 0 24 24">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </span>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[66px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">SALIBA</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- HUGHES (SUB Badge) -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <defs>
+            <pattern height="40" id="hughes-stripes-fixed" patternUnits="userSpaceOnUse" width="6">
+              <rect fill="#D97706" height="40" width="3"></rect>
+              <rect fill="#171816" height="40" width="3" x="3"></rect>
+            </pattern>
+          </defs>
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="url(#hughes-stripes-fixed)"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#F59E0B" stroke-width="1.5"></path>
+        </svg>
+        
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[66px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">HUGHES</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. Midfielders Row (3 Players) -->
+  <div class="grid grid-cols-3 gap-2 px-3" data-purpose="row-midfielders">
+    <!-- N. WILLIAMS -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#DC2626"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[70px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">WILLIAMS</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- REED (White Jersey) -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#F8FAFC"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#0F172A" stroke-width="1.5"></path>
+          <path d="M4 10 L8 15" stroke="#CBD5E1" stroke-width="1"></path>
+          <path d="M36 10 L32 15" stroke="#CBD5E1" stroke-width="1"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[70px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">REED</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- P.M. SARR -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#F8FAFC"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#1E293B" stroke-width="1.5"></path>
+          <path d="M13 12 L13 36" stroke="#E2E8F0" stroke-width="1"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[70px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">P.M. SARR</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Forwards Row (3 Players) -->
+  <div class="grid grid-cols-3 gap-2 px-3" data-purpose="row-forwards">
+    <!-- THIAGO -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <defs>
+            <pattern height="40" id="thiago-stripes-fixed" patternUnits="userSpaceOnUse" width="6">
+              <rect fill="#DC2626" height="40" width="3"></rect>
+              <rect fill="#FFFFFF" height="40" width="3" x="3"></rect>
+            </pattern>
+          </defs>
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="url(#thiago-stripes-fixed)"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#171816" stroke-width="1.5"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[70px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">THIAGO</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- HAALAND -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#38BDF8"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+          <path d="M4 10 L8 15" stroke="#0284C7" stroke-width="1"></path>
+          <path d="M36 10 L32 15" stroke="#0284C7" stroke-width="1"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[70px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">HAALAND</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+    <!-- ISAK -->
+    <div class="flex flex-col items-center cursor-pointer">
+      <div class="relative w-8 h-8 kit-shadow">
+        <svg class="w-full h-full" viewBox="0 0 40 40">
+          <path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#DC2626"></path>
+          <path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+        </svg>
+      </div>
+      <div class="mt-1 bg-surface rounded-md shadow px-1.5 py-0.5 text-center w-full max-w-[70px] border border-hairline flex flex-col items-center justify-center">
+        <p class="text-[9px] font-bold text-darkText truncate leading-tight uppercase">ISAK</p>
+        <div class="flex items-center justify-between w-full text-[8px] text-secondaryText leading-tight pt-0.5">
+          <span class="font-bold text-darkText">0</span>
+          <span class="truncate">EVE (H)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></section>
+<!-- END: Football Pitch View -->
+<!-- BEGIN: Bench Section Card -->
+<section class="bg-surface rounded-2xl p-3 border border-hairline shadow-subtle space-y-2.5" data-purpose="bench-section">
+<!-- Bench Header -->
+<div class="flex items-center space-x-1.5 px-0.5">
+<!-- Bench Icon -->
+<svg class="w-4 h-4 text-darkText stroke-current" fill="none" stroke-width="2" viewBox="0 0 24 24">
+<path d="M4 17h16M4 17v3M20 17v3M6 13V8a2 2 0 012-2h8a2 2 0 012 2v5M4 13h16" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<h2 class="text-sm font-semibold text-darkText">Bench</h2>
+</div>
+<!-- 4 Substitute Cards Grid -->
+<div class="grid grid-cols-4 gap-1.5">
+<!-- Sub 1: Martinez (Backup GK) -->
+<div class="bg-surfaceSubtle rounded-xl p-1.5 flex flex-col items-center text-center border border-hairline relative">
+<span class="text-[7.5px] font-bold tracking-tight text-mutedText uppercase mb-1">Backup GK</span>
+<!-- Kit -->
+<div class="w-6 h-6 kit-shadow my-0.5">
+<svg class="w-full h-full" viewBox="0 0 40 40">
+<path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#0284C7"></path>
+<path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+</svg>
+</div>
+<p class="text-[9px] font-bold text-darkText truncate w-full mt-0.5">Martinez</p>
+<span class="text-[8px] text-secondaryText truncate">AVL (H)</span>
+<span class="text-[9px] font-semibold text-darkText mt-0.5">0</span>
+</div>
+<!-- Sub 2: B. Fernandes (Auto Sub) -->
+<div class="bg-surfaceSubtle rounded-xl p-1.5 flex flex-col items-center text-center border border-hairline relative">
+<span class="text-[7.5px] font-bold tracking-tight text-mutedText uppercase mb-1">Auto Sub</span>
+<!-- Kit -->
+<div class="w-6 h-6 kit-shadow my-0.5">
+<svg class="w-full h-full" viewBox="0 0 40 40">
+<path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#F87171"></path>
+<path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#FFFFFF" stroke-width="1.5"></path>
+</svg>
+</div>
+<p class="text-[9px] font-bold text-darkText truncate w-full mt-0.5">B. Fernandes</p>
+<span class="text-[8px] text-secondaryText truncate">LEE (A)</span>
+<span class="text-[9px] font-semibold text-darkText mt-0.5">0</span>
+</div>
+<!-- Sub 3: Hughes (Tactical Sub) -->
+<div class="bg-surfaceSubtle rounded-xl p-1.5 flex flex-col items-center text-center border border-hairline relative">
+<span class="text-[7.5px] font-bold tracking-tight text-mutedText uppercase mb-1 truncate w-full">Tactical Sub</span>
+<!-- Kit -->
+<div class="w-6 h-6 kit-shadow my-0.5">
+<svg class="w-full h-full" viewBox="0 0 40 40">
+<path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#1E3A8A"></path>
+<path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#DC2626" stroke-width="2"></path>
+</svg>
+</div>
+<p class="text-[9px] font-bold text-darkText truncate w-full mt-0.5">Hughes</p>
+<span class="text-[8px] text-secondaryText truncate">NEW (H)</span>
+<span class="text-[9px] font-semibold text-darkText mt-0.5">0</span>
+<!-- Olive Active Indicator Bar -->
+<div class="w-6 h-0.5 bg-oliveDark rounded-full mt-1"></div>
+</div>
+<!-- Sub 4: A. Garcia (Tactical Sub) -->
+<div class="bg-surfaceSubtle rounded-xl p-1.5 flex flex-col items-center text-center border border-hairline relative">
+<span class="text-[7.5px] font-bold tracking-tight text-mutedText uppercase mb-1 truncate w-full">Tactical Sub</span>
+<!-- Kit -->
+<div class="w-6 h-6 kit-shadow my-0.5">
+<svg class="w-full h-full" viewBox="0 0 40 40">
+<path d="M12 4 L28 4 L36 10 L31 16 L27 12 L27 36 L13 36 L13 12 L9 16 L4 10 Z" fill="#881337"></path>
+<path d="M15 4 C15 7, 25 7, 25 4" fill="none" stroke="#38BDF8" stroke-width="2"></path>
+</svg>
+</div>
+<p class="text-[9px] font-bold text-darkText truncate w-full mt-0.5">A. Garcia</p>
+<span class="text-[8px] text-secondaryText truncate">CRY (A)</span>
+<span class="text-[9px] font-semibold text-darkText mt-0.5">0</span>
+<!-- Olive Active Indicator Bar -->
+<div class="w-6 h-0.5 bg-oliveDark rounded-full mt-1"></div>
+</div>
+</div>
+</section>
+<!-- END: Bench Section Card -->
+<!-- BEGIN: Tactical Swaps Card -->
+<section class="bg-surface rounded-2xl p-3.5 border border-hairline shadow-subtle space-y-3" data-purpose="tactical-swaps-card">
+<div class="flex items-center justify-between">
+<h2 class="text-sm font-semibold text-darkText">Tactical Swaps</h2>
+<span class="text-xs font-semibold px-2 py-0.5 bg-surfaceSubtle rounded-full text-secondaryText">2/2</span>
+</div>
+<div class="space-y-2">
+<!-- Row 1 -->
+<div class="flex items-center justify-between p-2 rounded-xl bg-surfaceSubtle/60 border border-hairline/70">
+<div>
+<p class="text-xs font-medium text-darkText leading-tight">Reed to Hughes</p>
+<p class="text-[10px] text-secondaryText">Gameweek 6</p>
+</div>
+<span class="text-xs font-bold text-olivePrimary">+0</span>
+</div>
+<!-- Row 2 -->
+<div class="flex items-center justify-between p-2 rounded-xl bg-surfaceSubtle/60 border border-hairline/70">
+<div>
+<p class="text-xs font-medium text-darkText leading-tight">Gabriel to A. Garcia</p>
+<p class="text-[10px] text-secondaryText">Gameweek 6</p>
+</div>
+<span class="text-xs font-bold text-olivePrimary">+0</span>
+</div>
+</div>
+</section>
+<!-- END: Tactical Swaps Card -->
+<!-- BEGIN: Points Breakdown Card -->
+<section class="bg-surface rounded-2xl p-3.5 border border-hairline shadow-subtle space-y-2.5" data-purpose="points-breakdown-card">
+<h2 class="text-sm font-semibold text-darkText pb-1 border-b border-hairline">Points Breakdown</h2>
+<div class="space-y-2 text-xs">
+<div class="flex items-center justify-between text-secondaryText">
+<span class="">General Points</span>
+<span class="font-medium text-darkText">0</span>
+</div>
+<div class="flex items-center justify-between text-secondaryText">
+<span class="">Tactical Points</span>
+<span class="font-semibold text-olivePrimary">+0</span>
+</div>
+<div class="flex items-center justify-between text-secondaryText"><div class="flex items-center space-x-1.5"><div class="w-3.5 h-3.5 rounded-full bg-olivePillBg text-oliveDark flex items-center justify-center shrink-0"><svg class="w-2.5 h-2.5 fill-current" stroke="none" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg></div><span class="">Sub Bonus (BPS)</span></div><span class="font-semibold text-olivePrimary">+0</span></div>
+</div>
+<div class="pt-2 border-t border-hairline flex items-center justify-between font-semibold text-darkText text-sm">
+<span class="">Total</span>
+<span class="text-base font-bold">0</span>
+</div>
+</section>
+<!-- END: Points Breakdown Card -->
+<!-- BEGIN: How Points Work Action Card -->
+<section class="cursor-pointer" data-purpose="how-points-work-link">
+<div class="bg-surface rounded-2xl p-3.5 border border-hairline shadow-subtle flex items-center justify-between active:bg-surfaceSubtle transition-colors">
+<div class="flex items-center space-x-2.5">
+<div class="w-6 h-6 rounded-full bg-olivePillBg text-oliveDark flex items-center justify-center font-bold text-xs">
+              ?
+            </div>
+<span class="text-xs font-medium text-darkText">How Points Work</span>
+</div>
+<svg class="w-4 h-4 text-mutedText stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</section>
+<!-- END: How Points Work Action Card -->
+</main>
+<!-- BEGIN: Floating iOS Bottom Dock Navigation -->
+<nav class="fixed bottom-5 left-1/2 -translate-x-1/2 w-[92%] max-w-[394px] bg-surface/90 backdrop-blur-xl border border-hairline rounded-full shadow-lg z-40 px-3 py-2" data-purpose="bottom-navigation">
+<div class="grid grid-cols-5 items-center">
+<!-- Item 1: Home (Active with solid olive green pill) -->
+<button class="flex flex-col items-center justify-center group">
+<div class="px-3.5 py-1.5 rounded-full bg-oliveDark text-white shadow transition-all duration-200 active:scale-95 flex items-center justify-center">
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+<path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"></path>
+</svg>
+</div>
+</button>
+<!-- Item 2: Starting XI -->
+<button class="flex flex-col items-center justify-center text-secondaryText hover:text-darkText active:scale-95 transition-all">
+<div class="p-1.5 rounded-full hover:bg-surfaceSubtle">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 3: Transfers -->
+<button class="flex flex-col items-center justify-center text-secondaryText hover:text-darkText active:scale-95 transition-all">
+<div class="p-1.5 rounded-full hover:bg-surfaceSubtle">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 4: Leagues -->
+<button class="flex flex-col items-center justify-center text-secondaryText hover:text-darkText active:scale-95 transition-all">
+<div class="p-1.5 rounded-full hover:bg-surfaceSubtle">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 21h8m-4-4v4M5 4h14v4a7 7 0 01-14 0V4z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+<!-- Item 5: Club -->
+<button class="flex flex-col items-center justify-center text-secondaryText hover:text-darkText active:scale-95 transition-all">
+<div class="p-1.5 rounded-full hover:bg-surfaceSubtle">
+<svg class="w-5 h-5 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+<path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</div>
+</button>
+</div>
+</nav>
+<!-- END: Floating iOS Bottom Dock Navigation -->
+<!-- BEGIN: Slide-out Navigation Menu Drawer -->
+<div id="menu-drawer-container" class="fixed inset-0 z-50 flex justify-start pointer-events-auto transition-opacity duration-300 hidden">
+  <!-- Semi-transparent backdrop overlay -->
+  <div id="menu-backdrop" onclick="document.getElementById('menu-drawer-container').classList.add('hidden')" class="absolute inset-0 bg-black/40 backdrop-blur-sm cursor-pointer"></div>
+  
+  <!-- Drawer Sheet -->
+  <div id="menu-drawer-panel" class="relative w-[320px] max-w-[85%] h-full bg-surface shadow-2xl flex flex-col justify-between p-6 z-10 transition-transform duration-300 transform translate-x-0 border-r border-hairline" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+    <!-- Drawer Header -->
+    <div>
+      <div class="flex items-center justify-between pb-5 border-b border-hairline">
+        <h2 class="text-[22px] font-bold tracking-tight text-darkText">Menu</h2>
+        <button id="close-menu-btn" onclick="document.getElementById('menu-drawer-container').classList.add('hidden')" aria-label="Close Menu" class="w-9 h-9 flex items-center justify-center rounded-full bg-surfaceSubtle hover:bg-surface border border-hairline text-darkText active:scale-95 transition-all">
+          <svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Menu Body -->
+      <div class="mt-6 space-y-4">
+        <!-- Section Label -->
+        <div class="text-[11px] font-bold tracking-wider text-mutedText uppercase px-1">
+          GAME MODES
+        </div>
+
+        <!-- Option 1: Tactic Mode -->
+        <div class="p-3.5 rounded-2xl bg-surfaceSubtle border border-hairline hover:border-hairline/80 cursor-pointer transition-all active:scale-[0.99] space-y-1.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-8 h-8 rounded-full bg-surface border border-hairline flex items-center justify-center text-darkText shadow-subtle">
+                <svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                </svg>
+              </div>
+              <span class="font-bold text-[15px] text-darkText tracking-tight">Tactic Mode</span>
+            </div>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-[#EEF2FF] text-[#4F46E5] border border-[#E0E7FF]">
+              FULL GAME
+            </span>
+          </div>
+          <p class="text-xs text-secondaryText leading-relaxed pl-10">
+            Full tactical line-up and formation builder with AI insights
+          </p>
+        </div>
+
+        <!-- Option 2: Quick 11 Mode (Active / Highlighted) -->
+        <div class="p-3.5 rounded-2xl bg-[#F7FAF0] border-2 border-olivePrimary shadow-subtle cursor-pointer transition-all active:scale-[0.99] space-y-1.5 relative">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2.5">
+              <div class="w-8 h-8 rounded-full bg-olivePillBg border border-olivePrimary/30 flex items-center justify-center text-oliveDark shadow-subtle">
+                <svg class="w-4 h-4 fill-current text-oliveDark" viewBox="0 0 24 24">
+                  <path d="M13 2L3 14h8l-1 8 11-13h-8l1-7z"></path>
+                </svg>
+              </div>
+              <span class="font-bold text-[15px] text-darkText tracking-tight">Quick 11 Mode</span>
+            </div>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wide uppercase bg-[#10B981] text-white shadow-sm flex items-center space-x-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+              <span class="">ACTIVE</span>
+            </span>
+          </div>
+          <p class="text-xs text-darkText font-medium leading-relaxed pl-10">
+            Rapid single-match draft &amp; contest picks in under 60s
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Drawer Footer -->
+    <div class="pt-4 border-t border-hairline text-center text-xs text-secondaryText flex items-center justify-between">
+      <span class="text-[11px] text-mutedText">Tactical Fantasy v2.4</span>
+      <span class="inline-flex items-center space-x-1 text-oliveDark font-semibold text-[11px]">
+        <span class="w-1.5 h-1.5 rounded-full bg-oliveDark"></span>
+        <span class="">Server Online</span>
+      </span>
+    </div>
+  </div>
+</div>
+<!-- END: Slide-out Navigation Menu Drawer -->
+<script>
+  document.getElementById('open-menu-btn')?.addEventListener('click', function() {
+    const container = document.getElementById('menu-drawer-container');
+    if (container) container.classList.remove('hidden');
+  });
+</script></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</body></html>

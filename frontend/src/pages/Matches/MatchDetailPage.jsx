@@ -1,16 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { fetchFixtures } from '../../api/fixtures'
-import { createContest, fetchFixtureContests, joinContest, ValidationError } from '../../api/dream11'
+import { fetchFixtureContests, joinContest, ValidationError } from '../../api/dream11'
 import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
 import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import DetailHeader from '../../components/DetailHeader/DetailHeader'
 
 const FIELD =
   'rounded-lg border border-outline-variant bg-surface px-3 py-2 font-body-md text-body-md text-on-surface ' +
   'focus:border-secondary focus:ring-1 focus:ring-secondary outline-none h-10'
-
-const MIN_MEMBERS = 2
-const MAX_MEMBERS = 50
 
 function normalizeErrors(err) {
   if (err instanceof ValidationError) return err.errors
@@ -49,20 +47,12 @@ function MatchDetailPage() {
   const [contests, setContests] = useState([])
   const [loading, setLoading] = useState(true)
   const [errors, setErrors] = useState([])
-  const [notice, setNotice] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [joinCode, setJoinCode] = useState('')
-  const [createForm, setCreateForm] = useState({ name: '', max_members: 50 })
 
   function handleBack() {
     if (window.history.state?.idx > 0) navigate(-1)
     else navigate(MODE_HOME[MODE_CONTESTS])
-  }
-
-  async function loadContests() {
-    const data = await fetchFixtureContests({ fixture_id: Number(fixtureId), user_id })
-    setContests(data)
-    return data
   }
 
   useEffect(() => {
@@ -98,37 +88,15 @@ function MatchDetailPage() {
     event.preventDefault()
     setSubmitting(true)
     setErrors([])
-    setNotice('')
     try {
       const joined = await joinContest({ user_id, code: joinCode.trim().toUpperCase() })
-      await loadContests()
       setJoinCode('')
-      setNotice(`Joined ${joined.name}.`)
-    } catch (err) {
-      setErrors(normalizeErrors(err))
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  async function handleCreate(event) {
-    event.preventDefault()
-    setSubmitting(true)
-    setErrors([])
-    setNotice('')
-    try {
-      const created = await createContest({
-        fixture_id: Number(fixtureId),
-        name: createForm.name.trim(),
-        user_id,
-        max_members: Number(createForm.max_members),
-      })
-      // Straight into the team builder. Creating a contest is never the goal in
-      // itself -- you create one so you can pick a team -- and stopping here
-      // left people on a page whose most visible control was "Join a Contest".
-      // The invite code isn't lost: the builder shows it, and so does the
-      // contest card back on this page.
-      navigate(`/dream11/contests/${created.contest_id}/pick`)
+      // Same as Create: joining isn't the goal, picking a team is. Landing
+      // back on this page left "select a team" as an easy-to-skip second
+      // tap, and the code you just typed doesn't name a fixture to pick
+      // from until you're already a member (the player pool is frozen per
+      // contest_id, not per fixture -- see dream11.py's get_contest_pool).
+      navigate(`/dream11/contests/${joined.contest_id}/pick`)
     } catch (err) {
       setErrors(normalizeErrors(err))
     } finally {
@@ -141,20 +109,7 @@ function MatchDetailPage() {
 
   return (
     <main className="w-full px-safe-margin py-md flex flex-col gap-lg">
-      {/* Back-arrow + static h1, same convention as the "How Points Work"
-          screens -- a drill-down from Matches, not a BottomNav destination,
-          so no hamburger/account/toggle header here. */}
-      <div className="flex items-center gap-sm -ml-1">
-        <button
-          aria-label="Go back"
-          className="w-9 h-9 rounded-full flex items-center justify-center text-on-surface hover:bg-surface-container-high transition-colors"
-          onClick={handleBack}
-          type="button"
-        >
-          <span className="material-symbols-outlined">arrow_back</span>
-        </button>
-        <h1 className="font-headline-sm text-headline-sm text-on-surface">Match</h1>
-      </div>
+      <DetailHeader onBack={handleBack} title="Match" />
 
       {loading ? (
         <p className="font-body-md text-body-md text-on-surface-variant">Loading match…</p>
@@ -205,11 +160,6 @@ function MatchDetailPage() {
               ))}
             </div>
           )}
-          {notice && (
-            <div className="bg-secondary-container text-on-secondary-container rounded-lg p-sm font-body-md text-body-md">
-              {notice}
-            </div>
-          )}
 
           <section aria-label="Your contests" className="flex flex-col gap-sm">
             <h2 className="font-headline-sm text-headline-sm text-primary">Your Contests</h2>
@@ -253,57 +203,38 @@ function MatchDetailPage() {
             )}
           </section>
 
-          <form
-            className="bg-surface-container-lowest rounded-xl p-md border border-outline-variant shadow-sm flex flex-col gap-sm"
-            onSubmit={handleCreate}
+          {/* Building a team no longer creates a contest as a side effect --
+              that conflated two separate decisions (this fixture's team you
+              want to keep around vs. a specific contest you want to run) and
+              silently named the contest after whatever you'd typed as your
+              team's name. Creating a contest is now exclusively a Leagues-
+              page action; this just gets you to the picker. */}
+          <Link
+            className="bg-surface-container-lowest rounded-xl p-md border border-outline-variant shadow-sm flex items-center justify-between gap-sm hover:shadow-md transition-shadow"
+            data-testid="build-team-link"
+            to={`/matches/${fixtureId}/build`}
           >
-            <h2 className="font-headline-sm text-headline-sm text-primary">Pick a Team</h2>
-            {/* Creating a contest is the means, not the end -- say what it
-                actually gets you, since "Create a Contest" read as admin work
-                next to a Join box that needs a code most people don't have. */}
-            <p className="font-label-md text-label-md text-on-surface-variant">
-              Start a contest for this match, then pick your XI. Invite friends
-              with the code afterwards.
-            </p>
-            <input
-              aria-label="Contest name"
-              className={`${FIELD} w-full`}
-              data-testid="contest-name"
-              maxLength={100}
-              onChange={(event) => setCreateForm((f) => ({ ...f, name: event.target.value }))}
-              placeholder="e.g. Weekend Warriors"
-              required
-              value={createForm.name}
-            />
-            <label className="font-label-md text-label-md text-on-surface-variant" htmlFor="max-members">
-              Max members — how many friends can join ({MIN_MEMBERS}-{MAX_MEMBERS})
-            </label>
-            <input
-              className={`${FIELD} w-full`}
-              data-testid="contest-max-members"
-              id="max-members"
-              max={MAX_MEMBERS}
-              min={MIN_MEMBERS}
-              onChange={(event) => setCreateForm((f) => ({ ...f, max_members: event.target.value }))}
-              type="number"
-              value={createForm.max_members}
-            />
-            <button
-              className="w-full bg-primary-container text-on-primary rounded-lg py-2.5 font-label-md text-label-md flex items-center justify-center gap-2 disabled:opacity-50"
-              data-testid="contest-create"
-              disabled={submitting}
-              type="submit"
-            >
-              <span className="material-symbols-outlined text-[18px]">add_circle</span>
-              {submitting ? 'Creating…' : 'Create & Pick Team'}
-            </button>
-          </form>
+            <div className="min-w-0">
+              <h2 className="font-headline-sm text-headline-sm text-primary">Build & Save a Team</h2>
+              <p className="font-label-md text-label-md text-on-surface-variant mt-1">
+                Pick your XI for this match and save it for later — no contest needed yet.
+                Create one from the Leagues page when you're ready to play it.
+              </p>
+            </div>
+            <span className="material-symbols-outlined text-on-surface-variant shrink-0">
+              chevron_right
+            </span>
+          </Link>
 
           <form
             className="bg-surface-container-lowest rounded-xl p-md border border-outline-variant shadow-sm flex flex-col gap-sm"
             onSubmit={handleJoin}
           >
             <h2 className="font-headline-sm text-headline-sm text-primary">Join a Contest</h2>
+            <p className="font-label-md text-label-md text-on-surface-variant">
+              Enter a friend&apos;s invite code, then pick your XI — you&apos;re not fully in until
+              you&apos;ve submitted a team.
+            </p>
             <div className="flex gap-2">
               <input
                 aria-label="Contest invite code"
@@ -315,11 +246,11 @@ function MatchDetailPage() {
                 value={joinCode}
               />
               <button
-                className="bg-primary text-on-primary font-label-md text-label-md px-4 rounded-lg h-10 shrink-0 disabled:opacity-50"
+                className="bg-primary text-on-primary font-label-md text-label-md px-4 rounded-lg h-10 shrink-0 disabled:opacity-50 whitespace-nowrap"
                 disabled={submitting}
                 type="submit"
               >
-                Join
+                {submitting ? 'Joining…' : 'Join & Pick Team'}
               </button>
             </div>
           </form>

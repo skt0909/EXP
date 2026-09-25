@@ -33,6 +33,7 @@ from Shared.deadlines import resolve_gameweek_deadline, deadline_has_passed
 # Relocated out of scheduling.py to their real domains -- see
 # Worker/beat_registry.py for the full map of what Beat calls.
 from dream11_locking import lock_started_contests
+from Game_logic.dream11_scoring import void_unplayable_contests
 from prediction_scheduling import find_next_gameweek_needing_predictions
 
 client = TestClient(fastapi_app)
@@ -75,16 +76,16 @@ def make_user(make_user, engine):
             conn.execute(text("DELETE FROM user_squads WHERE user_id = :uid"), {"uid": uid})
 
 
-def _seed_gw_selection_row(engine, user_id, season, gameweek, is_locked=False, captain_id=1, vice_captain_id=2):
+def _seed_gw_selection_row(engine, user_id, season, gameweek, is_locked=False, tactic="balanced"):
     """Minimal gw_selections row -- no starting_xi -- for lock tests,
     which never read starting_xi at all."""
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO gw_selections (user_id, season, gameweek, captain_id, vice_captain_id, is_locked) "
-                "VALUES (:u, :s, :gw, :cap, :vc, :locked)"
+                "INSERT INTO gw_selections (user_id, season, gameweek, tactic, is_locked) "
+                "VALUES (:u, :s, :gw, :tactic, :locked)"
             ),
-            {"u": user_id, "s": season, "gw": gameweek, "cap": captain_id, "vc": vice_captain_id, "locked": is_locked},
+            {"u": user_id, "s": season, "gw": gameweek, "tactic": tactic, "locked": is_locked},
         )
 
 
@@ -122,24 +123,27 @@ def _seed_full_gw_selection(engine, user_id, season, gameweek, xi_ids, bench_ids
     with engine.begin() as conn:
         gw_selection_id = conn.execute(
             text(
-                "INSERT INTO gw_selections (user_id, season, gameweek, captain_id, vice_captain_id) "
-                "VALUES (:u, :s, :gw, :cap, :vc) RETURNING id"
+                "INSERT INTO gw_selections (user_id, season, gameweek, tactic) "
+                "VALUES (:u, :s, :gw, 'balanced') RETURNING id"
             ),
-            {"u": user_id, "s": season, "gw": gameweek, "cap": xi_ids[0], "vc": xi_ids[1]},
+            {"u": user_id, "s": season, "gw": gameweek},
         ).scalar()
+        # enforce_bonus_count_fn requires exactly 2 Bonus Players -- the
+        # first two starters stand in; which two is irrelevant to what these
+        # tests actually check (lock/refresh scheduling, not bonus rules).
         for slot, pid in enumerate(xi_ids, start=1):
             conn.execute(
                 text(
-                    "INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_captain, is_vice_captain) "
-                    "VALUES (:gsid, :pid, :slot, :cap, :vc)"
+                    "INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_bonus) "
+                    "VALUES (:gsid, :pid, :slot, :is_bonus)"
                 ),
-                {"gsid": gw_selection_id, "pid": pid, "slot": slot, "cap": pid == xi_ids[0], "vc": pid == xi_ids[1]},
+                {"gsid": gw_selection_id, "pid": pid, "slot": slot, "is_bonus": slot <= 2},
             )
         for slot, pid in enumerate(bench_ids, start=12):
             conn.execute(
                 text(
-                    "INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_captain, is_vice_captain) "
-                    "VALUES (:gsid, :pid, :slot, FALSE, FALSE)"
+                    "INSERT INTO starting_xi (gw_selection_id, player_id, position_slot, is_bonus) "
+                    "VALUES (:gsid, :pid, :slot, FALSE)"
                 ),
                 {"gsid": gw_selection_id, "pid": pid, "slot": slot},
             )
@@ -278,7 +282,10 @@ def test_lock_expired_gameweeks_no_fixtures_yet_skipped_not_errored(engine, make
 
 
 def test_lock_expired_gameweeks_does_not_touch_a_different_season(engine, make_user, make_team, make_fixture):
-    other_season = "7777-00"  # dedicated, never touched elsewhere -- cleaned up explicitly below
+    # Must look like a real season: 7777-00 was excluded on purpose by the
+    # real-seasons-only lock (Shared/seasons.py), so it never locked. Cleaned up
+    # explicitly below.
+    other_season = "2098-99"
     try:
         user = make_user()
         home = make_team(fpl_id=1001, name="Home1", short_name="H1")
@@ -492,66 +499,57 @@ def test_lock_started_contests_actually_blocks_joining_afterwards(engine, make_u
 
 
 
-def _seed_squad_with_free_hit(engine, user_id, pre_ids, post_ids, pre_budget, post_budget, gameweek):
-    """Puts the user in the state a played Free Hit leaves behind: the
-    post-chip squad active, the pre-chip squad recorded in
-    free_hit_squads and already deactivated in squad_players (exactly
-    what transfers.py's DEACTIVATE_SQUAD_PLAYER_STMT does to it).
-    """
-    with engine.begin() as conn:
-        user_squad_id = conn.execute(
-            text("INSERT INTO user_squads (user_id, season, budget_remaining) VALUES (:u, :s, :b) RETURNING id"),
-            {"u": user_id, "s": TEST_SEASON, "b": post_budget},
-        ).scalar()
-        for pid in pre_ids:
-            conn.execute(
-                text("INSERT INTO squad_players (user_squad_id, player_id, purchase_price, is_active) "
-                     "VALUES (:usid, :pid, 50, FALSE)"),
-                {"usid": user_squad_id, "pid": pid},
-            )
-        for pid in post_ids:
-            conn.execute(
-                text("INSERT INTO squad_players (user_squad_id, player_id, purchase_price, is_active) "
-                     "VALUES (:usid, :pid, 50, TRUE)"),
-                {"usid": user_squad_id, "pid": pid},
-            )
-        for pid in pre_ids:
-            conn.execute(
-                text("INSERT INTO free_hit_squads (user_id, season, gameweek, player_id, purchase_price, budget_remaining) "
-                     "VALUES (:u, :s, :gw, :pid, 50, :b)"),
-                {"u": user_id, "s": TEST_SEASON, "gw": gameweek, "pid": pid, "b": pre_budget},
-            )
-    return user_squad_id
-
-
-def _active_player_ids(engine, user_squad_id):
-    with engine.connect() as conn:
-        return sorted(
-            r.player_id
-            for r in conn.execute(
-                text("SELECT player_id FROM squad_players WHERE user_squad_id = :usid AND is_active = TRUE"),
-                {"usid": user_squad_id},
-            )
-        )
-
-
-def _budget(engine, user_squad_id):
-    with engine.connect() as conn:
-        return conn.execute(
-            text("SELECT budget_remaining FROM user_squads WHERE id = :usid"), {"usid": user_squad_id}
-        ).scalar()
-
-
 # ---------------------------------------------------------------- beat_schedule config
 
+# ---------------------------------------------------------------- void_unplayable_contests
+
+def _contest_state(engine, contest_id):
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT is_locked, finalized_at, voided_at, void_reason FROM dream11.contests WHERE id = :c"),
+            {"c": contest_id},
+        ).first()
+
+
+def test_contests_on_postponed_or_abandoned_fixtures_are_voided(engine, make_user, make_team, make_fixture):
+    user = make_user()
+    home = make_team(fpl_id=1001, name="Home1", short_name="H1")
+    away = make_team(fpl_id=1002, name="Away1", short_name="A1")
+    postponed = make_fixture(fpl_id=2101, gameweek=1, home_team_id=home, away_team_id=away, kickoff_time=None)
+    abandoned = make_fixture(fpl_id=2102, gameweek=1, home_team_id=home, away_team_id=away,
+                             kickoff_time=NOW() - timedelta(days=8))
+    in_play = make_fixture(fpl_id=2103, gameweek=1, home_team_id=home, away_team_id=away,
+                           kickoff_time=NOW() - timedelta(hours=1))
+    finished = make_fixture(fpl_id=2104, gameweek=1, home_team_id=home, away_team_id=away,
+                            kickoff_time=NOW() - timedelta(days=8), finished=True)
+    c_postponed = _seed_contest(engine, user, postponed)
+    c_abandoned = _seed_contest(engine, user, abandoned, is_locked=True)
+    c_in_play = _seed_contest(engine, user, in_play, is_locked=True)
+    c_finished = _seed_contest(engine, user, finished, is_locked=True)
+
+    voided = dict(void_unplayable_contests(engine))
+
+    assert voided == {c_postponed: "postponed", c_abandoned: "abandoned"}
+    for cid in (c_postponed, c_abandoned):
+        st = _contest_state(engine, cid)
+        assert st.is_locked and st.finalized_at is not None and st.voided_at is not None, (
+            "a voided contest is closed: locked, and finalized so it is never rescored"
+        )
+    for cid in (c_in_play, c_finished):
+        assert _contest_state(engine, cid).voided_at is None
+    assert void_unplayable_contests(engine) == [], "idempotent: a voided contest is already finalized"
+
+
 def test_beat_schedule_contains_every_task_with_correct_intervals():
-    from celery.schedules import crontab
     from Worker.celery_app import app as celery_app
 
     schedule = celery_app.conf.beat_schedule
 
     assert schedule["lock-expired-gameweeks"]["task"] == "lock_expired_gameweeks"
     assert schedule["lock-expired-gameweeks"]["schedule"] == 300.0
+
+    assert schedule["carry-forward-selections"]["task"] == "carry_forward_selections"
+    assert schedule["carry-forward-selections"]["schedule"] == 300.0
 
     assert schedule["lock-dream11-contests"]["task"] == "lock_dream11_contests"
     assert schedule["lock-dream11-contests"]["schedule"] == 300.0
@@ -560,27 +558,27 @@ def test_beat_schedule_contains_every_task_with_correct_intervals():
     assert schedule["refresh-active-gameweeks"]["schedule"] == 900.0
 
 
-    assert schedule["schedule-predictions-weekly"]["task"] == "schedule_predictions"
-    entry_schedule = schedule["schedule-predictions-weekly"]["schedule"]
-    assert isinstance(entry_schedule, crontab)
-    assert entry_schedule.hour == {6}
-    assert entry_schedule.minute == {0}
-    assert entry_schedule.day_of_week == {2}  # Tuesday
+    # The ML pipeline is backfilled by hand/systemd timer, not run by Beat,
+    # and the old ETA-booking poll task was replaced by poll-due-fixtures.
+    assert "schedule-predictions-weekly" not in schedule
+    assert "schedule-fixture-polls" not in schedule
 
-    assert schedule["schedule-fixture-polls"]["task"] == "schedule_fixture_polls"
-    assert schedule["schedule-fixture-polls"]["schedule"] == 900.0
+    # Live polling for both game modes: every minute, nothing booked ahead.
+    assert schedule["poll-due-fixtures"]["task"] == "poll_due_fixtures"
+    assert schedule["poll-due-fixtures"]["schedule"] == 60.0
 
-    # Without this entry ml.fixtures only changed when someone ran
-    # fpl_ingest.py by hand, so played matches sat at finished=FALSE
-    # indefinitely -- and schedule-fixture-polls above, which reads these
-    # rows, was only ever as fresh as the last manual run.
+    # Ticks every 15 minutes; only calls FPL while a fixture is in play or
+    # once a day. The finished flag it writes triggers the 'final' checkpoint.
     assert schedule["refresh-fixtures"]["task"] == "refresh_fixtures"
     assert schedule["refresh-fixtures"]["schedule"] == 900.0
 
-    # The guarantee that a Dream11 contest gets frozen at all: the
-    # kickoff+115min checkpoint also tries, but it fires before FPL sets
-    # fixtures.finished, and its one-off ETA may never have been booked if
-    # the broker was down at contest creation.
+    # Daily prices, after FPL's overnight changes.
+    assert schedule["refresh-player-prices"]["task"] == "refresh_player_prices"
+    prices = schedule["refresh-player-prices"]["schedule"]
+    assert (prices.hour, prices.minute) == ({1}, {30})
+
+    # Voids postponed/abandoned contests, then freezes finished ones --
+    # the guarantee behind poll-due-fixtures' 'final' checkpoint.
     assert schedule["finalize-dream11-contests"]["task"] == "finalize_dream11_contests"
     assert schedule["finalize-dream11-contests"]["schedule"] == 900.0
 

@@ -3,7 +3,20 @@
 A three-stage, read-only-after-ingestion pipeline that predicts Fantasy
 Premier League points and tiers the results before they reach a user or LLM.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a full system reference: API surface, data model, scheduled tasks, and known gaps.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a full system reference: API surface, data model, scheduled tasks, and known gaps.
+
+## Documentation
+
+| Doc | What it covers |
+|---|---|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System reference: API, data model, scheduled tasks, known gaps |
+| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | The tactical-game rulebook and migration plan |
+| [docs/STATUS.md](docs/STATUS.md) | Quick-read status of the plan |
+| [docs/ML_LAYERS.md](docs/ML_LAYERS.md) | The ML layers: features, model, predictions |
+| [docs/DREAM11.md](docs/DREAM11.md) | Dream11 contests: schema, pricing, point weightings |
+| [docs/history/](docs/history/) | Phase reports (point-in-time records) |
+| [docs/stitch_mockups/](docs/stitch_mockups/) | UI mockups |
+| [frontend/README.md](frontend/README.md) | Frontend setup and commands |
 
 ## Pipeline
 
@@ -14,8 +27,7 @@ All backend code lives under `backend/`.
    `ml.season_stats`, `ml.player_gw_features`, `ml.ml_predictions`) via
    `fpl_ingest.py`. Also holds the trained model: `model.json` (the
    canonical, portable xgboost booster dump) and `model_metadata.json`
-   (feature list, validation metrics, feature importances). `backend/FPL_Model_1
-   (1).ipynb` is the original Colab training notebook.
+   (feature list, validation metrics, feature importances). `backend/Predict/notebooks/FPL_Model_1.ipynb` is the original Colab training notebook.
 
 2. **`backend/Feature_engineering/`** — `feature_builder.py`'s
    `build_features(engine, season, target_gameweek)` computes the 21 model
@@ -55,7 +67,7 @@ FastAPI app in `backend/Context_assembler/main.py` with a React frontend in
 - **Season-long FPL** — squad selection, starting XI and chips, transfers,
   scoring and mini-leagues.
 - **Dream11 contests** — single-fixture contests with their own `dream11`
-  schema, credit-based pricing and point weightings. See **[DREAM11.md](DREAM11.md)**.
+  schema, credit-based pricing and point weightings. See **[docs/DREAM11.md](docs/DREAM11.md)**.
 
 ### Where the game code lives
 
@@ -110,3 +122,29 @@ FastAPI app's CORS allowlist (see `backend/Context_assembler/main.py`) — a
 comma-separated list of origins the browser is allowed to call the API
 from; `http://localhost:5173` is Vite's default dev-server origin
 (`npm run dev` under `frontend/`), confirmed by actually starting it.
+
+### Redis and the Celery worker
+
+Run Redis with a memory cap and no persistence. The queue and results only
+ever hold a handful of small keys:
+```
+docker run -d --name redis -p 6379:6379 redis:7-alpine redis-server --maxmemory 64mb --maxmemory-policy noeviction --save "" --appendonly no
+```
+`noeviction` is deliberate: an LRU policy would silently drop queued tasks,
+while `noeviction` makes a full Redis refuse writes loudly. With persistence
+off, one-off tasks already queued for a later time (the Dream11
+halftime/fulltime polls) are lost if Redis restarts. To cap a container that
+already exists without recreating it:
+`docker exec redis redis-cli CONFIG SET maxmemory 64mb`.
+
+Run the worker and Beat from `backend/`. On Linux, as one process with
+Beat embedded:
+```
+celery -A Worker.celery_app worker -B --pool=solo --loglevel=info
+```
+On Windows, Celery refuses `-B`, so run two:
+```
+celery -A Worker.celery_app worker --pool=solo --loglevel=info
+celery -A Worker.celery_app beat --loglevel=info
+```
+Never pass `-B` to more than one worker (see `backend/Worker/celery_app.py`).

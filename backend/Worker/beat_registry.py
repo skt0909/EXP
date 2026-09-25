@@ -31,6 +31,12 @@ before the next began:
                             that by the time its turn came nothing was
                             left in the file to move
 
+STEP 4 IS NOW GONE ENTIRELY, not just moved. Free Hit itself (the chip, the
+free_hit_squads table, and this revert task) was removed from the game
+along with every other classic-FPL/chip concept when the tactical rules
+replaced them -- there is nothing to schedule or read for it any more.
+The step above is kept as history, not as a pointer to current code.
+
 Three unrelated tenants had already been evicted to their own domains
 first: dream11_locking.py, Predict/prediction_scheduling.py, and the
 poll-scheduling half of Data/live_poll.py. Nothing further is
@@ -72,6 +78,15 @@ from GameEngine.gameweek_lock import lock_expired_gameweeks
 from GameEngine.gameweek_finalize import refresh_active_gameweeks
 
 
+# --- Gameweek Engine · GameEngine/selection_carry_forward.py ----------
+
+# Clones each manager's last submitted Starting XI into the next open
+# gameweek, unless a transfer changed their squad since -- keeps the
+# Dashboard's pitch/bench view unchanged across gameweeks by default.
+# Every 300s, same cadence as the lock sweep it runs alongside.
+from GameEngine.selection_carry_forward import carry_forward_selections
+
+
 # --- Dream11 · Game_logic/dream11_locking.py --------------------------
 
 # Locks each Dream11 contest at its OWN fixture's kickoff -- the only
@@ -83,37 +98,48 @@ from Game_logic.dream11_locking import lock_started_contests
 
 # Freezes the result of every contest whose fixture has finished: scores
 # it one last time and stamps dream11.contests.finalized_at, after which
-# nothing recomputes it. Every 900s. This is the GUARANTEE that a contest
-# gets finalized -- the kickoff+115min checkpoint also tries, but it fires
-# before FPL usually sets fixtures.finished, and its one-off ETA may never
-# have been booked at all if the broker was down at contest creation.
+# nothing recomputes it. Every 900s. poll_due_fixtures' 'final' checkpoint
+# normally does this first; this sweep is the guarantee behind it (a
+# contest with a team that failed to score is retried here). The same
+# task first voids contests on postponed or abandoned fixtures.
 from Game_logic.dream11_scoring import (
     find_contests_needing_finalization,
     finalize_dream11_contest,
+    void_unplayable_contests,
 )
 
 
-# --- ML pipeline · Predict/prediction_scheduling.py -------------------
+# --- ML predictions · Predict/prediction_scheduling.py ----------------
 
-# Finds the earliest upcoming gameweek with no ml.ml_predictions rows.
-# Weekly (Tue 06:00 UTC). Worker/tasks.py runs the pipeline on the result.
+# Finds the earliest upcoming gameweek with no ml.ml_predictions rows. NOT
+# on Beat any more: predictions are backfilled by
+# Predict/backfill_predictions.py --auto (a systemd timer, outside the
+# worker). Kept here because Worker/tasks.py's commented-out
+# schedule_predictions still names it.
 from prediction_scheduling import find_next_gameweek_needing_predictions
 
 
 # --- Match Events · Data/live_poll.py -----------------------
 
-# Finds unfinished future fixtures whose halftime/fulltime polls are not
-# yet booked, and records that they have been. Every 900s.
-from live_poll import find_fixtures_needing_poll_schedule, mark_fixture_polls_scheduled
+# Which fixtures have a halftime/fulltime/final checkpoint due now, and a
+# record that one has run. Every 60s (poll_due_fixtures). Also whether
+# ml.fixtures needs a refresh at all (refresh_fixtures, below).
+from live_poll import find_due_checkpoints, mark_checkpoint_done, fixtures_refresh_reason
 
 
 # --- Match Events · Data/fpl_ingest.py --------------------------------
 
 # Re-pulls the current season's full fixture list and upserts it, so
-# scores, kickoff changes and the finished flag stay current. Every 900s,
-# matching the poll-scheduling task above -- which reads the rows this
-# writes, and so is only ever as fresh as this is.
+# scores, kickoff changes, postponements and the finished flag stay
+# current. Beat ticks every 900s, but it only calls the API while a
+# fixture is in play or once a day (fixtures_refresh_reason). The
+# finished flag it writes is what triggers the 'final' checkpoint.
 from fpl_ingest import refresh_current_season_fixtures
+
+# Re-pulls bootstrap-static: every player's now_cost (GW mode's buy/sell
+# price) and any player new to the game. Daily, after FPL's overnight
+# price changes.
+from fpl_ingest import refresh_player_prices
 
 
 # Every name Beat ultimately depends on, in one list -- so an import that
@@ -121,12 +147,15 @@ from fpl_ingest import refresh_current_season_fixtures
 __all__ = [
     "lock_expired_gameweeks",
     "refresh_active_gameweeks",
-    "revert_expired_free_hits",
+    "carry_forward_selections",
     "lock_started_contests",
     "find_contests_needing_finalization",
     "finalize_dream11_contest",
+    "void_unplayable_contests",
     "find_next_gameweek_needing_predictions",
-    "find_fixtures_needing_poll_schedule",
-    "mark_fixture_polls_scheduled",
+    "find_due_checkpoints",
+    "mark_checkpoint_done",
+    "fixtures_refresh_reason",
     "refresh_current_season_fixtures",
+    "refresh_player_prices",
 ]

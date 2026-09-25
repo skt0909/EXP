@@ -1,0 +1,535 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>PitchSide Intelligence - Starting XI</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script data-purpose="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            pitch: {
+              purple: '#38003c',
+              purpleHover: '#29002c',
+              purpleLight: '#540b59',
+              green: '#00fa82',
+              greenDark: '#00d26a',
+              field: '#0d7d3d',
+              fieldDark: '#086330',
+              fieldLine: 'rgba(255, 255, 255, 0.22)',
+              surface: '#fbf9fc',
+              cardBg: '#ffffff',
+              cardBorder: '#e8e1eb',
+              textMain: '#1e0e29',
+              textMuted: '#68586e',
+              danger: '#e63946'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif']
+          },
+          boxShadow: {
+            subtle: '0 2px 8px -2px rgba(56, 0, 60, 0.06)',
+            elevated: '0 6px 20px -4px rgba(56, 0, 60, 0.12)'
+          }
+        }
+      }
+    }
+  </script>
+<!-- Custom CSS for specialized pitch markings & jersey patterns -->
+<style data-purpose="pitch-styling">
+    .pitch-container {
+      background: radial-gradient(circle at 50% 30%, #108e46 0%, #0a6933 75%, #075428 100%);
+      position: relative;
+    }
+    .pitch-line {
+      border-color: rgba(255, 255, 255, 0.25);
+    }
+  </style>
+<style data-purpose="jersey-patterns">
+    .jersey-shadow {
+      filter: drop-shadow(0px 3px 4px rgba(0, 0, 0, 0.35));
+    }
+    .striped-gold-black {
+      background: repeating-linear-gradient(90deg, #d97706, #d97706 6px, #18181b 6px, #18181b 12px);
+    }
+    .striped-red-black {
+      background: repeating-linear-gradient(90deg, #dc2626, #dc2626 6px, #18181b 6px, #18181b 12px);
+    }
+    .striped-red-white {
+      background: repeating-linear-gradient(90deg, #dc2626, #dc2626 6px, #ffffff 6px, #ffffff 12px);
+    }
+    .striped-blue-red {
+      background: repeating-linear-gradient(90deg, #1d4ed8, #1d4ed8 5px, #b91c1c 5px, #b91c1c 10px);
+    }
+  </style>
+</head>
+<body class="bg-pitch-surface text-pitch-textMain font-sans antialiased min-h-screen flex justify-center selection:bg-pitch-green selection:text-pitch-purple">
+<!-- Mobile Screen Shell (Max Width: 390px, iOS Standard) -->
+<div class="w-full max-w-[390px] min-h-screen bg-pitch-surface pb-28 relative flex flex-col border-x border-pitch-cardBorder shadow-2xl">
+<!-- BEGIN: HeaderBar -->
+<header class="sticky top-0 z-30 bg-pitch-surface/95 backdrop-blur-md border-b border-pitch-cardBorder px-4 py-3 flex items-center justify-between">
+<!-- Menu Button -->
+<button aria-label="Open Navigation Drawer" class="p-2 rounded-lg text-pitch-purple hover:bg-pitch-cardBorder/40 transition" type="button">
+<svg class="w-6 h-6 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+<path d="M3.75 6.75h16.5M3.75 12h16.5M3.75 17.25h16.5" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Center Title -->
+<h1 class="text-lg font-bold tracking-tight text-pitch-purple flex items-center gap-1.5">
+        Starting XI
+      </h1>
+<!-- User Profile Avatar -->
+<div class="flex items-center justify-center">
+<button aria-label="User Profile" class="w-9 h-9 rounded-full bg-pitch-purple/10 border border-pitch-purple/20 flex items-center justify-center text-pitch-purple hover:bg-pitch-purple/20 transition" type="button">
+<svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+<path clip-rule="evenodd" d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z" fill-rule="evenodd"></path>
+</svg>
+</button>
+</div>
+</header>
+<!-- END: HeaderBar -->
+<!-- BEGIN: MainContent -->
+<main class="flex-1 px-3.5 pt-3.5 space-y-3.5">
+<!-- BEGIN: StrategyModeTabs -->
+<!-- Segmented Mode Controls -->
+<nav class="grid grid-cols-3 gap-1.5 bg-pitch-cardBorder/30 p-1 rounded-xl border border-pitch-cardBorder text-xs font-semibold" data-purpose="mode-segmented-tabs">
+<button class="py-2 rounded-lg text-pitch-textMuted bg-pitch-cardBg border border-pitch-cardBorder/60 hover:text-pitch-purple shadow-sm transition" type="button">
+          Attack
+        </button>
+<button class="py-2 rounded-lg text-pitch-textMuted bg-pitch-cardBg border border-pitch-cardBorder/60 hover:text-pitch-purple shadow-sm transition" type="button">
+          Defence
+        </button>
+<button class="py-2 rounded-lg bg-pitch-purple text-white shadow-subtle flex items-center justify-center font-bold tracking-wide" type="button">
+          Balanced
+        </button>
+</nav>
+<!-- END: StrategyModeTabs -->
+<!-- BEGIN: BonusMidfieldersSection -->
+<section class="flex items-center justify-between pt-0.5" data-purpose="bonus-mid-selector">
+<div class="flex items-center gap-2">
+<span class="text-[11px] font-extrabold uppercase tracking-wider text-pitch-purple">Bonus Mid</span>
+<span class="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-pitch-purple/10 text-pitch-purple">2/2</span>
+</div>
+<!-- Bonus Pills -->
+<div class="flex items-center gap-1.5">
+<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-pitch-green text-pitch-purple shadow-sm flex items-center gap-1 border border-pitch-greenDark/40">
+            McConnell
+          </span>
+<span class="px-2.5 py-1 text-xs font-bold rounded-lg bg-pitch-green text-pitch-purple shadow-sm flex items-center gap-1 border border-pitch-greenDark/40">
+            Olusesi
+          </span>
+<span class="px-2.5 py-1 text-xs font-medium rounded-lg bg-white border border-pitch-cardBorder text-pitch-textMuted">
+            Reed
+          </span>
+</div>
+</section>
+<!-- END: BonusMidfieldersSection -->
+<!-- BEGIN: FormationBar -->
+<section class="space-y-2" data-purpose="formation-header">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="text-[11px] font-bold tracking-wider text-pitch-textMuted uppercase">Formation</span>
+<div class="relative">
+<button class="px-2.5 py-1 text-xs font-bold bg-white rounded-lg border border-pitch-cardBorder text-pitch-purple shadow-subtle flex items-center gap-1.5" type="button">
+                4-3-3
+                <svg class="w-3.5 h-3.5 text-pitch-textMuted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+<!-- Status Indicator -->
+<div class="flex items-center gap-1.5 px-2.5 py-1 bg-pitch-green/15 text-pitch-purple border border-pitch-green/30 rounded-lg text-xs font-bold">
+<span class="">4-3-3</span>
+<span class="text-[10px] font-extrabold uppercase text-emerald-800">Valid</span>
+<svg class="w-3.5 h-3.5 text-emerald-600 fill-current" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" fill-rule="evenodd"></path>
+</svg>
+</div>
+</div>
+<!-- Auto Fill Kickoff Bar -->
+<button class="w-full py-2 px-3 bg-white hover:bg-slate-50 border border-pitch-cardBorder rounded-xl text-xs font-semibold text-pitch-purple flex items-center justify-center gap-2 shadow-subtle transition" type="button">
+<svg class="w-4 h-4 text-pitch-purple" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+          Auto-Fill by Kickoff Order
+        </button>
+</section>
+<!-- END: FormationBar -->
+<!-- BEGIN: TacticalPitchView -->
+<section class="pitch-container rounded-2xl overflow-hidden border-2 border-emerald-900/20 shadow-elevated relative pt-4 pb-3" data-purpose="starting-pitch">
+<!-- Pitch Field Graphic Lines -->
+<div class="absolute inset-0 pointer-events-none">
+<!-- Halfway line -->
+<div class="absolute top-1/2 left-0 right-0 border-t pitch-line"></div>
+<!-- Center Circle -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-28 h-28 rounded-full border pitch-line"></div>
+<!-- Center Spot -->
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-white/40"></div>
+<!-- Top Penalty Box (GK Area) -->
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-20 border-b border-x pitch-line rounded-b-lg"></div>
+<div class="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-8 border-b border-x pitch-line"></div>
+<!-- Bottom Penalty Box -->
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-48 h-20 border-t border-x pitch-line rounded-t-lg"></div>
+<div class="absolute bottom-0 left-1/2 -translate-x-1/2 w-24 h-8 border-t border-x pitch-line"></div>
+</div>
+<!-- Players Field Layout Container -->
+<div class="relative z-10 flex flex-col justify-between h-[430px] px-2 py-1">
+<!-- Goalkeeper Row (1) -->
+<div class="flex justify-center items-center">
+<!-- Martinez -->
+<div class="flex flex-col items-center">
+<div class="w-9 h-8 bg-blue-700 rounded-t-md rounded-b-sm border border-blue-900 jersey-shadow flex items-center justify-center relative">
+<span class="text-[9px] font-black text-white">1</span>
+<!-- Collar -->
+<div class="absolute -top-1 w-2.5 h-1 bg-white/80 rounded-b"></div>
+</div>
+<div class="mt-1 px-1.5 py-0.5 bg-white/95 rounded shadow-sm border border-black/10">
+<span class="text-[9px] font-extrabold uppercase tracking-tight text-pitch-purple block leading-none">Martinez</span>
+</div>
+</div>
+</div>
+<!-- Defenders Row (4) -->
+<div class="grid grid-cols-4 gap-1 items-center px-1">
+<!-- Gabriel -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 bg-red-600 rounded-t-md rounded-b-sm border border-red-800 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-white rounded-b"></div>
+</div>
+<div class="mt-1 px-1 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[68px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Gabriel</span>
+</div>
+</div>
+<!-- Hughes -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 striped-gold-black rounded-t-md rounded-b-sm border border-zinc-900 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-amber-400 rounded-b"></div>
+</div>
+<div class="mt-1 px-1 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[68px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Hughes</span>
+</div>
+</div>
+<!-- Soler -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 striped-red-black rounded-t-md rounded-b-sm border border-zinc-900 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-red-500 rounded-b"></div>
+</div>
+<div class="mt-1 px-1 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[68px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Soler</span>
+</div>
+</div>
+<!-- Saliba -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 bg-red-600 rounded-t-md rounded-b-sm border border-red-800 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-white rounded-b"></div>
+</div>
+<div class="mt-1 px-1 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[68px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Saliba</span>
+</div>
+</div>
+</div>
+<!-- Midfielders Row (3) -->
+<div class="grid grid-cols-3 gap-2 items-center px-4">
+<!-- McConnell (Bonus) -->
+<div class="flex flex-col items-center relative">
+<div class="w-8 h-7 bg-red-600 rounded-t-md rounded-b-sm border border-red-800 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-white rounded-b"></div>
+</div>
+<div class="mt-1 px-1 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[78px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">McConnell</span>
+</div>
+<span class="mt-0.5 px-1 py-0.2 bg-pitch-purple text-[8px] font-extrabold text-pitch-green rounded tracking-wider shadow"><span class="text-amber-400 text-[8px] mr-0.5">★</span>Bonus</span>
+</div>
+<!-- Olusesi (Bonus) -->
+<div class="flex flex-col items-center relative">
+<div class="w-8 h-7 bg-white rounded-t-md rounded-b-sm border border-slate-300 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-pitch-purple rounded-b"></div>
+</div>
+<div class="mt-1 px-1 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[78px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Olusesi</span>
+</div>
+<span class="mt-0.5 px-1 py-0.2 bg-pitch-purple text-[8px] font-extrabold text-pitch-green rounded tracking-wider shadow"><span class="text-amber-400 text-[8px] mr-0.5">★</span>Bonus</span>
+</div>
+<!-- Reed -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 bg-white rounded-t-md rounded-b-sm border border-slate-300 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-black rounded-b"></div>
+</div>
+<div class="mt-1 px-1.5 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[70px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Reed</span>
+</div>
+</div>
+</div>
+<!-- Forwards Row (3) -->
+<div class="grid grid-cols-3 gap-2 items-center px-4 pb-1">
+<!-- Thiago -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 striped-red-white rounded-t-md rounded-b-sm border border-red-700 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-white rounded-b"></div>
+</div>
+<div class="mt-1 px-1.5 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[70px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Thiago</span>
+</div>
+</div>
+<!-- Haaland -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 bg-sky-400 rounded-t-md rounded-b-sm border border-sky-600 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-white rounded-b"></div>
+</div>
+<div class="mt-1 px-1.5 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[72px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Haaland</span>
+</div>
+</div>
+<!-- Isak -->
+<div class="flex flex-col items-center">
+<div class="w-8 h-7 bg-red-600 rounded-t-md rounded-b-sm border border-red-800 jersey-shadow flex items-center justify-center relative">
+<div class="absolute -top-0.5 w-2 h-0.5 bg-white rounded-b"></div>
+</div>
+<div class="mt-1 px-1.5 py-0.5 bg-white/95 rounded shadow-sm border border-black/10 text-center w-full max-w-[70px]">
+<span class="text-[8.5px] font-bold uppercase truncate text-pitch-purple block leading-none">Isak</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: TacticalPitchView -->
+<!-- BEGIN: BenchSection -->
+<section class="space-y-2 pt-1" data-purpose="bench-management">
+<div class="flex items-center justify-between">
+<h2 class="text-[11px] font-extrabold uppercase tracking-wider text-pitch-purple">Bench</h2>
+</div>
+<div class="bg-white rounded-xl border border-pitch-cardBorder p-1.5 space-y-1.5 shadow-subtle">
+<!-- Player 12: Raya (Auto GK) -->
+<div class="flex items-center justify-between p-2 rounded-lg bg-pitch-surface/60 border border-pitch-cardBorder/60 hover:border-pitch-purple/30 transition">
+<div class="flex items-center gap-2.5">
+<span class="text-[10px] font-extrabold text-pitch-textMuted w-16">12 Auto GK</span>
+<div class="w-5 h-5 bg-red-600 rounded flex-shrink-0 border border-red-800"></div>
+<span class="text-xs font-bold text-pitch-purple">Raya</span>
+</div>
+<!-- Swap Action -->
+<button aria-label="Tactical substitution" class="p-1.5 text-pitch-purple hover:bg-pitch-purple/10 rounded-md transition" type="button">
+<svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+<path d="M19 7.5l-4-4m0 0l-4 4m4-4v12m-6 5l-4-4m0 0l4-4m-4 4h12" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+<!-- Player 13: B. Fernandes (Auto Sub) -->
+<div class="flex items-center justify-between p-2 rounded-lg bg-pitch-surface/60 border border-pitch-cardBorder/60 hover:border-pitch-purple/30 transition">
+<div class="flex items-center gap-2">
+<span class="text-pitch-textMuted cursor-grab hover:text-pitch-purple">
+<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20"><path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z"></path></svg>
+</span>
+<span class="text-[10px] font-extrabold text-pitch-textMuted w-16">13 Auto Sub</span>
+<div class="w-5 h-5 bg-red-600 rounded flex-shrink-0 border border-red-800"></div>
+<span class="text-xs font-bold text-pitch-purple">B.Fernandes</span>
+</div>
+<!-- Reorder & Swap Actions -->
+<div class="flex items-center gap-1">
+<button class="p-1 rounded text-pitch-textMuted hover:text-pitch-purple hover:bg-slate-100" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"></path></svg>
+</button>
+<button class="p-1 rounded text-pitch-textMuted hover:text-pitch-purple hover:bg-slate-100" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
+</button>
+<button class="p-1 rounded text-pitch-purple hover:bg-pitch-purple/10" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3m0 13v5h-5M3 4l6 6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+<!-- Player 14: Hughes (Tactical) -->
+<div class="flex items-center justify-between p-2 rounded-lg bg-pitch-surface/60 border border-pitch-cardBorder/60 hover:border-pitch-purple/30 transition">
+<div class="flex items-center gap-2">
+<span class="text-pitch-textMuted cursor-grab hover:text-pitch-purple">
+<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20"><path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z"></path></svg>
+</span>
+<span class="text-[10px] font-extrabold text-pitch-textMuted w-16">14 Tactic</span>
+<div class="w-5 h-5 striped-blue-red rounded flex-shrink-0 border border-blue-900"></div>
+<span class="text-xs font-bold text-pitch-purple">Hughes</span>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-1">
+<button class="p-1 rounded text-pitch-textMuted hover:text-pitch-purple hover:bg-slate-100" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"></path></svg>
+</button>
+<button class="p-1 rounded text-pitch-textMuted hover:text-pitch-purple hover:bg-slate-100" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
+</button>
+<button class="p-1 rounded text-pitch-purple hover:bg-pitch-purple/10" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3m0 13v5h-5M3 4l6 6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+<!-- Player 15: A. Garcia (Tactical) -->
+<div class="flex items-center justify-between p-2 rounded-lg bg-pitch-surface/60 border border-pitch-cardBorder/60 hover:border-pitch-purple/30 transition">
+<div class="flex items-center gap-2">
+<span class="text-pitch-textMuted cursor-grab hover:text-pitch-purple">
+<svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 20 20"><path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 8zm0 6a2 2 0 10.001 4.001A2 2 0 007 14zm6-8a2 2 0 10-.001-4.001A2 2 0 0013 6zm0 2a2 2 0 10.001 4.001A2 2 0 0013 8zm0 6a2 2 0 10.001 4.001A2 2 0 0013 14z"></path></svg>
+</span>
+<span class="text-[10px] font-extrabold text-pitch-textMuted w-16">15 Tactic</span>
+<div class="w-5 h-5 bg-sky-200 border-t-4 border-rose-900 rounded flex-shrink-0 border"></div>
+<span class="text-xs font-bold text-pitch-purple">A.Garcia</span>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-1">
+<button class="p-1 rounded text-pitch-textMuted hover:text-pitch-purple hover:bg-slate-100" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M5 15l7-7 7 7"></path></svg>
+</button>
+<button class="p-1 rounded text-pitch-textMuted hover:text-pitch-purple hover:bg-slate-100" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7"></path></svg>
+</button>
+<button class="p-1 rounded text-pitch-purple hover:bg-pitch-purple/10" type="button">
+<svg class="w-3.5 h-3.5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20L21 3m0 13v5h-5M3 4l6 6" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+</div>
+</section>
+<!-- END: BenchSection -->
+<!-- BEGIN: TacticalSwapOptions -->
+<section class="space-y-2 pt-1" data-purpose="active-tactical-swaps">
+<div class="flex items-center justify-between">
+<h2 class="text-[11px] font-extrabold uppercase tracking-wider text-pitch-purple">Tactical Swaps</h2>
+<span class="text-[10px] font-bold text-pitch-purple bg-pitch-purple/10 px-1.5 py-0.5 rounded">2/2</span>
+</div>
+<div class="space-y-2">
+<!-- Slot 14 -->
+<div class="flex items-center justify-between bg-white p-2.5 rounded-xl border border-pitch-cardBorder shadow-subtle">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-bold text-pitch-textMuted uppercase w-12">Slot 14</span>
+<div class="w-6 h-6 striped-blue-red rounded border border-blue-900 shadow-sm shrink-0"></div>
+<div>
+<h3 class="text-xs font-bold text-pitch-purple leading-tight">Hughes</h3>
+<p class="text-[10px] text-pitch-textMuted">for Reed</p>
+</div>
+</div>
+<!-- Remove swap button -->
+<button aria-label="Cancel Tactical Swap" class="w-7 h-7 rounded-lg border border-pitch-cardBorder flex items-center justify-center text-pitch-textMuted hover:text-pitch-danger hover:border-pitch-danger transition" type="button">
+<svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+<!-- Slot 15 -->
+<div class="flex items-center justify-between bg-white p-2.5 rounded-xl border border-pitch-cardBorder shadow-subtle">
+<div class="flex items-center gap-3">
+<span class="text-[10px] font-bold text-pitch-textMuted uppercase w-12">Slot 15</span>
+<div class="w-6 h-6 bg-sky-200 border-t-4 border-rose-900 rounded border shadow-sm shrink-0"></div>
+<div>
+<h3 class="text-xs font-bold text-pitch-purple leading-tight">A.Garcia</h3>
+<p class="text-[10px] text-pitch-textMuted">for Saliba</p>
+</div>
+</div>
+<!-- Remove swap button -->
+<button aria-label="Cancel Tactical Swap" class="w-7 h-7 rounded-lg border border-pitch-cardBorder flex items-center justify-center text-pitch-textMuted hover:text-pitch-danger hover:border-pitch-danger transition" type="button">
+<svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+</section><section class="space-y-2 pt-1" data-purpose="swap-rules">
+<h2 class="text-[11px] font-extrabold uppercase tracking-wider text-pitch-purple">Tactical Swap Options</h2>
+<!-- Card 1: Hughes -->
+<article class="bg-white rounded-xl p-3 border border-pitch-cardBorder shadow-subtle space-y-1.5">
+<div class="text-xs font-bold text-pitch-purple flex items-center justify-between">
+<span class="">Hughes (MID) <span class="font-normal text-pitch-textMuted">· kicks off Sun, Oct 11 02:00 PM</span></span>
+</div>
+<div class="flex items-start gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50/70 p-1.5 rounded-lg border border-emerald-200/50">
+<svg class="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0 fill-current" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" fill-rule="evenodd"></path>
+</svg>
+<span class="">Can replace: <span class="font-bold">Reed (Sat, Oct 10 03:00 PM)</span></span>
+</div>
+</article>
+<!-- Card 2: A. Garcia -->
+<article class="bg-white rounded-xl p-3 border border-pitch-cardBorder shadow-subtle space-y-2">
+<div class="text-xs font-bold text-pitch-purple flex items-center justify-between">
+<span class="">A.Garcia (DEF) <span class="font-normal text-pitch-textMuted">· kicks off Sat, Oct 10 03:00 PM</span></span>
+</div>
+<div class="space-y-1.5">
+<!-- Positive condition -->
+<div class="flex items-start gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50/70 p-1.5 rounded-lg border border-emerald-200/50">
+<svg class="w-3.5 h-3.5 text-emerald-600 mt-0.5 shrink-0 fill-current" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" fill-rule="evenodd"></path>
+</svg>
+<span class="">Can replace: <span class="font-bold">Gabriel (Sat, 12:30 PM), Saliba (Sat, 12:30 PM)</span></span>
+</div>
+<!-- Negative conditions -->
+<div class="flex items-start gap-1.5 text-[11px] text-red-800 bg-red-50/70 p-1.5 rounded-lg border border-red-200/50 leading-tight">
+<svg class="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0 fill-current" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" fill-rule="evenodd"></path>
+</svg>
+<span class="">Can't replace Hughes: kicks off before Hughes's match ends</span>
+</div>
+<div class="flex items-start gap-1.5 text-[11px] text-red-800 bg-red-50/70 p-1.5 rounded-lg border border-red-200/50 leading-tight">
+<svg class="w-3.5 h-3.5 text-red-600 mt-0.5 shrink-0 fill-current" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" fill-rule="evenodd"></path>
+</svg>
+<span class="">Can't replace Soler: kicks off before Soler's match ends</span>
+</div>
+</div>
+</article>
+</section>
+<!-- END: TacticalSwapOptions -->
+<!-- BEGIN: ActiveTacticalSwaps -->
+
+<!-- END: ActiveTacticalSwaps -->
+<!-- BEGIN: SaveTeamActionButton -->
+<section class="pt-2 pb-4" data-purpose="save-team-container">
+<button class="w-full py-3.5 bg-pitch-purple hover:bg-pitch-purpleHover active:scale-[0.99] text-white font-bold text-sm rounded-xl shadow-elevated flex items-center justify-center gap-2 transition duration-150" type="button">
+<svg class="w-5 h-5 fill-current text-pitch-green" viewBox="0 0 24 24">
+<path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2zM5 5v14h14V8.5L15.5 5H5zm7 11a3 3 0 100-6 3 3 0 000 6zM7 7h7v2H7V7z"></path>
+</svg>
+          Save Team
+        </button>
+</section>
+<!-- END: SaveTeamActionButton -->
+</main>
+<!-- END: MainContent -->
+<!-- BEGIN: GlobalBottomNav -->
+<!-- Fixed 5-Item Navigation Bar adhering to PitchSide Intelligence design -->
+<nav class="fixed bottom-0 max-w-[390px] w-full bg-white/95 backdrop-blur-md border-t border-pitch-cardBorder py-2 px-3 z-40 flex items-center justify-around shadow-2xl" data-purpose="bottom-navigation-bar">
+<!-- Home -->
+<a class="flex flex-col items-center gap-1 text-pitch-textMuted hover:text-pitch-purple" href="#home">
+<svg class="w-5 h-5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+<path d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium">Home</span>
+</a>
+<!-- Starting XI (Active) -->
+<a class="flex flex-col items-center gap-1 text-pitch-purple font-extrabold relative" href="#starting-xi">
+<div class="relative">
+<svg class="w-5 h-5 fill-current text-pitch-purple" viewBox="0 0 24 24">
+<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"></path>
+</svg>
+<span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-pitch-green"></span>
+</div>
+<span class="text-[10px]">Starting XI</span>
+</a>
+<!-- Transfers -->
+<a class="flex flex-col items-center gap-1 text-pitch-textMuted hover:text-pitch-purple" href="#transfers">
+<svg class="w-5 h-5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+<path d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium">Transfers</span>
+</a>
+<!-- Leagues -->
+<a class="flex flex-col items-center gap-1 text-pitch-textMuted hover:text-pitch-purple" href="#leagues">
+<svg class="w-5 h-5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+<path d="M16.5 18.75h-9m9 0a3 3 0 013 3h-15a3 3 0 013-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.496m5.007 0a6.75 6.75 0 00-.507-2.613m-3.993 2.613a6.75 6.75 0 01.507-2.613m0 0a6.75 6.75 0 015.986 0" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium">Leagues</span>
+</a>
+<!-- Chats -->
+<a class="flex flex-col items-center gap-1 text-pitch-textMuted hover:text-pitch-purple" href="#chats">
+<svg class="w-5 h-5 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+<path d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a.75.75 0 01-.84-.84c.15-.815.46-1.57.896-2.228C3.844 16.42 3 14.33 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-[10px] font-medium">Chats</span>
+</a>
+</nav>
+<!-- END: GlobalBottomNav -->
+</div>
+
+
+
+
+</body></html>

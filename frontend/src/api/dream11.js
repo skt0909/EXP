@@ -45,10 +45,32 @@ export function fetchContestPool({ contest_id }) {
   return request(`/dream11/contests/${contest_id}/players`)
 }
 
+/**
+ * A fixture's player pool with LIVE-computed prices, no contest required --
+ * lets a team be built and saved (saveContestTeam) before any contest
+ * exists, e.g. the Match screen's "Build & Save a Team" action. Prices here
+ * are only a preview: a contest created later prices itself fresh at that
+ * moment and may differ if the rolling averages have moved since.
+ */
+export function fetchFixturePool({ fixture_id }) {
+  return request(`/dream11/fixtures/${fixture_id}/players`)
+}
+
 /** Members with points, rank, and has_submitted_team, plus the contest summary. */
 export function fetchContestLeaderboard({ contest_id, user_id }) {
   const params = user_id ? `?${new URLSearchParams({ user_id: String(user_id) })}` : ''
   return request(`/dream11/contests/${contest_id}/leaderboard${params}`)
+}
+
+/**
+ * This user's saved teams (reusable lineup templates) for one fixture.
+ * Scoped to a fixture, not a contest: Game_logic/dream11.py's player pool is
+ * drawn from a fixture's two clubs, so a saved team only ever makes sense
+ * for another contest on that SAME fixture. Newest first.
+ */
+export function fetchSavedTeams({ fixture_id }) {
+  const params = new URLSearchParams({ fixture_id: String(fixture_id) })
+  return request(`/dream11/saved-teams?${params}`)
 }
 
 /**
@@ -81,11 +103,16 @@ export function joinContest({ user_id, code }) {
   return request('/dream11/contests/join', { method: 'POST', body: { user_id, code } })
 }
 
-/** player_ids are raw FPL ids, exactly 11, matching captain_id/vice_captain_id. */
-export function submitContestTeam({ contest_id, user_id, player_ids, captain_id, vice_captain_id }) {
+/**
+ * player_ids are raw FPL ids, exactly 11, matching captain_id/vice_captain_id.
+ * team_name is optional -- omitting it (or passing null/undefined) leaves the
+ * leaderboard showing your account's own team_name, same as before this
+ * field existed (Game_logic/dream11.py's dream11.teams.entry_name).
+ */
+export function submitContestTeam({ contest_id, user_id, player_ids, captain_id, vice_captain_id, team_name }) {
   return request(`/dream11/contests/${contest_id}/team`, {
     method: 'POST',
-    body: { user_id, player_ids, captain_id, vice_captain_id },
+    body: { user_id, player_ids, captain_id, vice_captain_id, team_name },
   })
 }
 
@@ -95,9 +122,35 @@ export function submitContestTeam({ contest_id, user_id, player_ids, captain_id,
  * team yet, matching submitContestTeam's POST being create-only). Same
  * body shape as submitContestTeam so PickTeamPage can post to either.
  */
-export function editContestTeam({ contest_id, user_id, player_ids, captain_id, vice_captain_id }) {
+/** team_name is optional and additive -- omitting it leaves whatever name
+ *  the entry already had (Game_logic/dream11.py's UPDATE_TEAM_ENTRY_NAME_STMT
+ *  is a COALESCE, not a plain overwrite). */
+export function editContestTeam({ contest_id, user_id, player_ids, captain_id, vice_captain_id, team_name }) {
   return request(`/dream11/contests/${contest_id}/team`, {
     method: 'PATCH',
-    body: { user_id, player_ids, captain_id, vice_captain_id },
+    body: { user_id, player_ids, captain_id, vice_captain_id, team_name },
   })
+}
+
+/**
+ * Saves the current lineup as a reusable template for this fixture --
+ * independent of any contest, validated against the same formation rules
+ * submitContestTeam uses (just no budget/price check, since no contest's
+ * frozen prices apply here). Not a submission to any contest by itself.
+ */
+export function saveContestTeam({ fixture_id, name, player_ids, captain_id, vice_captain_id }) {
+  return request('/dream11/saved-teams', {
+    method: 'POST',
+    body: { fixture_id, name, player_ids, captain_id, vice_captain_id },
+  })
+}
+
+export function deleteSavedTeam({ saved_team_id }) {
+  return request(`/dream11/saved-teams/${saved_team_id}`, { method: 'DELETE' })
+}
+
+/** Creator-only, and only before the contest locks -- see
+ *  Game_logic/dream11.py's delete_contest for the exact 403/422 cases. */
+export function deleteContest({ contest_id }) {
+  return request(`/dream11/contests/${contest_id}`, { method: 'DELETE' })
 }

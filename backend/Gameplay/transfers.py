@@ -27,14 +27,10 @@ submission path that does not come apart:
      the limit through cumulative batch effects, so neither can be
      answered without the squad this module already holds.
 
-PHASE 4c UPDATE. The second reason this file used to give was chip state:
-chip_active was read from gw_selections.chip_used, tested against
-rules.FREE_CHIPS, and decided whether the 20-transfer cap applied, how
-many free slots existed, and what is_free each row was stamped with.
+PHASE 4c UPDATE. The second reason this file used to give was chip state.
 None of that exists any more -- there are no chips, no paid transfers and
 no 20-transfer cap, every accepted transfer is free, and anything beyond
-the allowance is rejected. The chip_active RESPONSE key survives as a
-literal False so the current frontend keeps rendering; Phase 5 removes it.
+the allowance is rejected.
 
 This is a settled decision, not outstanding work.
 
@@ -85,16 +81,15 @@ still holds both the sale and the rebuy as separate rows. squad_players
 answers "what does this squad hold now", transfers answers "what
 happened".
 
-Free transfers follow the real FPL banking rule: one is earned each
-gameweek, unused ones roll over, and the bank is capped at 5. The
-recurrence itself now lives in Shared/rules.py as the pure function
-_free_transfers_available(), along with its constants and HIT_COST:
+Free transfers follow the tactical banking rule: one is earned each
+gameweek, unused ones roll over, and the bank is capped at 2. The
+recurrence itself lives in Shared/rules.py as the pure function
+_tactical_free_transfers_available():
 
-    available = min(5, max(0, available_prev - used_prev) + 1)
+    available = min(2, max(0, available_prev - used_prev) + 1)
 
 starting from 1. The max(0, ...) is what stops an over-spent gameweek
-from borrowing against the next one -- going beyond the allowance costs
-points (below), it never leaves a negative bank.
+from borrowing against the next one.
 
 What stays here is free_transfers_available(conn, ...) below, the DB
 half: it reads each prior gameweek's consumption and hands the plain
@@ -112,18 +107,9 @@ that gameweek's allowance was consumed", which is what the recurrence
 needs.
 
 Within a gameweek the still-available free slots (allowance minus
-is_free rows already recorded for it) go to the first transfer(s) in
-submission order; the rest are paid (is_free = FALSE). Non-chip
-gameweeks are capped at 20 total transfers. Results/scoring.py then
-charges 4 points per is_free = FALSE row, which works out to the rule's
-4 * max(0, made - available) without scoring needing to know anything
-about banking.
-
-If gw_selections.chip_used for this gameweek is 'wildcard' or
-'free_hit', every transfer in the batch is free instead, uncapped.
-Chip gameweeks are excluded from the banking recurrence, so saved free
-transfers are retained for the following gameweek even though the chip
-transfers themselves are stamped is_free = TRUE.
+is_free rows already recorded for it) are the hard limit. A batch beyond
+that limit is rejected and writes nothing; there are no paid rows for the
+scorer to deduct later.
 
 transfers has no FK/trigger tie to gw_selections, so this module
 explicitly pre-checks the lock for (user_id, season, gameweek) before
@@ -149,16 +135,15 @@ cap (rules.MAX_PER_CLUB) is re-checked against the *entire*
 resulting squad, not just the transferred players, since one swap can
 tip an unrelated club over the cap via cumulative batch effects.
 
-GET /transfers/used is read-only, reporting how many free/paid
-transfers this user has already committed for a gameweek -- exposes
-the exact free-slot/wildcard arithmetic submit_transfers computes
-internally (FREE_TRANSFERS_USED_QUERY/FREE_CHIPS above) so a client
-can show an accurate "N free transfers left" / cost estimate *before*
-submitting, instead of guessing client-side.
+GET /transfers/used is read-only, reporting how many free transfers this user
+has already committed for a gameweek. It exposes the same free-slot arithmetic
+submit_transfers uses internally, so a client can show an accurate "N free
+transfers left" before submitting instead of guessing client-side.
 """
 
 import logging
 from collections import Counter
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -227,6 +212,27 @@ FREE_TRANSFERS_USED_QUERY = text(
 TOTAL_TRANSFERS_USED_QUERY = text(
     "SELECT COUNT(*) FROM transfers t "
     f"WHERE t.user_id = :user_id AND t.season = :season AND t.gameweek = :gameweek AND {NOT_CANCELLED}"
+)
+
+# Every transfer this manager has ever made this season, newest first, with
+# player names resolved for display -- transfers stores fpl_ids, same as
+# every other gameplay table, so this joins ml.players twice (in/out) to name
+# them. is_free on each row is exactly what was recorded at submission time
+# (see free_transfers_available's docstring on why that's never recomputed),
+# so this is the honest answer to "did this transfer cost a free transfer".
+TRANSFER_HISTORY_QUERY = text(
+    f"""
+    SELECT t.gameweek, t.transferred_at, t.is_free, t.price_in, t.price_out,
+           pin.fpl_id AS player_in_id, pin.web_name AS player_in_name, tin.short_name AS player_in_team,
+           pout.fpl_id AS player_out_id, pout.web_name AS player_out_name, tout.short_name AS player_out_team
+    FROM transfers t
+    JOIN ml.players pin ON pin.season = :season AND pin.fpl_id = t.player_in_id
+    JOIN ml.teams tin ON tin.id = pin.team_id
+    JOIN ml.players pout ON pout.season = :season AND pout.fpl_id = t.player_out_id
+    JOIN ml.teams tout ON tout.id = pout.team_id
+    WHERE t.user_id = :user_id AND t.season = :season AND {NOT_CANCELLED}
+    ORDER BY t.gameweek DESC, t.transferred_at DESC
+    """
 )
 
 # Per-gameweek allowance consumption for every gameweek BEFORE this one --
@@ -338,12 +344,27 @@ class TransfersUsedResponse(BaseModel):
     gameweek: int
     free_transfers_used: int
     free_transfers_remaining: int
-    # B6: chips are gone. The KEY stays so the current frontend keeps
-    # rendering -- same stance as the dashboard's inert captaincy keys -- but
-    # it is a literal False now, not read from anything. The frontend phase
-    # removes it.
-    chip_active: bool = False
     total_transfers_this_gameweek: int
+
+
+class TransferHistoryEntry(BaseModel):
+    gameweek: int
+    transferred_at: datetime
+    is_free: bool
+    price_in: int
+    price_out: int
+    player_in_id: int
+    player_in_name: str
+    player_in_team: str
+    player_out_id: int
+    player_out_name: str
+    player_out_team: str
+
+
+class TransferHistoryResponse(BaseModel):
+    user_id: int
+    season: str
+    transfers: list[TransferHistoryEntry]
 
 
 RULESET_EPOCH_QUERY = text(
@@ -547,9 +568,6 @@ def get_transfers_used(
     engine = get_engine()
 
     with engine.connect() as conn:
-        gw_selection_row = conn.execute(
-            GW_SELECTION_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
-        ).first()
         free_used = conn.execute(
             FREE_TRANSFERS_USED_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
         ).scalar()
@@ -559,7 +577,6 @@ def get_transfers_used(
         allowance = free_transfers_available(conn, user_id, season, gameweek)
 
 
-    # 0 under a chip means "uncapped", not "none left" -- the client reads
     free_remaining = max(0, allowance - free_used)
 
     return TransfersUsedResponse(
@@ -568,8 +585,25 @@ def get_transfers_used(
         gameweek=gameweek,
         free_transfers_used=free_used,
         free_transfers_remaining=free_remaining,
-        chip_active=False,
         total_transfers_this_gameweek=total_used,
+    )
+
+
+@router.get("/transfers/history", response_model=TransferHistoryResponse)
+def get_transfer_history(
+    season: str,
+    current_user: CurrentUser = Depends(get_current_user),
+) -> TransferHistoryResponse:
+    user_id = current_user.id
+    engine = get_engine()
+
+    with engine.connect() as conn:
+        rows = conn.execute(TRANSFER_HISTORY_QUERY, {"user_id": user_id, "season": season}).all()
+
+    return TransferHistoryResponse(
+        user_id=user_id,
+        season=season,
+        transfers=[TransferHistoryEntry(**row._mapping) for row in rows],
     )
 
 

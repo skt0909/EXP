@@ -121,8 +121,13 @@ CONTESTS_NEEDING_FINALIZATION_QUERY = text(
     """
 )
 
+# Also locks: finalization can now run within a minute of FPL marking the
+# match finished (poll_due_fixtures' 'final' checkpoint), and a contest the
+# 5-minute lock sweep hadn't reached yet would otherwise be finalized but
+# still accept team edits (enforce_contest_lock checks is_locked only).
 STAMP_CONTEST_FINALIZED_STMT = text(
-    "UPDATE dream11.contests SET finalized_at = now() WHERE id = :contest_id AND finalized_at IS NULL"
+    "UPDATE dream11.contests SET finalized_at = now(), is_locked = TRUE "
+    "WHERE id = :contest_id AND finalized_at IS NULL"
 )
 
 TEAMS_QUERY = text("SELECT id AS team_id, user_id FROM dream11.teams WHERE contest_id = :contest_id")
@@ -378,6 +383,41 @@ def score_dream11_contest(engine, contest_id: int) -> dict:
             conn.execute(UPDATE_CONTEST_MEMBER_RANK_STMT, {"contest_id": contest_id, "user_id": user_id, "rank": rank})
 
     return {"scored": scored, "failed": failed, "skipped_finalized": False}
+
+
+# A contest whose match will not produce a result: POSTPONED (FPL removed
+# the kickoff -- Data/fpl_ingest.py's ingest_upcoming_fixtures clears
+# ml.fixtures.kickoff_time) or ABANDONED (kicked off but still not finished
+# a week later). Without this such a contest waits forever, since
+# finalization needs fixtures.finished. Voiding locks it (no more team
+# edits, enforce_contest_lock) and stamps finalized_at too, so it stops
+# being rescored and every existing "is it over" check sees it closed.
+# A postponed-then-rescheduled match does not revive the contest; managers
+# create a new one against the new date.
+ABANDONED_AFTER = "7 days"
+
+VOID_UNPLAYABLE_CONTESTS_STMT = text(
+    f"""
+    UPDATE dream11.contests c
+    SET is_locked = TRUE,
+        finalized_at = now(),
+        voided_at = now(),
+        void_reason = CASE WHEN f.kickoff_time IS NULL THEN 'postponed' ELSE 'abandoned' END
+    FROM ml.fixtures f
+    WHERE f.id = c.fixture_id
+      AND c.finalized_at IS NULL
+      AND f.finished IS NOT TRUE
+      AND (f.kickoff_time IS NULL OR f.kickoff_time < NOW() - INTERVAL '{ABANDONED_AFTER}')
+    RETURNING c.id AS contest_id, c.void_reason
+    """
+)
+
+
+def void_unplayable_contests(engine) -> list[tuple[int, str]]:
+    """Void every open contest on a postponed or abandoned fixture.
+    Returns [(contest_id, reason), ...]."""
+    with engine.begin() as conn:
+        return [(r.contest_id, r.void_reason) for r in conn.execute(VOID_UNPLAYABLE_CONTESTS_STMT).all()]
 
 
 def find_contests_needing_finalization(engine) -> list[int]:

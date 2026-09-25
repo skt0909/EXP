@@ -188,8 +188,8 @@ def test_lock_expired_gameweeks_enqueues_and_executes_for_real(engine, real_work
         ).scalar()
         conn.execute(
             text(
-                "INSERT INTO gw_selections (user_id, season, gameweek, captain_id, vice_captain_id, is_locked) "
-                "VALUES (:u, :s, 77, 1, 2, FALSE)"
+                "INSERT INTO gw_selections (user_id, season, gameweek, tactic, is_locked) "
+                "VALUES (:u, :s, 77, 'balanced', FALSE)"
             ),
             {"u": user_id, "s": TEST_SEASON},
         )
@@ -241,7 +241,8 @@ def test_beat_schedule_registers_the_expected_tasks_and_intervals():
 
     assert schedule["lock-dream11-contests"]["task"] == "lock_dream11_contests"
     assert schedule["lock-dream11-contests"]["schedule"] == 300.0
-    assert schedule["revert-free-hits"]["schedule"] == 900.0
+    assert schedule["poll-due-fixtures"]["task"] == "poll_due_fixtures"
+    assert schedule["poll-due-fixtures"]["schedule"] == 60.0
 
     assert schedule["refresh-active-gameweeks"]["task"] == "refresh_active_gameweeks"
     assert schedule["refresh-active-gameweeks"]["schedule"] == 900.0

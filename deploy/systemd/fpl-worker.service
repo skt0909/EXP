@@ -1,0 +1,29 @@
+# Celery worker with Beat embedded (-B): one service runs every scheduled
+# job, including poll-due-fixtures every minute. Linux only -- Celery
+# refuses -B on Windows.
+#
+# --pool=solo: one task process. Prefork would be a parent + a child, two
+#   ~110 MB copies, for tasks that are light and run one at a time.
+# -B forks Beat off the worker, sharing most of its memory. Exactly ONE
+#   worker may run with -B, or every schedule fires twice.
+# --schedule: Beat's last-run file must be somewhere writable.
+#
+# Checkpoints are tracked in Postgres, so a restart mid-match just catches
+# up on the next minute's tick.
+[Unit]
+Description=FPL Celery worker + Beat
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+User=fpl
+WorkingDirectory=/opt/fpl/backend
+ExecStart=/opt/fpl/venv/bin/celery -A Worker.celery_app worker -B --pool=solo \
+    --loglevel=info --schedule /var/lib/fpl/celerybeat-schedule
+StateDirectory=fpl
+Restart=always
+RestartSec=10
+MemoryMax=350M
+
+[Install]
+WantedBy=multi-user.target

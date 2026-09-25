@@ -21,6 +21,7 @@ empty list and GET /transfer-drafts' empty cart.
 """
 
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
@@ -29,6 +30,8 @@ from sqlalchemy import text
 from Shared.db_utils import get_engine
 from Data.auth import CurrentUser, get_current_user
 from Shared.rules import STARTING_XI_SIZE
+from Shared.deadlines import deadline_has_passed
+from Gameplay.selection_rules import last_fixture_end
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
@@ -50,10 +53,43 @@ TACTICAL_SWAPS_QUERY = text(
     "WHERE gw_selection_id = :gw_selection_id ORDER BY id"
 )
 
+# Every player in the manager's ACTIVE squad, independent of whether a
+# selection has ever been submitted for this gameweek -- fixture_windows
+# has to cover all 15 so the Starting XI screen can show swap eligibility
+# before the first save, not just play back a saved one.
+ACTIVE_SQUAD_IDS_QUERY = text(
+    "SELECT sp.player_id FROM squad_players sp "
+    "JOIN user_squads us ON us.id = sp.user_squad_id "
+    "WHERE us.user_id = :user_id AND us.season = :season AND sp.is_active = TRUE"
+)
+
+# Same join shape as Gameplay/starting_xi.py's PLAYER_FIXTURES_QUERY (keyed by
+# fpl_id, via ml.players -> ml.fixtures on team) -- one row per fixture, so a
+# double Gameweek player appears twice and last_fixture_end (imported from
+# selection_rules, the swap validator's own function) collapses that
+# correctly to a single "last_end".
+PLAYER_FIXTURES_QUERY = text(
+    """
+    SELECT p.fpl_id AS player_id, f.kickoff_time
+    FROM ml.players p
+    JOIN ml.fixtures f
+      ON f.season = p.season
+     AND (f.home_team_id = p.team_id OR f.away_team_id = p.team_id)
+    WHERE p.season = :season
+      AND f.gameweek = :gameweek
+      AND p.fpl_id = ANY(:player_ids)
+    """
+)
+
 
 class SwapPayload(BaseModel):
     player_out_id: int
     player_in_id: int
+
+
+class FixtureWindow(BaseModel):
+    first_kickoff: datetime
+    last_end: datetime
 
 
 class CurrentSelectionResponse(BaseModel):
@@ -66,6 +102,17 @@ class CurrentSelectionResponse(BaseModel):
     bench_order: list[int]
     bonus_player_ids: list[int]
     swaps: list[SwapPayload]
+    # Additive (Phase 5+): per-squad-player gameweek fixture timing, so the
+    # client can show Tactical Swap eligibility before submitting rather than
+    # discovering a timing violation from a 422. Keyed by fpl_id as a string
+    # (JSON object keys are always strings); absent for a player with no
+    # fixture this gameweek -- that is not itself an error, see
+    # selection_rules.py's own comment on the same point.
+    fixture_windows: dict[str, FixtureWindow] = {}
+    # Whether Gameplay/starting_xi.py would currently reject a submission as
+    # too late -- same Shared.deadlines.deadline_has_passed() the write path
+    # itself checks, not re-derived.
+    deadline_passed: bool = False
 
 
 @router.get("/gw_selection", response_model=CurrentSelectionResponse)
@@ -82,6 +129,12 @@ def get_current_selection(
             GW_SELECTION_ROW_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
         ).first()
 
+        squad_ids = [
+            r.player_id
+            for r in conn.execute(ACTIVE_SQUAD_IDS_QUERY, {"user_id": user_id, "season": season})
+        ]
+        fixture_windows = _fixture_windows(conn, season, gameweek, squad_ids)
+
         if sel_row is None:
             return CurrentSelectionResponse(
                 user_id=user_id,
@@ -93,6 +146,8 @@ def get_current_selection(
                 bench_order=[],
                 bonus_player_ids=[],
                 swaps=[],
+                fixture_windows=fixture_windows,
+                deadline_passed=deadline_has_passed(engine, season, gameweek),
             )
 
         slot_rows = conn.execute(STARTING_XI_SLOTS_QUERY, {"gw_selection_id": sel_row.gw_selection_id}).all()
@@ -113,4 +168,26 @@ def get_current_selection(
         bonus_player_ids=[r.player_id for r in slot_rows if r.is_bonus],
         swaps=[SwapPayload(player_out_id=r.player_out_id, player_in_id=r.player_in_id)
                for r in swap_rows],
+        fixture_windows=fixture_windows,
+        deadline_passed=deadline_has_passed(engine, season, gameweek),
     )
+
+
+def _fixture_windows(conn, season: str, gameweek: int, player_ids: list[int]) -> dict[str, FixtureWindow]:
+    """{fpl_id (as str): FixtureWindow} for every id in player_ids that has at
+    least one fixture this gameweek. A player with none is simply absent --
+    matching selection_rules.py's own stance that no fixture is not an error,
+    just something that blocks a swap."""
+    if not player_ids:
+        return {}
+
+    kickoffs_by_player: dict[int, list] = {}
+    for row in conn.execute(
+        PLAYER_FIXTURES_QUERY, {"season": season, "gameweek": gameweek, "player_ids": player_ids}
+    ):
+        kickoffs_by_player.setdefault(row.player_id, []).append(row.kickoff_time)
+
+    return {
+        str(pid): FixtureWindow(first_kickoff=min(kickoffs), last_end=last_fixture_end(kickoffs))
+        for pid, kickoffs in kickoffs_by_player.items()
+    }

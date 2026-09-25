@@ -1,0 +1,17 @@
+# Daily, not weekly: --auto only writes once the previous gameweek is
+# finished and settled, and does nothing otherwise, so a daily check picks
+# up midweek gameweeks and late bonus confirmations without a hand-picked
+# day. A run that has nothing to do costs one small query.
+#
+# Enable with: sudo systemctl enable --now fpl-backfill.timer
+[Unit]
+Description=Daily FPL prediction backfill check
+
+[Timer]
+# 05:30 UTC -- a quiet hour, after FPL's overnight updates.
+OnCalendar=*-*-* 05:30:00 UTC
+# Run on boot if the server was off at 05:30.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

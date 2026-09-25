@@ -3,20 +3,21 @@ celery_app.py — Celery application instance (Redis running locally via
 Docker) plus the Beat schedule for the three automation tasks in
 Worker/tasks.py.
 
-Run a worker with:
-    celery -A Worker.celery_app worker --loglevel=info --pool=solo
-(--pool=solo is required on Windows -- the default prefork pool needs
-os.fork, which Windows doesn't have.)
+On Linux (Ubuntu dev, the e2-micro server), run the worker with Beat
+embedded:
+    celery -A Worker.celery_app worker -B --pool=solo --loglevel=info
+--pool=solo keeps it to one task process (prefork's parent + child would
+be two ~110 MB copies; these tasks are light and run one at a time). -B
+forks Beat off the worker, so the two share most of their memory. Only
+ever pass -B to ONE worker -- two Beats fire every schedule twice.
 
-Beat is a SEPARATE process from the worker -- it only schedules tasks
-onto the broker on the configured intervals, it doesn't execute them
-itself. Run it alongside the worker above, in its own terminal:
+On Windows, Celery refuses -B ("-B option does not work on Windows"), and
+the prefork pool needs os.fork, so run two processes:
+    celery -A Worker.celery_app worker --pool=solo --loglevel=info
     celery -A Worker.celery_app beat --loglevel=info
-Both processes must be running for the schedule below to actually fire
-(worker with no beat = tasks never get triggered on a schedule, only
-via manual .delay()/.apply_async() calls; beat with no worker = tasks
-get scheduled but never picked up and run). This is a manual
-dev-environment step for now -- not automated/supervised.
+
+Beat only schedules tasks onto the broker; the worker executes them. Both
+must be running for the schedule below to fire.
 
 The Redis URL comes from the environment, resolved by _redis_url()
 below in deliberately the same shape as Game_logic/db_utils.py's
@@ -98,10 +99,11 @@ app = Celery(
     include=["Worker.tasks"],
 )
 
-# .apply_async() is called from inside code that has ALREADY committed to
-# the database and treats scheduling as best-effort: Game_logic/dream11.py's
-# create_contest (inside an HTTP request), Worker/tasks.py's
-# schedule_fixture_polls. Celery's DEFAULT result
+# .apply_async()/.delay() used to be called from inside code that had
+# ALREADY committed to the database and treated scheduling as best-effort
+# (contest creation booking its polls, inside an HTTP request). Nothing in
+# the app does that any more -- live polling is poll_due_fixtures on Beat --
+# but these bounds still keep any publish from hanging. Celery's DEFAULT result
 # backend retry policy is max_retries=20 at ~5s per attempt, so with Redis
 # unreachable those try/except blocks did not run for ~100 SECONDS -- the
 # HTTP request just hung -- and the attempt then ended in "Retry limit
@@ -133,10 +135,30 @@ if os.getenv("ENVIRONMENT") == "simulation" and os.getenv("SIMULATION_REDIS_VISI
     )
 app.conf.task_publish_retry_policy = _FAIL_FAST_RETRY_POLICY
 
+# Memory bounds. The concurrency and per-child limits only apply to the
+# prefork pool (Linux); --pool=solo on Windows is already one process.
+# Prefork's default concurrency is the CPU count, each child a full copy
+# of the app, which is far more than five light Beat tasks need.
+app.conf.worker_concurrency = int(os.getenv("CELERY_CONCURRENCY", "1"))
+app.conf.worker_max_tasks_per_child = 50
+app.conf.worker_max_memory_per_child = 300_000  # KiB: recycle a child past ~300 MB
+app.conf.worker_prefetch_multiplier = 1
+# Results are only ever read back right away (the .get() calls in
+# test_celery_wiring.py), so they don't need Celery's 1-day default in Redis.
+app.conf.result_expires = 3600
+
 app.conf.beat_schedule = {
     "lock-expired-gameweeks": {
         "task": "lock_expired_gameweeks",
         "schedule": _beat_interval(300.0),  # every 5 minutes
+    },
+    "carry-forward-selections": {
+        # Same 5-minute cadence as lock-expired-gameweeks: this is what
+        # keeps the Dashboard's pitch/bench view populated for the next
+        # gameweek before a manager has touched Starting XI, so it should
+        # be at least as prompt as locking itself.
+        "task": "carry_forward_selections",
+        "schedule": _beat_interval(300.0),
     },
     "lock-dream11-contests": {
         # Same 5-minute cadence as lock-expired-gameweeks: this is the only
@@ -150,36 +172,46 @@ app.conf.beat_schedule = {
         "schedule": _beat_interval(900.0),  # every 15 minutes
     },
     "finalize-dream11-contests": {
-        # Every 15 minutes. Deliberately the same cadence as
-        # refresh-fixtures below, and necessarily NOT faster: this task
-        # gates on ml.fixtures.finished, which is exactly what that task
-        # writes, so finalization can only ever be as current as the
-        # fixture refresh feeding it.
+        # Every 15 minutes: voids contests on postponed/abandoned fixtures,
+        # then finalizes any poll-due-fixtures' 'final' checkpoint left
+        # open. Gates on ml.fixtures.finished, which refresh-fixtures writes.
         "task": "finalize_dream11_contests",
         "schedule": _beat_interval(900.0),
     },
+    "poll-due-fixtures": {
+        # Every minute, for both game modes: runs each fixture's halftime
+        # (kickoff+50), fulltime (kickoff+115) and final (finished) checkpoint
+        # the moment it is due. Nothing is booked ahead in Redis. With no
+        # match on, one small query and no API call.
+        "task": "poll_due_fixtures",
+        "schedule": _beat_interval(60.0),
+    },
     "refresh-fixtures": {
-        # Every 15 minutes, matching schedule-fixture-polls below, which
-        # reads the rows this writes and is therefore only ever as fresh
-        # as this is. Without this entry ml.fixtures only ever changed
-        # when someone ran fpl_ingest.py by hand, so played matches sat at
-        # finished=FALSE indefinitely and later gameweeks never got their
-        # scores at all.
+        # Ticks every 15 minutes but only calls FPL while a fixture is in
+        # play or once a day (Data/live_poll.py's fixtures_refresh_reason).
+        # Its finished flag is what makes a fixture's 'final' checkpoint due.
         "task": "refresh_fixtures",
         "schedule": _beat_interval(900.0),
     },
-    "schedule-fixture-polls": {
-        "task": "schedule_fixture_polls",
-        "schedule": _beat_interval(900.0),  # every 15 minutes -- catches newly-ingested upcoming fixtures without excessive overhead
+    "refresh-player-prices": {
+        # 01:30 UTC (02:30 UK summer time), after FPL's overnight price
+        # changes: now_cost for GW mode's buy/sell prices, plus new players.
+        "task": "refresh_player_prices",
+        "schedule": crontab(hour=1, minute=30),
     },
-    "schedule-predictions-weekly": {
-        # Tuesday 06:00 UTC -- FPL deadlines are typically Fri/Sat, so this
-        # gives several days' lead time before the next gameweek locks.
-        # Flagged per the task brief: change day_of_week/hour here if a
-        # different lead time is wanted.
-        "task": "schedule_predictions",
-        "schedule": crontab(hour=6, minute=0, day_of_week=2),
-    },
+    #
+    # schedule-predictions-weekly is disabled (not deleted) along with the
+    # schedule_predictions / run_ml_pipeline tasks in Worker/tasks.py:
+    # predictions are backfilled, so the ML pipeline no longer runs, and
+    # dropping it keeps xgboost out of the worker and Beat. Re-enable all
+    # three together.
+    #
+    # "schedule-predictions-weekly": {
+    #     # Tuesday 06:00 UTC -- FPL deadlines are typically Fri/Sat, so this
+    #     # gives several days' lead time before the next gameweek locks.
+    #     "task": "schedule_predictions",
+    #     "schedule": crontab(hour=6, minute=0, day_of_week=2),
+    # },
 }
 
 if os.getenv("ENVIRONMENT") == "simulation" and os.getenv("SIMULATION_BEAT_LOCK_ONLY") == "1":

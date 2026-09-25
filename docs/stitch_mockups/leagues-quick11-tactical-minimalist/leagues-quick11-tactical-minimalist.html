@@ -1,0 +1,218 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>Q-League - Create &amp; Join League</title>
+<!-- Tailwind CSS CDN with Forms & Container Queries -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script data-purpose="tailwind-config">
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          colors: {
+            surface: {
+              DEFAULT: '#FBF9F5',
+              dim: '#DBDAD6',
+              card: '#FFFFFF',
+              border: '#E5E6E1',
+            },
+            editorial: {
+              charcoal: '#1D1B20',
+              plum: '#2A082C',
+              olive: '#8DAA3C',
+              muted: '#6B7280',
+              dark: '#1B1C1A',
+            }
+          },
+          boxShadow: {
+            xs: '0 1px 2px rgba(0, 0, 0, 0.03)',
+            card: '0 2px 8px -2px rgba(27, 28, 26, 0.04)',
+            dock: '0 8px 32px 0 rgba(29, 27, 32, 0.12)',
+          }
+        }
+      }
+    }
+  </script>
+<!-- Typography & Global Custom Styles -->
+<style data-purpose="typography">
+    body {
+      font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #FBF9F5;
+      color: #1D1B20;
+    }
+  </style>
+<!-- Component Layout Custom Rules -->
+<style data-purpose="layout-styles">
+    /* Remove native iOS input inner shadows & styling */
+    input, select, button {
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    /* Safe-area insets for notched phones */
+    .pb-safe {
+      padding-bottom: env(safe-area-inset-bottom, 24px);
+    }
+    .pt-safe {
+      padding-top: env(safe-area-inset-top, 12px);
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-[#FBF9F5] text-editorial-charcoal selection:bg-[#8DAA3C]/20 flex justify-center">
+<!-- Mobile Screen Container (Constrained for iOS viewport) -->
+<div class="w-full max-w-[420px] min-h-screen flex flex-col relative pb-32">
+<!-- BEGIN: TopBar -->
+<header class="sticky top-0 z-30 bg-[#FBF9F5]/90 backdrop-blur-md border-b border-[#E5E6E1]/60 px-5 py-3.5 flex items-center justify-between" data-purpose="top-navigation-bar"><div class="flex items-center gap-3.5"><button aria-label="Open menu" class="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-sm border border-[#E5E6E1] active:scale-95 transition-transform text-[#1c1b1f] hover:bg-gray-50" type="button"><svg class="w-4 h-4 stroke-current" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><line x1="4" x2="20" y1="7" y2="7"></line><line x1="4" x2="14" y1="12" y2="12"></line><line x1="4" x2="18" y1="17" y2="17"></line></svg></button><span class="text-[17px] font-bold tracking-tight text-[#1c1b1f]" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">Leagues</span></div><div class="flex items-center space-x-2"><button aria-label="Help &amp; Information" class="relative w-9 h-9 rounded-full bg-white border border-[#E5E6E1] shadow-sm flex items-center justify-center text-[#1c1b1f] active:scale-95 transition-transform hover:bg-gray-50"><svg class="w-4 h-4 stroke-current stroke-2" fill="none" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" x2="12.01" y1="17" y2="17"></line></svg></button><button aria-label="User Profile" class="relative w-9 h-9 rounded-full bg-white border border-[#E5E6E1] shadow-sm flex items-center justify-center text-[#1c1b1f] active:scale-95 transition-transform hover:bg-gray-50"><svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"></circle></svg></button></div></header>
+<!-- END: TopBar -->
+<!-- BEGIN: MainContent -->
+<main class="flex-1 px-4 pt-4 flex flex-col gap-4" data-purpose="leagues-main-content">
+<!-- BEGIN: CreateLeagueSection -->
+<section class="bg-white rounded-2xl border border-surface-border p-4 sm:p-5 shadow-xs flex flex-col gap-3.5" data-purpose="create-league-card">
+<!-- Title & Subtitle -->
+<div>
+<h2 class="text-base font-bold text-editorial-charcoal tracking-tight">Create League</h2>
+<p class="text-xs text-editorial-muted leading-relaxed mt-0.5">Pick a match and name your league. It'll appear below, ready to open whenever you want to pick a team.</p>
+</div>
+<!-- Form Elements -->
+<form class="flex flex-col gap-3" onsubmit="event.preventDefault();">
+<!-- Match Picker Dropdown -->
+<div class="flex flex-col gap-1">
+<label class="text-[11px] font-semibold text-editorial-charcoal tracking-wide uppercase" for="match-picker">Match</label>
+<div class="relative">
+<select class="w-full bg-[#FBF9F5] border border-surface-border text-editorial-charcoal text-xs font-medium rounded-xl px-3.5 py-2.5 pr-8 focus:ring-1 focus:ring-editorial-dark focus:border-editorial-dark outline-none cursor-pointer" id="match-picker">
+<option selected="">ARS v LEE · Sat, Oct 10, 12:30 PM</option>
+<option>MCI v LIV · Sun, Oct 11, 4:30 PM</option>
+<option>CHE v TOT · Mon, Oct 12, 8:00 PM</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-editorial-muted">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" fill-rule="evenodd"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- League Name Input -->
+<div class="flex flex-col gap-1">
+<input class="w-full bg-[#FBF9F5] border border-surface-border text-editorial-charcoal placeholder-editorial-muted/70 text-xs rounded-xl px-3.5 py-2.5 focus:ring-1 focus:ring-editorial-dark focus:border-editorial-dark outline-none" placeholder="e.g. Weekend Warriors" type="text">
+</div>
+<!-- Max Members Input -->
+<div class="flex flex-col gap-1">
+<label class="text-[11px] text-editorial-muted" for="max-members">Max members — how many friends can join (2-50)</label>
+<input class="w-full bg-[#FBF9F5] border border-surface-border text-editorial-charcoal font-semibold text-xs rounded-xl px-3.5 py-2.5 focus:ring-1 focus:ring-editorial-dark focus:border-editorial-dark outline-none" id="max-members" max="50" min="2" type="number" value="50">
+</div>
+<!-- Use Saved Team Dropdown -->
+<div class="flex flex-col gap-1">
+<label class="text-[11px] text-editorial-muted" for="team-preference">Use saved team (optional)</label>
+<div class="relative">
+<select class="w-full bg-[#FBF9F5] border border-surface-border text-editorial-charcoal text-xs rounded-xl px-3.5 py-2.5 pr-8 focus:ring-1 focus:ring-editorial-dark focus:border-editorial-dark outline-none cursor-pointer" id="team-preference">
+<option selected="">Pick later — Don't submit one now</option>
+<option>Active Primary XI</option>
+<option>Differential Backup XI</option>
+</select>
+<div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-editorial-muted">
+<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" fill-rule="evenodd"></path>
+</svg>
+</div>
+</div>
+</div>
+<!-- Action CTA Button -->
+<button class="w-full mt-1 bg-[#8daa3c] hover:opacity-90 active:scale-[0.99] text-white font-semibold text-xs rounded-xl py-3 px-4 flex items-center justify-center gap-2 transition-all shadow-sm" type="submit">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="10"></circle>
+<line x1="12" x2="12" y1="8" y2="16"></line>
+<line x1="8" x2="16" y1="12" y2="12"></line>
+</svg>
+<span class="">Create Contest</span>
+</button>
+</form>
+</section>
+<!-- END: CreateLeagueSection -->
+<!-- BEGIN: JoinLeagueSection -->
+<section class="bg-white rounded-2xl border border-surface-border p-4 sm:p-5 shadow-xs flex flex-col gap-3" data-purpose="join-league-card">
+<div>
+<h2 class="text-base font-bold text-editorial-charcoal tracking-tight">Join League</h2>
+<p class="text-xs text-editorial-muted mt-0.5">Enter a friend's invite code, then pick your XI.</p>
+</div>
+<!-- Join Form Row -->
+<form class="flex items-center gap-2" onsubmit="event.preventDefault();">
+<input class="flex-1 bg-[#FBF9F5] border border-surface-border text-editorial-charcoal placeholder-editorial-muted/70 text-xs rounded-xl px-3.5 py-2.5 uppercase tracking-wider focus:ring-1 focus:ring-editorial-dark focus:border-editorial-dark outline-none" placeholder="Enter invite code" type="text">
+<button class="text-white text-xs font-semibold px-4 py-2.5 rounded-xl whitespace-nowrap active:scale-95 transition-all bg-[#8daa3c] hover:opacity-90" type="submit">
+            Join Team
+          </button>
+</form>
+</section>
+<!-- END: JoinLeagueSection -->
+<!-- BEGIN: YourLeaguesSection -->
+<section class="flex flex-col gap-2 mt-1" data-purpose="your-leagues-container">
+<!-- Section Header -->
+<div class="px-0.5">
+<h2 class="text-base font-bold text-editorial-charcoal tracking-tight">Your Leagues</h2>
+<p class="text-xs text-editorial-muted font-medium mt-0.5">1 league · single-match, 100 credits, 11 players</p>
+</div>
+<!-- League Summary Card Item -->
+<article class="bg-white rounded-2xl border border-surface-border p-4 shadow-xs flex flex-col gap-2 relative">
+<!-- Top Row: Name, Status Badge, Edit/Share Trigger -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-bold text-sm text-editorial-charcoal">Warrior</span>
+<span class="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#8DAA3C]/15 text-[#637C25] uppercase">
+                OPEN
+              </span>
+</div>
+<!-- Actions / Edit Icon -->
+<button aria-label="League actions" class="text-editorial-muted hover:text-editorial-charcoal p-1" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+<path d="M12 20h9"></path>
+<path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+</svg>
+</button>
+</div>
+<!-- Middle Row: Match Badge & Clubs -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2 text-xs font-medium text-editorial-charcoal">
+<!-- Team Crest Mini Disc (Arsenal Red representation) -->
+<div class="w-4 h-4 rounded-full bg-[#EF0107] border border-black/10 flex items-center justify-center text-[8px] text-white font-black" title="Arsenal">
+                A
+              </div>
+<span class="">ARS v LEE · GW6</span>
+<!-- Single-match Token icon -->
+<div class="w-4 h-4 rounded-full border border-gray-300 flex items-center justify-center text-[9px] text-gray-500 font-bold bg-[#FBF9F5]">
+                ⏱
+              </div>
+</div>
+<!-- Rank & Score display -->
+<div class="text-right">
+<div class="text-xs font-bold font-mono tracking-tight text-editorial-charcoal leading-none">0</div>
+<div class="text-[10px] text-editorial-muted font-medium mt-0.5">Rank 1</div>
+</div>
+</div>
+<!-- Bottom Row: Membership count -->
+<div class="text-[11px] text-editorial-muted font-medium pt-1 border-t border-gray-100 flex items-center justify-between">
+<span class="">1/2 members</span>
+<span class="text-[10px] text-editorial-olive font-semibold">Active now</span>
+</div>
+</article>
+</section>
+<!-- END: YourLeaguesSection -->
+</main>
+<!-- END: MainContent -->
+<!-- BEGIN: FloatingDockNavigation -->
+
+<!-- END: FloatingDockNavigation -->
+</div>
+
+
+
+
+
+
+
+
+
+
+</body></html>

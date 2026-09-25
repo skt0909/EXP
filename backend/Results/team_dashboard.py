@@ -16,9 +16,7 @@ than introducing any new scoring or ranking logic of its own:
 - gw_scores (written by Results/scoring.py) for this gameweek's points,
   season_total, and the season_total-based rank/average computed here.
 - starting_xi/gw_selections (written by Gameplay/starting_xi.py) for the
-  picked lineup + bench, captain/vice-captain flags, and chip_used (to
-  pick the captain multiplier -- 3x under triple_captain, 2x otherwise,
-  same rule Results/scoring.py uses).
+  picked lineup, bench roles, tactic, Bonus Players, and Tactical Swaps.
 - user_squads/squad_players for team_value (sum of the active 15 squad's
   purchase_price) and bank (user_squads.budget_remaining).
 - Shared.deadlines.resolve_gameweek_deadline for the deadline,
@@ -47,9 +45,6 @@ from sqlalchemy import text
 
 from Shared.db_utils import get_engine
 from Data.auth import CurrentUser, get_current_user
-# Shared with scoring.py rather than redeclared here -- this module used to
-# keep its own copies, and the two had to agree or the multiplier shown
-# beside a score would contradict the score itself.
 from Shared.deadlines import deadline_has_passed, resolve_gameweek_deadline
 # Phase 4b: per-player points are computed at request time by the TACTICAL
 # engine, for THIS manager and gameweek. The classic scoring.py is no longer
@@ -105,12 +100,9 @@ STARTING_XI_ROWS_QUERY = text(
     """
 )
 
-# raw_points/final_points/hit_deductions back the Dashboard's points-breakdown
-# table. They are read straight from gw_scores (written by
-# Results/scoring.py) rather than recomputed here -- scoring.py is the only
-# place the captain rule lives, and raw_points there is deliberately the sum of
-# the effective XI at each player's TRUE base value with the captain NOT
-# doubled, so captain_bonus = final_points - raw_points cannot double-count.
+# raw_points/final_points/tactical_points/sub_bonus back the Dashboard's
+# points-breakdown table. They are read straight from gw_scores when the job
+# has run, and otherwise mirrored from the live tactical engine calculation.
 GW_SCORE_QUERY = text(
     "SELECT raw_points, final_points, tactical_points, sub_bonus, total_points, season_total "
     "FROM gw_scores WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
@@ -181,16 +173,6 @@ class PlayerLine(BaseModel):
     # component resolves a real kit graphic from. Same field GET /squad's
     # CurrentSquadPlayerOut already carries for the same purpose.
     club: str
-    # NULLABLE since 4b: an unscored gameweek returns null rather than 0, so a
-    # client cannot render "0 points" for a gameweek that will never be scored.
-    #
-    # DEPRECATED (F1). This key used to be FPL's own total_points and is now
-    # the engine's GENERAL points -- same name, different definition. It is
-    # kept so the current frontend keeps rendering; use `general_points`
-    # instead. Removed in the frontend phase.
-    points: int | None
-    is_captain: bool
-    is_vice_captain: bool
     # Autosub outcome for THIS gameweek, recomputed for display via
     # scoring.resolve_autosubs (the swaps aren't persisted anywhere -- scoring
     # derives them in memory and only stores the resulting totals). Reusing
@@ -246,8 +228,6 @@ class TeamDashboardResponse(BaseModel):
     # it is the same OR Gameplay/transfers.py and Gameplay/starting_xi.py
     # enforce with.
     is_locked: bool
-    chip_used: str | None
-    captain_multiplier: int
     gw_points: int | None
     gw_average: float | None
     season_total: int
@@ -257,9 +237,6 @@ class TeamDashboardResponse(BaseModel):
     # a real score rather than "not scored yet", so the UI needs the flag.
     has_score: bool
     raw_points: int | None
-    captain_bonus: int
-    transfer_hits: int
-    hit_deductions: int
     final_total: int | None
     # 'upcoming' | 'live' | 'final' -- whether this gameweek's fixtures are all
     # done, in progress, or not started. Points shown during 'live' are partial.
@@ -380,15 +357,6 @@ def get_team_dashboard(
         # closed deadline.
         locked_by_flag = selection_row is not None and selection_row.is_locked
         is_locked = bool(locked_by_flag or deadline_passed)
-        # Chips are gone. The key stays in the response so the current frontend
-        # keeps rendering; it is always None now, and the frontend phase
-        # removes it. Same for captain_multiplier below.
-        chip_used = None
-        # An INTEGER, always 1, never null (F6). A client doing
-        # points * captain_multiplier keeps working and gets the right answer;
-        # null would break that arithmetic. Captaincy is removed, and 1 is what
-        # "no multiplier" means.
-        captain_multiplier = 1
         tactic = selection_row.tactic if has_lineup else None
 
         lineup = _empty_lineup()
@@ -444,13 +412,6 @@ def get_team_dashboard(
                     name=r.web_name,
                     position=r.position,
                     club=r.club,
-                    # `points` keeps its meaning for the current frontend: the
-                    # player's own points this gameweek. It is now GENERAL
-                    # points from the engine rather than FPL's total_points.
-                    points=p.general_points if p is not None else 0,
-                    # Captaincy is gone; both stay present and always False.
-                    is_captain=False,
-                    is_vice_captain=False,
                     is_autosubbed_in=(p is not None and p.role == "auto_sub_cover"),
                     is_autosubbed_out=(p is not None and p.role == "auto_sub_replaced"),
                     role=p.role if p is not None else "starter",
@@ -474,13 +435,6 @@ def get_team_dashboard(
 
         has_score = gw_score_row is not None
         raw_points = gw_score_row.raw_points if has_score else general_total
-        # Captaincy is gone, so there is no captain bonus. The key stays at 0
-        # for the current frontend; tactical_points and sub_bonus below are
-        # what actually sit between raw and final now.
-        captain_bonus = 0
-        # Hits are gone. Both keys stay at 0.
-        transfer_hits = 0
-        hit_deductions = 0
         # gw_scores.total_points when the job has run, the engine's own total
         # otherwise -- so a gameweek being scored right now still shows a
         # coherent bottom line instead of 0.
@@ -574,7 +528,6 @@ def get_team_dashboard(
         raw_points = final_total = gw_points = None
         for group in (lineup.GK, lineup.DEF, lineup.MID, lineup.FWD, bench):
             for line in group:
-                line.points = None
                 line.general_points = None
                 line.tactical_points = None
                 line.general_breakdown = []
@@ -589,13 +542,8 @@ def get_team_dashboard(
         deadline=deadline.isoformat() if deadline is not None else None,
         has_lineup=has_lineup,
         is_locked=is_locked,
-        chip_used=chip_used,
-        captain_multiplier=captain_multiplier,
         has_score=has_score,
         raw_points=raw_points,
-        captain_bonus=captain_bonus,
-        transfer_hits=transfer_hits,
-        hit_deductions=hit_deductions,
         final_total=final_total,
         live_status=live_status,
         gw_points=gw_points,

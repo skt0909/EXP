@@ -65,13 +65,17 @@ class SelectionInput:
     swaps: list = field(default_factory=list)
 
 
-def _last_fixture_end(kickoffs):
+def last_fixture_end(kickoffs):
     """When the player's gameweek is over, in his own terms.
 
     A double gameweek is treated as ONE block: the end is the LAST kickoff plus
     the fixture duration, not the first. Swapping in someone who kicks off
     between a player's two fixtures would otherwise look legal while the
-    outgoing player was still to play again."""
+    outgoing player was still to play again.
+
+    Public (not `_`-prefixed) so Gameplay/lineup.py's fixture_windows can
+    compute the identical "last_end" a Tactical Sub is checked against here --
+    one definition, not two that could drift."""
     from datetime import timedelta
     return max(kickoffs) + timedelta(minutes=FIXTURE_DURATION_MIN)
 
@@ -260,7 +264,7 @@ def validate_selection(sel, squad_ids, positions, fixtures_by_player,
         if out_fixtures and in_fixtures:
             # Strictly after: a kickoff exactly as the previous fixture ends is
             # not "after" it, and the manager gains nothing from the tie.
-            if min(in_fixtures) <= _last_fixture_end(out_fixtures):
+            if min(in_fixtures) <= last_fixture_end(out_fixtures):
                 errors.append(
                     f"swap: incoming player {in_id}'s first kickoff must be after "
                     f"outgoing player {out_id}'s last fixture ends "

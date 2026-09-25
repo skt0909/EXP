@@ -1,0 +1,501 @@
+<!DOCTYPE html><html lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>Matches — Premier Fantasy</title>
+<!-- Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              DEFAULT: '#78952D',
+              dark: '#5F7823',
+              light: '#EEF3DF',
+              subtle: '#F4F7EB'
+            },
+            app: {
+              bg: '#F5F5F2',
+              card: '#FFFFFF',
+              surface: '#F8F8F5',
+              border: '#E5E6E1',
+              text: '#171816',
+              secondary: '#70726C',
+              muted: '#9A9C96'
+            }
+          },
+          fontFamily: {
+            sans: ['"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          boxShadow: {
+            'card': '0 2px 8px -2px rgba(23, 24, 22, 0.04), 0 1px 3px -1px rgba(23, 24, 22, 0.02)',
+            'float': '0 12px 32px -4px rgba(23, 24, 22, 0.12), 0 4px 12px -2px rgba(23, 24, 22, 0.06)'
+          }
+        }
+      }
+    }
+  </script>
+<!-- Typography & Global Layout Styles -->
+<style data-purpose="typography">
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      background-color: #F5F5F2;
+      color: #171816;
+    }
+    
+    /* Touch optimization */
+    button, a {
+      -webkit-tap-highlight-color: transparent;
+    }
+  </style>
+<!-- Component Enhancements -->
+<style data-purpose="components">
+    .ios-safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 20px);
+    }
+    .ios-safe-top {
+      padding-top: env(safe-area-inset-top, 12px);
+    }
+    .hide-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .hide-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-app-bg text-app-text min-h-screen flex flex-col justify-between selection:bg-brand-light selection:text-brand-dark pb-28">
+<!-- BEGIN: MainHeader -->
+<header class="sticky top-0 z-30 bg-[#fbf9f5]/90 backdrop-blur-md border-b border-[#e5e6e1]/60 px-5 py-3.5 flex flex-col gap-2.5 ios-safe-top"><div class="flex items-center justify-between w-full"><div class="flex items-center gap-3.5"><button aria-label="Open navigation menu" class="w-9 h-9 rounded-full bg-white border border-[#e5e6e1] shadow-sm flex items-center justify-center text-[#1c1b1f] hover:bg-[#f5f3f0] active:scale-95 transition-all" id="open-menu-btn"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24"><line x1="4" x2="20" y1="7" y2="7"></line><line x1="4" x2="14" y1="12" y2="12"></line><line x1="4" x2="18" y1="17" y2="17"></line></svg></button><span class="text-[17px] font-bold tracking-tight text-[#1c1b1f]">Matches</span></div><div class="flex items-center space-x-2"><button aria-label="Help and information" class="w-9 h-9 rounded-full bg-white border border-[#e5e6e1] shadow-sm flex items-center justify-center text-[#1c1b1f] hover:bg-[#f5f3f0] active:scale-95 transition-all"><svg class="w-4 h-4 stroke-current stroke-2" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg></button><button aria-label="View user profile" class="w-9 h-9 rounded-full bg-white border border-[#e5e6e1] shadow-sm flex items-center justify-center text-[#49454f] hover:bg-[#f5f3f0] active:scale-95 transition-all overflow-hidden"><svg class="w-4 h-4 stroke-current stroke-2" fill="none" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="12" cy="7" r="4" stroke-linecap="round" stroke-linejoin="round"></circle></svg></button></div></div><div class="flex items-center justify-between text-[13px] leading-tight pt-0.5"><p class="text-app-secondary font-normal tracking-tight truncate pr-2"><span class="font-medium text-app-text">2026-27</span> · Pick a match to create or join a contest</p><span class="shrink-0 bg-brand-light text-brand-dark px-2.5 py-0.5 rounded-full text-[11px] font-semibold tracking-wide uppercase">GW 6</span></div></header>
+<!-- END: MainHeader -->
+<!-- BEGIN: MainContent -->
+<main class="px-4 py-4 space-y-6 max-w-md mx-auto w-full">
+<!-- BEGIN: UpcomingMatchesSection -->
+<section aria-labelledby="upcoming-heading" class="space-y-3.5">
+<!-- Section Header -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex items-center space-x-2">
+<h2 class="text-[17px] font-bold tracking-tight text-app-text" id="upcoming-heading">Upcoming</h2>
+<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-app-surface text-app-secondary border border-app-border">
+            330
+          </span>
+</div>
+
+</div>
+<!-- Match Card 1: Featured / In-Contest (ARS vs LEE) -->
+<article class="bg-app-card rounded-2xl border border-app-border shadow-card p-4 space-y-3 relative overflow-hidden" data-purpose="match-card-featured">
+<div class="absolute top-0 left-0 w-1 h-full bg-brand"></div>
+<!-- Meta Header: Time & Badges -->
+<div class="flex items-center justify-between text-xs">
+<div class="flex items-center space-x-2">
+<span class="font-semibold text-app-text">Sat, Oct 10 · 12:30 PM</span>
+</div>
+<div class="flex items-center space-x-1.5">
+<span class="bg-brand text-white font-medium text-[11px] px-2 py-0.5 rounded-full">2 Leagues</span>
+<span class="text-app-secondary font-medium text-[11px] bg-app-surface px-1.5 py-0.5 rounded border border-app-border/70">15d 17h</span>
+</div>
+</div>
+<!-- Matchup Display -->
+<div class="py-2 flex items-center justify-between px-2">
+<!-- Home: ARS -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#EF0107]/10 border border-[#EF0107]/20 flex items-center justify-center font-bold text-xs text-[#EF0107] shrink-0">
+              ARS
+            </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">ARS</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<!-- Divider -->
+<div class="px-2 text-xs font-medium text-app-muted uppercase tracking-wider">vs</div>
+<!-- Away: LEE -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">LEE</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#FFCD00]/15 border border-[#1D428A]/30 flex items-center justify-center font-bold text-xs text-[#1D428A] shrink-0">
+              LEE
+            </div>
+</div>
+</div>
+<!-- User Performance Bar -->
+<div class="bg-app-surface rounded-xl p-2.5 border border-app-border flex items-center justify-between text-xs">
+<div class="flex items-center space-x-2">
+<svg class="w-4 h-4 text-brand" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="text-app-secondary font-medium">Your performance · <strong class="text-app-text font-semibold">Rank 1 of 1</strong></span>
+</div>
+<span class="bg-[#2D6A4F] text-white px-2 py-0.5 rounded text-[11px] font-bold tracking-wider">0 pts</span>
+</div>
+<!-- Footer Link -->
+<div class="pt-1 text-center">
+<a class="inline-flex items-center justify-center text-xs font-semibold text-brand hover:text-brand-dark transition-colors py-1 group" href="#">
+            View Leagues<svg class="w-3.5 h-3.5 ml-1 transform group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+</div>
+</article>
+<!-- Match Card 2: AVL vs BRE -->
+<article class="bg-app-card rounded-2xl border border-app-border shadow-card p-4 space-y-3" data-purpose="match-card">
+<div class="flex items-center justify-between text-xs">
+<span class="font-semibold text-app-text">Sat, Oct 10 · 03:00 PM</span>
+<span class="text-app-secondary font-medium text-[11px] bg-app-surface px-1.5 py-0.5 rounded border border-app-border/70">15d 19h</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- AVL -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#670E36]/10 border border-[#670E36]/25 flex items-center justify-center font-bold text-xs text-[#670E36] shrink-0">
+              AVL
+            </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">AVL</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<div class="px-2 text-xs font-medium text-app-muted uppercase tracking-wider">vs</div>
+<!-- BRE -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">BRE</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#E30613]/10 border border-[#E30613]/25 flex items-center justify-center font-bold text-xs text-[#E30613] shrink-0">
+              BRE
+            </div>
+</div>
+</div>
+<button class="w-full py-2.5 px-4 rounded-xl bg-brand-light text-brand-dark hover:bg-brand/20 active:scale-[0.99] transition-all font-semibold text-xs flex items-center justify-center space-x-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<path d="M12 8v8m-4-4h8" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="">Create Team</span>
+</button>
+</article>
+<!-- Match Card 3: CHE vs BOU -->
+<article class="bg-app-card rounded-2xl border border-app-border shadow-card p-4 space-y-3" data-purpose="match-card">
+<div class="flex items-center justify-between text-xs">
+<span class="font-semibold text-app-text">Sat, Oct 10 · 03:00 PM</span>
+<span class="text-app-secondary font-medium text-[11px] bg-app-surface px-1.5 py-0.5 rounded border border-app-border/70">15d 19h</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- CHE -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#034694]/10 border border-[#034694]/25 flex items-center justify-center font-bold text-xs text-[#034694] shrink-0">
+              CHE
+            </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">CHE</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<div class="px-2 text-xs font-medium text-app-muted uppercase tracking-wider">vs</div>
+<!-- BOU -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">BOU</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#DA291C]/10 border border-[#DA291C]/25 flex items-center justify-center font-bold text-xs text-[#DA291C] shrink-0">
+              BOU
+            </div>
+</div>
+</div>
+<button class="w-full py-2.5 px-4 rounded-xl bg-brand-light text-brand-dark hover:bg-brand/20 active:scale-[0.99] transition-all font-semibold text-xs flex items-center justify-center space-x-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<path d="M12 8v8m-4-4h8" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="">Create Team</span>
+</button>
+</article>
+<!-- Match Card 4: IPS vs FUL -->
+<article class="bg-app-card rounded-2xl border border-app-border shadow-card p-4 space-y-3" data-purpose="match-card">
+<div class="flex items-center justify-between text-xs">
+<span class="font-semibold text-app-text">Sat, Oct 10 · 03:00 PM</span>
+<span class="text-app-secondary font-medium text-[11px] bg-app-surface px-1.5 py-0.5 rounded border border-app-border/70">15d 19h</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- IPS -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#004B87]/10 border border-[#004B87]/25 flex items-center justify-center font-bold text-xs text-[#004B87] shrink-0">
+              IPS
+            </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">IPS</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<div class="px-2 text-xs font-medium text-app-muted uppercase tracking-wider">vs</div>
+<!-- FUL -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">FUL</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-black/5 border border-black/20 flex items-center justify-center font-bold text-xs text-app-text shrink-0">
+              FUL
+            </div>
+</div>
+</div>
+<button class="w-full py-2.5 px-4 rounded-xl bg-brand-light text-brand-dark hover:bg-brand/20 active:scale-[0.99] transition-all font-semibold text-xs flex items-center justify-center space-x-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<path d="M12 8v8m-4-4h8" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="">Create Team</span>
+</button>
+</article>
+<!-- Match Card 5: SUN vs BHA -->
+<article class="bg-app-card rounded-2xl border border-app-border shadow-card p-4 space-y-3" data-purpose="match-card">
+<div class="flex items-center justify-between text-xs">
+<span class="font-semibold text-app-text">Sat, Oct 10 · 03:00 PM</span>
+<span class="text-app-secondary font-medium text-[11px] bg-app-surface px-1.5 py-0.5 rounded border border-app-border/70">15d 19h</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- SUN -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#EB172B]/10 border border-[#EB172B]/25 flex items-center justify-center font-bold text-xs text-[#EB172B] shrink-0">
+              SUN
+            </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">SUN</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<div class="px-2 text-xs font-medium text-app-muted uppercase tracking-wider">vs</div>
+<!-- BHA -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">BHA</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#0057B8]/10 border border-[#0057B8]/25 flex items-center justify-center font-bold text-xs text-[#0057B8] shrink-0">
+              BHA
+            </div>
+</div>
+</div>
+<button class="w-full py-2.5 px-4 rounded-xl bg-brand-light text-brand-dark hover:bg-brand/20 active:scale-[0.99] transition-all font-semibold text-xs flex items-center justify-center space-x-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<path d="M12 8v8m-4-4h8" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="">Create Team</span>
+</button>
+</article>
+<!-- Match Card 6: MUN vs TOT -->
+<article class="bg-app-card rounded-2xl border border-app-border shadow-card p-4 space-y-3" data-purpose="match-card">
+<div class="flex items-center justify-between text-xs">
+<span class="font-semibold text-app-text">Sat, Oct 10 · 05:30 PM</span>
+<span class="text-app-secondary font-medium text-[11px] bg-app-surface px-1.5 py-0.5 rounded border border-app-border/70">15d 22h</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- MUN -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#DA291C]/10 border border-[#DA291C]/25 flex items-center justify-center font-bold text-xs text-[#DA291C] shrink-0">
+              MUN
+            </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">MUN</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<div class="px-2 text-xs font-medium text-app-muted uppercase tracking-wider">vs</div>
+<!-- TOT -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">TOT</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#132257]/10 border border-[#132257]/25 flex items-center justify-center font-bold text-xs text-[#132257] shrink-0">
+              TOT
+            </div>
+</div>
+</div>
+<button class="w-full py-2.5 px-4 rounded-xl bg-brand-light text-brand-dark hover:bg-brand/20 active:scale-[0.99] transition-all font-semibold text-xs flex items-center justify-center space-x-1.5">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="9"></circle>
+<path d="M12 8v8m-4-4h8" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span class="">Create Team</span>
+</button>
+</article>
+<!-- Pagination / Expand Button -->
+<div class="pt-1 text-center">
+<button class="text-xs font-semibold text-brand hover:text-brand-dark px-4 py-2 rounded-full border border-brand/30 bg-white shadow-sm inline-flex items-center space-x-1.5 transition-colors">
+<span class="">Show 324 more matches</span>
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+<path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+</div>
+</section>
+<!-- END: UpcomingMatchesSection -->
+<!-- BEGIN: CompletedMatchesSection -->
+<section aria-labelledby="completed-heading" class="space-y-3.5 pt-2">
+<!-- Section Header -->
+<div class="flex items-center justify-between">
+<div class="flex items-center space-x-2">
+<h2 class="text-[17px] font-bold tracking-tight text-app-text" id="completed-heading">Completed</h2>
+<span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-app-surface text-app-secondary border border-app-border">
+            50
+          </span>
+</div>
+<span class="text-[11px] font-semibold text-app-secondary">Gameweek 5</span>
+</div>
+<!-- Completed Matches Group Card -->
+<div class="bg-app-card rounded-2xl border border-app-border shadow-card divide-y divide-app-border overflow-hidden">
+<!-- Completed Match 1: FUL vs MUN -->
+<article class="p-4 space-y-2.5">
+<div class="flex items-center justify-between text-xs text-app-secondary">
+<span class="font-medium">Sun, Sep 20 · 04:30 PM</span>
+<span class="text-[10px] font-bold uppercase tracking-wider bg-app-surface px-1.5 py-0.5 rounded text-app-secondary">FT</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- FUL -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-black/5 border border-black/20 flex items-center justify-center font-bold text-xs text-app-text shrink-0">
+                FUL
+              </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">FUL</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<!-- Score / vs -->
+<div class="px-3 py-1 rounded bg-app-surface text-xs font-bold text-app-text tracking-wide border border-app-border/80">
+              1 – 2
+            </div>
+<!-- MUN -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">MUN</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#DA291C]/10 border border-[#DA291C]/25 flex items-center justify-center font-bold text-xs text-[#DA291C] shrink-0">
+                MUN
+              </div>
+</div>
+</div>
+<div class="text-center pt-1">
+<a class="inline-flex items-center justify-center text-xs font-semibold text-brand hover:text-brand-dark transition-colors group" href="#">
+              View match
+              <svg class="w-3.5 h-3.5 ml-1 transform group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+</div>
+</article>
+<!-- Completed Match 2: BOU vs LIV -->
+<article class="p-4 space-y-2.5">
+<div class="flex items-center justify-between text-xs text-app-secondary">
+<span class="font-medium">Sun, Sep 20 · 02:00 PM</span>
+<span class="text-[10px] font-bold uppercase tracking-wider bg-app-surface px-1.5 py-0.5 rounded text-app-secondary">FT</span>
+</div>
+<div class="py-1 flex items-center justify-between px-2">
+<!-- BOU -->
+<div class="flex items-center space-x-2.5 flex-1">
+<div class="w-8 h-8 rounded-full bg-[#DA291C]/10 border border-[#DA291C]/25 flex items-center justify-center font-bold text-xs text-[#DA291C] shrink-0">
+                BOU
+              </div>
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">BOU</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">HOME</div>
+</div>
+</div>
+<!-- Score / vs -->
+<div class="px-3 py-1 rounded bg-app-surface text-xs font-bold text-app-text tracking-wide border border-app-border/80">
+              0 – 3
+            </div>
+<!-- LIV -->
+<div class="flex items-center justify-end space-x-2.5 flex-1 text-right">
+<div>
+<div class="text-base font-bold tracking-tight text-app-text leading-tight">LIV</div>
+<div class="text-[10px] font-bold text-app-muted uppercase tracking-wider">AWAY</div>
+</div>
+<div class="w-8 h-8 rounded-full bg-[#C8102E]/10 border border-[#C8102E]/25 flex items-center justify-center font-bold text-xs text-[#C8102E] shrink-0">
+                LIV
+              </div>
+</div>
+</div>
+<div class="text-center pt-1">
+<a class="inline-flex items-center justify-center text-xs font-semibold text-brand hover:text-brand-dark transition-colors group" href="#">
+              View match
+              <svg class="w-3.5 h-3.5 ml-1 transform group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</a>
+</div>
+</article>
+</div>
+</section>
+<!-- END: CompletedMatchesSection -->
+</main>
+<!-- END: MainContent -->
+<!-- BEGIN: FloatingBottomNavigation -->
+<nav aria-label="Bottom Navigation" class="fixed bottom-5 inset-x-0 mx-auto max-w-sm px-4 z-50 pointer-events-none">
+<div class="pointer-events-auto bg-white/95 backdrop-blur-xl border border-app-border rounded-full py-1.5 px-2.5 shadow-float flex items-center justify-between"><!-- Nav Item: Home -->
+<a class="flex flex-col items-center justify-center flex-1 h-11 text-app-muted hover:text-app-text active:scale-95 transition-all" href="#">
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+  </svg>
+  <span class="text-[10px] font-medium mt-0.5 tracking-tight">Home</span>
+</a>
+<!-- Nav Item: Matches (ACTIVE) -->
+<a aria-current="page" class="flex flex-col items-center justify-center flex-1 h-11 active:scale-95 transition-all" href="#">
+  <div class="w-9 h-7 rounded-full bg-brand text-white flex items-center justify-center shadow-sm">
+    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path stroke-linecap="round" stroke-linejoin="round" d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path stroke-linecap="round" stroke-linejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+  </div>
+  <span class="text-[10px] font-bold text-brand mt-0.5 tracking-tight">Team</span>
+</a>
+<!-- Nav Item: League -->
+<a class="flex flex-col items-center justify-center flex-1 h-11 text-app-muted hover:text-app-text active:scale-95 transition-all" href="#">
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+    <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"></path>
+    <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"></path>
+    <path d="M4 22h16"></path>
+    <path d="M10 14.66V17c0 .55-.45 1-1 1H7.5a1.5 1.5 0 0 0 0 3h9a1.5 1.5 0 0 0 0-3H15c-.55 0-1-.45-1-1v-2.34"></path>
+    <path d="M18 4H6v7a6 6 0 0 0 12 0V4z"></path>
+  </svg>
+  <span class="text-[10px] font-medium mt-0.5 tracking-tight">League</span>
+</a>
+<!-- Nav Item: Chats -->
+<a class="flex flex-col items-center justify-center flex-1 h-11 text-app-muted hover:text-app-text active:scale-95 transition-all" href="#">
+  <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+    <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+  </svg>
+  <span class="text-[10px] font-medium mt-0.5 tracking-tight">Chats</span>
+</a></div>
+</nav>
+<!-- END: FloatingBottomNavigation -->
+<!-- Simple Interaction Script -->
+<script data-purpose="interaction-handlers">
+    document.addEventListener('DOMContentLoaded', () => {
+      // Handles team creation button press micro-interaction
+      const createButtons = document.querySelectorAll('button:has(svg)');
+      createButtons.forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+        });
+      });
+    });
+  </script>
+
+
+
+
+
+
+
+
+</body></html>

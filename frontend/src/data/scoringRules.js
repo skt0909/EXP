@@ -2,20 +2,9 @@
  * Turns GET /scoring-rules into the sections the two "How Points Work" screens
  * render.
  *
- * NO POINT VALUES LIVE HERE. They used to, and that was the problem: a number
- * restated in JavaScript can disagree with the scorer that applies it, and
- * nothing catches it -- the same failure MatchDetailPage's rules strip was
- * written to avoid. Everything numeric below reads off the API payload, which
- * the backend builds from the constants Results/scoring.py and
- * dream11_scoring.py actually use (see backend/Data/scoring_rules.py).
- *
- * What DOES live here is presentation: labels, ordering, icons, section
- * grouping, tone, filter tags and prose. The same values appear on two screens
- * that group them differently, so grouping is not the backend's business.
- *
- * If you need a new number on a screen, add it to the endpoint -- do not
- * reintroduce a literal here. The one exception is prose that describes a rule
- * without restating its value ("No bench or autosubs"), which is copy.
+ * Numeric values come from the backend payload so the UI cannot drift from the
+ * scoring engines. This file owns presentation only: labels, ordering, icons,
+ * grouping, tone, filter tags, and prose.
  */
 
 /** Positive award, negative deduction, zero/not-applicable, or a multiplier. */
@@ -27,10 +16,7 @@ export const TONE = {
   MULTIPLIER_STRONG: 'multiplier-strong',
 }
 
-// U+2212 MINUS SIGN, not a hyphen: at the pill's weight a hyphen reads as a
-// dash against the digit. Positives keep an explicit "+" so the two columns
-// stay symmetrical.
-const MINUS = '−'
+const MINUS = '-'
 
 function signed(value) {
   if (value === 0) return '0'
@@ -43,12 +29,12 @@ function toneFor(value) {
   return TONE.NEUTRAL
 }
 
-/** 2 -> "2x", 1.5 -> "1.5x" (with a true multiplication sign). */
+/** 2 -> "2x", 1.5 -> "1.5x". */
 function multiplier(value) {
-  return `${value}×`
+  return `${value}x`
 }
 
-/** A row whose pill and colour both follow from one signed number. */
+/** A row whose pill and color both follow from one signed number. */
 function valueRow(key, label, value, extra = {}) {
   return { key, label, value: signed(value), tone: toneFor(value), ...extra }
 }
@@ -62,44 +48,53 @@ const POSITION_LABELS = {
 
 const ORDERED_POSITIONS = ['GK', 'DEF', 'MID', 'FWD']
 
-/** "−1 per 2 goals, GK & DEF only" — the divisor travels with the value. */
 function tieredSublabel(tiered, noun, qualifier) {
   const each = `${signed(tiered.points)} per ${tiered.per} ${noun}`
   return qualifier ? `${each}, ${qualifier}` : each
 }
 
-// ---------------------------------------------------------------- classic FPL
+function thresholdRows(keyPrefix, labelPrefix, tiers) {
+  return (tiers ?? []).map((tier) =>
+    valueRow(`${keyPrefix}-${tier.threshold}`, `${labelPrefix} ${tier.threshold}+`, tier.points, {
+      dot: true,
+    }),
+  )
+}
+
+// ---------------------------------------------------------------- tactical FPL
 
 export function buildClassicRules(api) {
   const r = api.classic
+  const tactical = api.tactical
   const defcon = r.defensive_contribution_threshold
+  const attack = tactical.tactics.attack
+  const defence = tactical.tactics.defence
+  const balanced = tactical.tactics.balanced
 
   return {
-    eyebrow: 'Classic FPL Rules',
+    eyebrow: 'Tactical Rules',
     title: 'Scoring System',
-    statusLabel: 'Gameweek Live',
+    statusLabel: `Rules v${tactical.rules_version}`,
     intro:
-      'Standard Fantasy Premier League rules and scoring breakdown. Tactical calculations applied automatically at full-time.',
+      'General Points come from match events. Tactical Points, Sub Bonus, and transfer limits are driven by your selected gameweek plan.',
 
     highlights: [
       {
         key: 'max-goal',
         label: 'Max Goal',
-        // The best goal on the board rather than a hardcoded position: if the
-        // weighting ever changes, the headline follows it.
         value: `+${Math.max(...ORDERED_POSITIONS.map((p) => r.goal[p]))} PTS`,
         tone: TONE.POSITIVE,
       },
       {
-        key: 'hit-penalty',
-        label: 'Hit Penalty',
-        value: `${signed(r.transfer_hit)} PTS`,
-        tone: TONE.NEGATIVE,
+        key: 'bonus-players',
+        label: 'Bonus Players',
+        value: `${tactical.bonus_player_count} PICKS`,
+        tone: TONE.MULTIPLIER,
       },
       {
-        key: 'chip-boost',
-        label: 'Chip Boost',
-        value: `${multiplier(r.triple_captain_multiplier)} MULTI`,
+        key: 'swap-limit',
+        label: 'Tactical Swaps',
+        value: `${tactical.tactical_swap_limit} MAX`,
         tone: TONE.MULTIPLIER,
       },
     ],
@@ -116,9 +111,6 @@ export function buildClassicRules(api) {
             `Played 1-${r.appearance.full_minutes - 1} minutes`,
             r.appearance.partial,
           ),
-          // The only hardcoded number on either screen, and not a constant:
-          // it states the ABSENCE of a rule (no appearance, no appearance
-          // points), so there is nothing on the backend for it to drift from.
           { key: 'unused', label: 'Did not play', value: '0', tone: TONE.NEUTRAL },
         ],
       },
@@ -140,23 +132,21 @@ export function buildClassicRules(api) {
         title: 'Defensive',
         icon: 'shield',
         rows: [
-          // GK and DEF share a value, so they share a row rather than repeating
-          // the same number twice under different names.
           valueRow(
             'cs-gkdef',
-            `Clean Sheet (${r.clean_sheet_minutes}+ min) — GK & DEF`,
+            `Clean Sheet (${r.clean_sheet_minutes}+ min) - GK & DEF`,
             r.clean_sheet.GK,
             { dot: true },
           ),
           valueRow(
             'cs-mid',
-            `Clean Sheet (${r.clean_sheet_minutes}+ min) — MID`,
+            `Clean Sheet (${r.clean_sheet_minutes}+ min) - MID`,
             r.clean_sheet.MID,
             { dot: true },
           ),
           valueRow(
             'cs-fwd',
-            `Clean Sheet (${r.clean_sheet_minutes}+ min) — FWD`,
+            `Clean Sheet (${r.clean_sheet_minutes}+ min) - FWD`,
             r.clean_sheet.FWD,
             { dot: true },
           ),
@@ -199,39 +189,66 @@ export function buildClassicRules(api) {
         ],
       },
       {
-        key: 'multipliers',
-        title: 'Multipliers & Squad',
+        key: 'tactics',
+        title: 'Tactics & Bonus Players',
         icon: 'bolt',
         rows: [
-          {
-            key: 'captain',
-            label: 'Captain Multiplier',
-            value: multiplier(r.captain_multiplier),
-            tone: TONE.MULTIPLIER,
+          valueRow('attack-goal', `Attack Bonus Goal (${attack.eligible_position})`, attack.goal, {
             dot: true,
+          }),
+          valueRow('attack-assist', `Attack Bonus Assist (${attack.eligible_position})`, attack.assist, {
+            dot: true,
+          }),
+          valueRow(
+            'defence-clean-sheet',
+            `Defence Bonus Clean Sheet (${defence.eligible_position})`,
+            defence.clean_sheet,
+            { dot: true },
+          ),
+          ...thresholdRows('defence-actions', 'Defence Bonus Actions', defence.defensive_contribution_tiers),
+          valueRow(
+            'balanced-ga',
+            `Balanced Goal or Assist (${balanced.eligible_position})`,
+            balanced.goal_or_assist,
+            { dot: true },
+          ),
+          ...thresholdRows('balanced-creativity', 'Balanced Creativity', balanced.creativity_tiers),
+        ],
+        notes: [
+          {
+            key: 'bonus-eligibility',
+            icon: 'stars',
+            title: 'Bonus Player Rule',
+            body: `Choose exactly ${tactical.bonus_player_count} Bonus Players from the tactic's eligible position before saving your lineup.`,
+          },
+        ],
+      },
+      {
+        key: 'bench',
+        title: 'Bench & Swaps',
+        icon: 'groups',
+        rows: [
+          {
+            key: 'auto-sub-slots',
+            label: 'Auto Sub Slots',
+            sublabel: 'Slot 12 is Auto GK; slot 13 is Auto Sub',
+            value: tactical.auto_sub_slots.join(', '),
+            tone: TONE.NEUTRAL,
           },
           {
-            key: 'triple-captain',
-            label: 'Triple Captain Chip',
-            value: multiplier(r.triple_captain_multiplier),
-            tone: TONE.MULTIPLIER_STRONG,
-            dot: true,
+            key: 'tactical-sub-slots',
+            label: 'Tactical Sub Slots',
+            sublabel: "Incoming player's kickoff must follow the outgoing player's match window",
+            value: tactical.tactical_sub_slots.join(', '),
+            tone: TONE.NEUTRAL,
           },
         ],
         notes: [
           {
-            key: 'vice',
-            icon: 'swap_vert',
-            title: 'Vice-Captaincy Protocol',
-            body: `If your Captain logs 0 minutes, the ${multiplier(
-              r.captain_multiplier,
-            )} armband automatically transfers to your designated Vice-Captain.`,
-          },
-          {
-            key: 'bench-boost',
-            icon: 'groups',
-            title: 'Bench Boost Power',
-            body: `All ${r.squad_size} players (${r.starting_xi_size} starters and ${r.bench_size} bench subs) actively score points for your overall Gameweek aggregate.`,
+            key: 'sub-bonus',
+            icon: 'swap_horiz',
+            title: 'Sub Bonus',
+            body: `Plan up to ${tactical.tactical_swap_limit} same-position Tactical Swaps. Positive replacement gains are added as Sub Bonus.`,
           },
         ],
       },
@@ -241,11 +258,18 @@ export function buildClassicRules(api) {
         icon: 'swap_horiz',
         rows: [
           {
-            key: 'hit',
-            label: 'Extra Transfer Hit',
-            sublabel: 'Per transfer beyond free weekly allowance',
-            value: signed(r.transfer_hit),
-            tone: toneFor(r.transfer_hit),
+            key: 'weekly-free',
+            label: 'Free Transfers Earned',
+            sublabel: 'Added each gameweek, then banked if unused',
+            value: `+${tactical.free_transfers_per_gameweek}`,
+            tone: TONE.POSITIVE,
+          },
+          {
+            key: 'bank-cap',
+            label: 'Bank Cap',
+            sublabel: 'Transfers beyond your allowance are rejected',
+            value: tactical.free_transfer_bank_cap,
+            tone: TONE.NEUTRAL,
           },
         ],
         notes: [
@@ -253,7 +277,7 @@ export function buildClassicRules(api) {
             key: 'rollover',
             icon: 'hourglass_top',
             title: 'Rollover Cap',
-            body: `Up to ${r.max_banked_free_transfers} free transfers can be accumulated across gameweeks without loss.`,
+            body: `Up to ${tactical.free_transfer_bank_cap} free transfers can be held. Transfers beyond that allowance are rejected.`,
           },
         ],
       },
@@ -264,10 +288,8 @@ export function buildClassicRules(api) {
 // ------------------------------------------------------------------- Dream11
 
 /**
- * `differs` drives the "Differs from Classic FPL" badge, and it is COMPUTED by
- * comparing the two halves of the payload rather than hand-set. Hand-set, it
- * would keep claiming a divergence after the two rulesets converged -- the one
- * thing on this screen a user would most reasonably trust.
+ * `differs` drives the "Differs from Classic FPL" badge, and it is computed by
+ * comparing the two halves of the payload rather than hand-set.
  */
 export function buildDream11Rules(api) {
   const r = api.dream11
@@ -370,8 +392,6 @@ export function buildDream11Rules(api) {
         notes: [
           {
             key: 'simultaneous',
-            // Classic has no vice multiplier of its own -- the armband only
-            // transfers when the captain blanks -- so this always differs.
             differs: true,
             body: `Both captain (${multiplier(r.captain_multiplier)}) and vice-captain (${multiplier(
               r.vice_captain_multiplier,
@@ -387,7 +407,7 @@ export function buildDream11Rules(api) {
           {
             key: 'no-bench',
             differs: true,
-            body: `No bench or autosubs — your starting ${r.team_size} is final. Ensure all selected players are verified in the officially announced starting lineups prior to scheduled match kickoff. Inactive starters will score 0 points.`,
+            body: `No bench or autosubs - your starting ${r.team_size} is final. Ensure all selected players are verified in the officially announced starting lineups prior to scheduled match kickoff. Inactive starters will score 0 points.`,
           },
           {
             key: 'lock',

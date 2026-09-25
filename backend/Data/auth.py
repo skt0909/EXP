@@ -46,6 +46,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from Shared.db_utils import get_engine
+from Shared.rate_limit import check_email_limit
 
 # Imported as a module, not by name, so tests can monkeypatch is_configured
 # and send on it -- the two things worth exercising here are "SMTP off" and
@@ -392,6 +393,9 @@ def register(req: RegisterRequest) -> TokenResponse:
 
 @router.post("/auth/login", response_model=TokenResponse)
 def login(req: LoginRequest) -> TokenResponse:
+    # Per-account, before any bcrypt work: the per-IP limit in
+    # Shared/rate_limit.py alone doesn't stop a guesser rotating IPs.
+    check_email_limit("login", req.email)
     engine = get_engine()
 
     try:
@@ -490,6 +494,8 @@ def _deliver_reset_link(email: str, user_id: int, link: str) -> None:
 
 @router.post("/auth/forgot-password", response_model=ForgotPasswordResponse)
 def forgot_password(req: ForgotPasswordRequest) -> ForgotPasswordResponse:
+    # Per-email: stops one inbox being flooded with reset links.
+    check_email_limit("forgot-password", req.email)
     engine = get_engine()
 
     try:

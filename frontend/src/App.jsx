@@ -69,6 +69,10 @@ function App() {
                   endpoints that still take one) the rest of the app reads. */}
                 <Route path="/matches" element={<MatchesPage />} />
                 <Route path="/matches/:fixtureId" element={<MatchDetailPage />} />
+                {/* Contest-less: build and save a reusable team for this
+                    fixture without creating a contest. Creating a contest
+                    stays a League-page action. */}
+                <Route path="/matches/:fixtureId/build" element={<PickTeamPage mode="build" />} />
                 <Route path="/dream11" element={<Dream11ContestsPage />} />
                 <Route path="/dream11/scoring" element={<Dream11ScoringPage />} />
                 <Route path="/dream11/contests/:contestId" element={<Dream11ContestPage />} />

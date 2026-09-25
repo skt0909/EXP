@@ -133,6 +133,7 @@ def clean_heartbeats(engine):
         "lock_expired_gameweeks", "lock_dream11_contests", "refresh_active_gameweeks",
         "finalize_dream11_contests", "refresh_fixtures",
         "schedule_fixture_polls", "schedule_predictions",
+        "poll_due_fixtures", "refresh_player_prices", "carry_forward_selections",
     )
 
     def _wipe():
@@ -203,9 +204,9 @@ def test_scheduled_tasks_lists_every_beat_task_even_with_no_heartbeat_yet(clean_
 
     names = {t["task_name"] for t in resp.json()["tasks"]}
     assert names == {
-        "lock_expired_gameweeks", "lock_dream11_contests", "refresh_active_gameweeks",
-        "finalize_dream11_contests", "refresh_fixtures",
-        "schedule_fixture_polls", "schedule_predictions",
+        "lock_expired_gameweeks", "carry_forward_selections", "lock_dream11_contests",
+        "refresh_active_gameweeks", "finalize_dream11_contests",
+        "poll_due_fixtures", "refresh_fixtures", "refresh_player_prices",
     }
 
     by_name = {t["task_name"]: t for t in resp.json()["tasks"]}
@@ -214,8 +215,8 @@ def test_scheduled_tasks_lists_every_beat_task_even_with_no_heartbeat_yet(clean_
     assert never_run["stale"] is None, "no baseline yet -- 'stale' must not guess"
     assert never_run["expected_interval_seconds"] == 300.0
 
-    cron_task = by_name["schedule_predictions"]
-    assert cron_task["expected_interval_seconds"] is None, "a weekly crontab has no single interval"
+    cron_task = by_name["refresh_player_prices"]
+    assert cron_task["expected_interval_seconds"] is None, "a daily crontab has no single interval"
     assert cron_task["stale"] is None
 
 
@@ -255,19 +256,19 @@ def test_scheduled_tasks_a_task_just_inside_its_grace_window_is_not_yet_stale(en
     """STALE_INTERVAL_MULTIPLIER is 2.0 -- a task running a little late
     (worker busy, a slow prior task) gets one full extra cycle before this
     calls it stale, so a single missed-by-a-bit tick doesn't read as an
-    incident. 900s interval (refresh_fixtures): 1200s since success is
+    incident. 900s interval (refresh_active_gameweeks): 1200s since success is
     under the 1800s threshold."""
     with engine.begin() as conn:
         conn.execute(
             text(
                 "INSERT INTO public.task_heartbeats (task_name, last_success_at) "
-                "VALUES ('refresh_fixtures', :ts)"
+                "VALUES ('refresh_active_gameweeks', :ts)"
             ),
             {"ts": datetime.now(timezone.utc) - timedelta(seconds=1200)},
         )
 
     resp = client.get("/health/scheduled-tasks")
-    row = next(t for t in resp.json()["tasks"] if t["task_name"] == "refresh_fixtures")
+    row = next(t for t in resp.json()["tasks"] if t["task_name"] == "refresh_active_gameweeks")
 
     assert row["stale"] is False
 

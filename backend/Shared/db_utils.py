@@ -30,6 +30,12 @@ time), so a single default pool of 5 + 10 overflow is not a new
 constraint. Nothing in the codebase depended on the two pools being
 distinct.
 
+POOL SIZE is small on purpose: the target server is a 1 GB e2-micro
+where the API and the worker share one Postgres (max_connections = 20).
+SQLAlchemy's default 5 + 10 per process allowed up to 30 connections at
+~5-10 MB each. 3 + 2 per process caps both at 10. DB_POOL_SIZE and
+DB_MAX_OVERFLOW override it for a bigger box.
+
 The cache is keyed on the `echo` argument, so get_engine() and
 get_engine(echo=True) are separate entries -- unchanged from before, and
 the reason maxsize is 1 rather than None would be wrong here.
@@ -66,7 +72,14 @@ def _database_url() -> str:
 @lru_cache(maxsize=1)
 def get_engine(echo: bool = False) -> Engine:
     """Return a pooled Engine. Cached, so repeated calls reuse one pool."""
-    return create_engine(_database_url(), echo=echo, pool_pre_ping=True)
+    url = _database_url()
+    return create_engine(
+        url,
+        echo=echo,
+        pool_pre_ping=True,
+        pool_size=int(os.getenv("DB_POOL_SIZE", "3")),
+        max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "2")),
+    )
 
 
 def safe_url() -> str:

@@ -57,6 +57,9 @@ export function AppModeProvider({ children }) {
   // Navigating between the two games (e.g. a contest link from an FPL page)
   // moves the toggle with it.
   useEffect(() => {
+    // Chat is shared by both games. Preserve the mode of the dock/link that
+    // opened it instead of treating /chat as an FPL route by default.
+    if (pathname === '/chat') return
     setModeState(modeForPath(pathname))
   }, [pathname])
 

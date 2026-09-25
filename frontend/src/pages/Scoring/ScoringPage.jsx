@@ -7,6 +7,7 @@ import {
   RuleCard,
   RuleNote,
   RuleRowList,
+  ScoreEquationStrip,
   ScoringPageHeader,
 } from '../../components/ScoringRules/ScoringRuleParts'
 
@@ -19,7 +20,7 @@ import {
  * place the nav disagrees with the rest of the app.
  *
  * Every number comes from GET /scoring-rules, which the backend builds from the
- * constants Results/scoring.py actually applies -- see data/scoringRules.js.
+ * constants the tactical scorer actually applies -- see data/scoringRules.js.
  */
 const HIGHLIGHT_TONES = {
   [TONE.POSITIVE]: 'text-on-secondary-container',
@@ -43,11 +44,11 @@ function ScoringPage() {
   return (
     <div className="px-safe-margin py-md flex flex-col gap-md">
       <ScoringPageHeader
-        eyebrow="Classic FPL Rules"
+        eyebrow={content?.eyebrow ?? 'Tactical Rules'}
         eyebrowTone="bg-primary-container text-white"
         intro={
           content?.intro ??
-          'Standard Fantasy Premier League rules and scoring breakdown.'
+          'Tactical scoring rules and gameweek breakdown.'
         }
         onBack={handleBack}
         tag={content?.statusLabel}
@@ -95,8 +96,10 @@ function ScoringPage() {
             ))}
           </div>
 
-          {content.sections.map((section) => (
-            <RuleCard icon={section.icon} key={section.key} title={section.title}>
+          <ScoreEquationStrip />
+
+          {content.sections.map((section, index) => (
+            <RuleCard icon={section.icon} key={section.key} number={index + 1} title={section.title}>
               {section.rows && <RuleRowList rows={section.rows} showDots />}
               {section.notes?.map((note) => (
                 <RuleNote key={note.key} note={note} />

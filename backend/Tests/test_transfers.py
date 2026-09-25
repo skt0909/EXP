@@ -129,14 +129,18 @@ def _add_candidate_to_team(make_player, fpl_id, position, team_id, cost):
     return fpl_id
 
 
-def _upsert_gw_selection(engine, user_id, season, gameweek, captain_id, vice_captain_id, chip_used=None, is_locked=False):
+def _upsert_gw_selection(engine, user_id, season, gameweek, is_locked=False, tactic="balanced"):
+    """A bare gw_selections row for pre-locking a gameweek -- this helper only
+    needs the columns the is_locked pre-check itself reads (season, gameweek,
+    user_id, is_locked); tactic is required NOT NULL by the schema but is not
+    otherwise exercised by the tests that call this."""
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO gw_selections (user_id, season, gameweek, captain_id, vice_captain_id, chip_used, is_locked) "
-                "VALUES (:u, :s, :gw, :cap, :vc, :chip, :locked)"
+                "INSERT INTO gw_selections (user_id, season, gameweek, tactic, is_locked) "
+                "VALUES (:u, :s, :gw, :tactic, :locked)"
             ),
-            {"u": user_id, "s": season, "gw": gameweek, "cap": captain_id, "vc": vice_captain_id, "chip": chip_used, "locked": is_locked},
+            {"u": user_id, "s": season, "gw": gameweek, "tactic": tactic, "locked": is_locked},
         )
 
 
@@ -191,56 +195,11 @@ def _user_squad_row(engine, user_id, season):
         ).first()
 
 
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_valid_multi_transfer_batch_succeeds_and_updates_state(engine, make_team, make_player, test_user):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)  # budget_remaining=100
-    out_def = squad["by_position"]["DEF"][0]
-    out_mid = squad["by_position"]["MID"][0]
-    cand_def = _add_candidate(make_team, make_player, fpl_id=8100, position="DEF", team_fpl_id=80100, cost=50)
-    cand_mid = _add_candidate(make_team, make_player, fpl_id=8101, position="MID", team_fpl_id=80101, cost=40)
-
-    resp = client.post(
-        "/transfers",
-        json={
-            "season": TEST_SEASON,
-            "gameweek": 1,
-            "transfers": [
-                {"player_out_id": out_def, "player_in_id": cand_def},
-                {"player_out_id": out_mid, "player_in_id": cand_mid},
-            ],
-        }, headers=bearer_headers(test_user)
-    )
-
-    assert resp.status_code == 200
-    body = resp.json()
-    # budget: 100 (start) + 60+60 (sold) - 50-40 (bought) = 130
-    assert body["budget_remaining"] == 130
-    assert body["transfers"][0]["is_free"] is True
-    assert body["transfers"][1]["is_free"] is False
-
-    out_def_row = _squad_player_row(engine, squad["user_squad_id"], out_def)
-    assert out_def_row.is_active is False
-    assert out_def_row.sell_price == 60
-    out_mid_row = _squad_player_row(engine, squad["user_squad_id"], out_mid)
-    assert out_mid_row.is_active is False
-    assert out_mid_row.sell_price == 60
-
-    cand_def_row = _squad_player_row(engine, squad["user_squad_id"], cand_def)
-    assert cand_def_row.is_active is True
-    assert cand_def_row.purchase_price == 50
-    cand_mid_row = _squad_player_row(engine, squad["user_squad_id"], cand_mid)
-    assert cand_mid_row.is_active is True
-    assert cand_mid_row.purchase_price == 40
-
-    rows = _transfer_rows(engine, test_user, TEST_SEASON, 1)
-    assert len(rows) == 2
-    assert {(r.player_out_id, r.player_in_id) for r in rows} == {(out_def, cand_def), (out_mid, cand_mid)}
 
 
 def test_locked_gameweek_rejects_whole_batch_no_partial_writes(engine, make_team, make_player, test_user):
     squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    gk_ids = squad["by_position"]["GK"]
-    _upsert_gw_selection(engine, test_user, TEST_SEASON, 1, captain_id=gk_ids[0], vice_captain_id=gk_ids[1], is_locked=True)
+    _upsert_gw_selection(engine, test_user, TEST_SEASON, 1, is_locked=True)
 
     out_def = squad["by_position"]["DEF"][0]
     cand_def = _add_candidate(make_team, make_player, fpl_id=8100, position="DEF", team_fpl_id=80100, cost=50)
@@ -634,38 +593,10 @@ def test_transfers_used_no_transfers_yet_reports_full_free_slot(test_user):
     body = resp.json()
     assert body["free_transfers_used"] == 0
     assert body["free_transfers_remaining"] == 1
-    assert body["chip_active"] is False
+    assert "chip_active" not in body
     assert body["total_transfers_this_gameweek"] == 0
 
 
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_transfers_used_reflects_committed_transfers(engine, make_team, make_player, test_user):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    out_def = squad["by_position"]["DEF"][0]
-    out_mid = squad["by_position"]["MID"][0]
-    cand_def = _add_candidate(make_team, make_player, fpl_id=8100, position="DEF", team_fpl_id=80100, cost=50)
-    cand_mid = _add_candidate(make_team, make_player, fpl_id=8101, position="MID", team_fpl_id=80101, cost=40)
-
-    client.post(
-        "/transfers",
-        json={
-            "season": TEST_SEASON,
-            "gameweek": 1,
-            "transfers": [
-                {"player_out_id": out_def, "player_in_id": cand_def},
-                {"player_out_id": out_mid, "player_in_id": cand_mid},
-            ],
-        }, headers=bearer_headers(test_user)
-    )
-
-    resp = client.get("/transfers/used", params={"season": TEST_SEASON, "gameweek": 1}, headers=bearer_headers(test_user))
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["free_transfers_used"] == 1
-    assert body["free_transfers_remaining"] == 0
-    assert body["chip_active"] is False
-    assert body["total_transfers_this_gameweek"] == 2
 
 
 # ---------------------------------------------------------------- free-transfer banking
@@ -721,62 +652,8 @@ def test_banking_reaches_exactly_five_and_never_exceeds_it_across_a_season():
     assert all(v == 5 for v in values[4:])
 
 
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_unused_gameweeks_bank_through_the_api(engine, make_team, make_player, test_user):
-    """Three consecutive gameweeks with no transfers made, read back
-    through GET /transfers/used rather than the pure function."""
-    _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-
-    for gameweek, expected in [(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (6, 5)]:
-        body = client.get(
-            "/transfers/used",
-            params={"season": TEST_SEASON, "gameweek": gameweek}, headers=bearer_headers(test_user)
-        ).json()
-        assert body["free_transfers_remaining"] == expected, f"gameweek {gameweek}"
 
 
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_spending_the_bank_rolls_the_remainder_not_a_flat_reset(
-    engine, make_team, make_player, test_user
-):
-    """Bank to 3 across two idle gameweeks, spend 2 of them, and arrive at
-    the next gameweek with 1 banked + 1 earned = 2 -- not a flat 1."""
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    mids = squad["by_position"]["MID"]
-    for i in range(2):
-        _add_candidate(
-            make_team, make_player, fpl_id=8700 + i, position="MID", team_fpl_id=80700 + i, cost=60
-        )
-
-    # Gameweeks 1 and 2 pass untouched -> gameweek 3 opens with 3.
-    gw3 = client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 3}, headers=bearer_headers(test_user)
-    ).json()
-    assert gw3["free_transfers_remaining"] == 3
-
-    resp = client.post(
-        "/transfers",
-        json={
-            "season": TEST_SEASON, "gameweek": 3,
-            "transfers": [
-                {"player_out_id": mids[0], "player_in_id": 8700},
-                {"player_out_id": mids[1], "player_in_id": 8701},
-            ],
-        }, headers=bearer_headers(test_user)
-    )
-    assert resp.status_code == 200
-    assert [t["is_free"] for t in resp.json()["transfers"]] == [True, True]  # both covered
-
-    after = client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 3}, headers=bearer_headers(test_user)
-    ).json()
-    assert after["free_transfers_used"] == 2
-    assert after["free_transfers_remaining"] == 1  # 3 available, 2 spent
-
-    gw4 = client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 4}, headers=bearer_headers(test_user)
-    ).json()
-    assert gw4["free_transfers_remaining"] == 2  # 1 carried + 1 earned
 
 
 def _make_n_transfers(test_user, gameweek, out_ids, in_ids):
@@ -791,101 +668,9 @@ def _make_n_transfers(test_user, gameweek, out_ids, in_ids):
     )
 
 
-@pytest.mark.parametrize(
-    "transfers_made, expected_paid, expected_points_cost",
-    [
-        (3, 1, 4),
-        (4, 2, 8),
-        (5, 3, 12),
-    ],
-)
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_worked_hit_examples_with_two_free_transfers(
-    engine, make_team, make_player, test_user, transfers_made, expected_paid, expected_points_cost
-):
-    """The rules doc's worked examples, verbatim: with 2 free transfers
-    available, 3 made costs -4, 4 costs -8, 5 costs -12.
-
-    Two free transfers is what gameweek 2 has after an untouched gameweek
-    1, so this needs no setup beyond transferring in gameweek 2.
-    """
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    mids = squad["by_position"]["MID"]
-    candidates = [
-        _add_candidate(
-            make_team, make_player, fpl_id=8800 + i, position="MID", team_fpl_id=80800 + i, cost=60
-        )
-        for i in range(transfers_made)
-    ]
-
-    assert client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 2}, headers=bearer_headers(test_user)
-    ).json()["free_transfers_remaining"] == 2
-
-    resp = _make_n_transfers(test_user, 2, mids[:transfers_made], candidates)
-    assert resp.status_code == 200
-
-    flags = [t["is_free"] for t in resp.json()["transfers"]]
-    assert flags == [True, True] + [False] * expected_paid
-
-    # What scoring.py will actually charge: HIT_COST per non-free row.
-    paid = sum(1 for r in _transfer_rows(engine, test_user, TEST_SEASON, 2) if r.is_free is False)
-    assert paid == expected_paid
-    assert paid * HIT_COST == expected_points_cost  # -4 / -8 / -12
 
 
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_five_banked_and_five_made_costs_nothing(engine, make_team, make_player, test_user):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    mids = squad["by_position"]["MID"]
-    candidates = [
-        _add_candidate(
-            make_team, make_player, fpl_id=8900 + i, position="MID", team_fpl_id=80900 + i, cost=60
-        )
-        for i in range(5)
-    ]
-
-    # Gameweeks 1-5 untouched -> gameweek 6 sits at the cap.
-    assert client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 6}, headers=bearer_headers(test_user)
-    ).json()["free_transfers_remaining"] == 5
-
-    resp = _make_n_transfers(test_user, 6, mids[:5], candidates)
-    assert resp.status_code == 200
-    assert all(t["is_free"] for t in resp.json()["transfers"])
-
-    paid = sum(1 for r in _transfer_rows(engine, test_user, TEST_SEASON, 6) if r.is_free is False)
-    assert paid == 0
-
-    # And the bank drops to 1 for the next gameweek, not to 0 or back to 5.
-    assert client.get(
-        "/transfers/used", params={"season": TEST_SEASON, "gameweek": 7}, headers=bearer_headers(test_user)
-    ).json()["free_transfers_remaining"] == 1
 
 
-@pytest.mark.skip(reason="Phase 3 removed paid transfers and hits and capped the bank at 2. Covered now by backend/Tests/test_transfers_tactical.py")
-def test_five_banked_and_six_made_costs_exactly_four_points(
-    engine, make_team, make_player, test_user
-):
-    squad = _seed_full_squad(engine, make_team, make_player, test_user, TEST_SEASON, cost=60)
-    outs = squad["by_position"]["MID"] + squad["by_position"]["DEF"][:1]  # 5 MID + 1 DEF
-    candidates = [
-        _add_candidate(
-            make_team, make_player, fpl_id=9100 + i, position="MID", team_fpl_id=81100 + i, cost=60
-        )
-        for i in range(5)
-    ] + [
-        _add_candidate(
-            make_team, make_player, fpl_id=9200, position="DEF", team_fpl_id=81200, cost=60
-        )
-    ]
-
-    resp = _make_n_transfers(test_user, 6, outs, candidates)
-    assert resp.status_code == 200
-    assert [t["is_free"] for t in resp.json()["transfers"]] == [True] * 5 + [False]
-
-    paid = sum(1 for r in _transfer_rows(engine, test_user, TEST_SEASON, 6) if r.is_free is False)
-    assert paid == 1
-    assert paid * 4 == 4
 
 

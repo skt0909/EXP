@@ -1,0 +1,20 @@
+# Writes ml.ml_predictions for the next gameweek once the previous one is
+# complete (backend/Predict/backfill_predictions.py --auto). Runs as its own
+# short-lived process so xgboost's ~270 MB peak is released when it exits;
+# the Celery worker never loads it. Started by fpl-backfill.timer.
+#
+# Paths assume the app at /opt/fpl with its venv at /opt/fpl/venv and a
+# "fpl" system user -- change them to match the server.
+[Unit]
+Description=FPL prediction backfill (next gameweek)
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=fpl
+WorkingDirectory=/opt/fpl/backend
+ExecStart=/opt/fpl/venv/bin/python Predict/backfill_predictions.py --auto
+# Hard cap so a bad run can't push the 1 GB box into the OOM killer; a
+# normal run peaks around 270 MB. Low priority so the API stays responsive.
+MemoryMax=450M
+Nice=10

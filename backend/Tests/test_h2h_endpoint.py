@@ -78,8 +78,8 @@ def _seed_score(engine, user_id, gameweek, points):
         conn.execute(
             text(
                 "INSERT INTO gw_scores (user_id, season, gameweek, raw_points, final_points, "
-                "transfer_hits, hit_deductions, total_points, season_total, rules_version) "
-                "VALUES (:u, :s, :gw, :p, :p, 0, 0, :p, :p, 2)"
+                "total_points, season_total, rules_version) "
+                "VALUES (:u, :s, :gw, :p, :p, :p, :p, 2)"
             ),
             {"u": user_id, "s": TEST_SEASON, "gw": gameweek, "p": points},
         )

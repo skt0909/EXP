@@ -43,6 +43,7 @@ from sqlalchemy import text
 from Shared.db_utils import get_engine
 from Shared.deadlines import _DEADLINE_EXPR
 from Shared.seasons import real_season_sql
+from Shared.rules import RULES_VERSION
 from Data.auth import CurrentUser, get_current_user
 
 router = APIRouter()
@@ -287,13 +288,28 @@ CURRENT_GAMEWEEK_QUERY = text(
     ),
     latest_season AS (
         SELECT max(season) AS season FROM gw_deadlines
+    ),
+    -- A gameweek before the current ruleset's first_gameweek is never scored
+    -- under these rules by design (IMPLEMENTATION_PLAN.md D5: "earlier
+    -- Gameweeks stay blank -- they are not back-scored"), so it can NEVER
+    -- pick up a `gameweeks` row and would otherwise pin "earliest unscored"
+    -- to gameweek 1 forever, however far the season has actually progressed.
+    -- Missing epoch row defaults to 1 (no other ruleset has ever run here),
+    -- matching Results/scoring_job.py::ruleset_first_gameweek exactly.
+    epoch AS (
+        SELECT l.season, COALESCE(e.first_gameweek, 1) AS first_gameweek
+          FROM latest_season l
+          LEFT JOIN ruleset_epochs e
+                 ON e.season = l.season AND e.rules_version = {RULES_VERSION}
     )
     (SELECT d.season, d.gameweek, d.deadline
        FROM gw_deadlines d
        JOIN latest_season l ON l.season = d.season
+       JOIN epoch ep ON ep.season = d.season
        LEFT JOIN gameweeks g
               ON g.season = d.season AND g.gameweek = d.gameweek
       WHERE g.scored_at IS NULL
+        AND d.gameweek >= ep.first_gameweek
       ORDER BY d.gameweek ASC LIMIT 1)
     UNION ALL
     (SELECT season, gameweek, deadline FROM gw_deadlines

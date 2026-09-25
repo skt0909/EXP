@@ -5,7 +5,7 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 .pytest_cache/
-
+.simulation_cache/
 
 
 # Runtime artifacts from local dev processes (Celery Beat's schedule state,
@@ -23,7 +23,7 @@ frontend-vite.log
 # in CI executes it, and it silently went stale for weeks after the
 # db_utils consolidation changed an import it depended on. Regenerate on
 # demand instead -- see backend/Predict/build_notebook.py.
-# (backend/FPL_Model_1 (1).ipynb is NOT this: that one is the original
+# (backend/Predict/notebooks/FPL_Model_1.ipynb is NOT this: that one is the original
 # Colab training notebook, a genuine source artifact, and stays tracked.)
 backend/Predict/predict_gameweek.ipynb
 
@@ -46,3 +46,9 @@ schema_dump.sql
 # tool, and archive_cache/ is several MB of third-party data.
 tools/archive_cache/
 tools/tactical_sim_results.csv
+
+# Local scratch space: dev logs, chat/test dumps, and anything that may hold
+# a secret (token.txt). Nothing here is source. token.txt is also listed on
+# its own so it stays ignored if it is ever recreated elsewhere.
+scratch/
+token.txt

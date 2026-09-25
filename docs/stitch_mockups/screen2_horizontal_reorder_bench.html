@@ -1,0 +1,382 @@
+<!DOCTYPE html><html class="light" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport">
+<title>PitchSide AI - My Team Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&amp;display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "secondary": "#006d35",
+                        "on-tertiary-fixed-variant": "#910030",
+                        "outline-variant": "#d2c2cd",
+                        "on-tertiary-fixed": "#400010",
+                        "surface-bright": "#faf8ff",
+                        "on-primary": "#ffffff",
+                        "on-secondary": "#ffffff",
+                        "on-background": "#131b2e",
+                        "on-primary-fixed-variant": "#6a306a",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed": "#61ff97",
+                        "on-primary-container": "#af6eac",
+                        "surface-container": "#eaedff",
+                        "on-surface-variant": "#4f434c",
+                        "surface-container-highest": "#dae2fd",
+                        "secondary-fixed-dim": "#00e476",
+                        "on-primary-fixed": "#37003b",
+                        "on-secondary-fixed-variant": "#005227",
+                        "primary-fixed-dim": "#f7aff2",
+                        "on-secondary-container": "#006e36",
+                        "inverse-on-surface": "#eef0ff",
+                        "surface-container-low": "#f2f3ff",
+                        "surface-variant": "#dae2fd",
+                        "surface-dim": "#d2d9f4",
+                        "error": "#ba1a1a",
+                        "surface": "#faf8ff",
+                        "on-tertiary": "#ffffff",
+                        "inverse-primary": "#f7aff2",
+                        "error-container": "#ffdad6",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#00fa82",
+                        "tertiary-fixed": "#ffd9dc",
+                        "primary": "#040004",
+                        "on-error-container": "#93000a",
+                        "on-surface": "#131b2e",
+                        "on-secondary-fixed": "#00210c",
+                        "surface-container-high": "#e2e7ff",
+                        "primary-fixed": "#ffd6f8",
+                        "tertiary": "#050000",
+                        "inverse-surface": "#283044",
+                        "surface-tint": "#854884",
+                        "tertiary-container": "#410011",
+                        "outline": "#80737d",
+                        "on-tertiary-container": "#fe225f",
+                        "primary-container": "#38003c",
+                        "tertiary-fixed-dim": "#ffb2ba",
+                        "background": "#faf8ff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "32px",
+                        "gutter": "12px",
+                        "lg": "24px",
+                        "base": "4px",
+                        "safe-margin": "16px",
+                        "xs": "4px",
+                        "sm": "8px",
+                        "md": "16px"
+                    },
+                    "fontFamily": {
+                        "headline-sm": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "stats-number": ["Inter"],
+                        "display-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"],
+                        "label-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-sm": ["20px", { "lineHeight": "1.3", "fontWeight": "700" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "fontWeight": "400" }],
+                        "stats-number": ["18px", { "lineHeight": "1", "fontWeight": "800" }],
+                        "display-lg": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+                        "body-md": ["14px", { "lineHeight": "1.5", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "700" }],
+                        "label-md": ["12px", { "lineHeight": "1", "letterSpacing": "0.05em", "fontWeight": "600" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .pitch-pattern {
+            background-color: #006d35;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen pb-24 md:pb-0">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full z-50 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline"><div class="flex justify-between items-center w-full px-safe-margin py-sm max-w-[600px] mx-auto bg-white border-b border-outline-variant">
+<button id="menu-btn" class="p-2 flex items-center justify-center cursor-pointer hover:bg-surface-container-low rounded-lg transition-colors" aria-label="Open Menu" onclick="document.getElementById('menu-drawer-backdrop').classList.remove('hidden'); document.getElementById('menu-drawer-panel').classList.remove('-translate-x-full');"><span class="material-symbols-outlined text-[24px] text-on-background">menu</span></button>
+<h1 class="text-headline-sm font-bold text-on-background">&nbsp;Dashboard</h1>
+<div class="w-9 h-9 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center overflow-hidden">
+<span class="material-symbols-outlined text-on-surface-variant opacity-50">person</span>
+</div>
+</div></header><!-- Slide-out Navigation Drawer Container --><div id="menu-drawer-backdrop" class="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300 hidden" onclick="document.getElementById('menu-drawer-backdrop').classList.add('hidden'); document.getElementById('menu-drawer-panel').classList.add('-translate-x-full');"></div><aside id="menu-drawer-panel" class="fixed top-0 left-0 bottom-0 w-[300px] max-w-[85vw] bg-surface-container-lowest z-50 shadow-2xl flex flex-col justify-between border-r border-outline-variant transform transition-transform duration-300 ease-in-out -translate-x-full"><div class="flex flex-col h-full overflow-y-auto"><div class="p-safe-margin border-b border-outline-variant flex items-center justify-between bg-surface"><div class="flex items-center gap-2"><div><h2 class="text-body-lg font-bold text-on-surface leading-tight">PitchSide&nbsp;</h2><span class="text-[11px] text-on-surface-variant">v1</span></div></div><button class="p-2 rounded-full hover:bg-surface-container-low text-on-surface transition-colors" aria-label="Close Menu" onclick="document.getElementById('menu-drawer-backdrop').classList.add('hidden'); document.getElementById('menu-drawer-panel').classList.add('-translate-x-full');"><span class="material-symbols-outlined text-[22px]">close</span></button></div><div class="p-safe-margin flex flex-col gap-sm"><span class="text-label-md font-bold uppercase tracking-wider text-on-surface-variant px-1">Game Modes</span><div class="flex flex-col gap-1"><a href="#" class="p-3 rounded-xl bg-surface-container-low border border-secondary/30 flex items-start gap-3 transition-colors hover:bg-surface-container"><span class="material-symbols-outlined text-secondary text-[24px] mt-0.5">tune</span><div class="flex flex-col flex-1"><div class="flex items-center justify-between"><span class="text-body-md font-bold text-on-surface">Tactic Mode</span><span class="text-[9px] uppercase tracking-wide bg-secondary-container text-on-secondary-container font-extrabold px-1.5 py-0.5 rounded-full">Active</span></div><p class="text-[12px] text-on-surface-variant leading-tight mt-0.5">Full tactical line-up and formation builder with AI insights</p></div></a><a href="#" class="p-3 rounded-xl hover:bg-surface-container-low border border-transparent hover:border-outline-variant flex items-start gap-3 transition-colors"><span class="material-symbols-outlined text-amber-500 text-[24px] mt-0.5">bolt</span><div class="flex flex-col flex-1"><div class="flex items-center justify-between"><span class="text-body-md font-bold text-on-surface">Quick 11 Mode</span><span class="text-[9px] uppercase tracking-wide bg-surface-container-highest text-on-surface-variant font-bold px-1.5 py-0.5 rounded-full">Fast Pick</span></div><p class="text-[12px] text-on-surface-variant leading-tight mt-0.5">Rapid single-match draft &amp; contest picks in under 60s</p></div></a></div></div><div class="border-t border-outline-variant/50 my-1 mx-safe-margin"></div><div class="p-safe-margin flex flex-col gap-sm pt-2"><span class="text-label-md font-bold uppercase tracking-wider text-on-surface-variant px-1">Tools &amp; League</span><div class="flex flex-col gap-1"><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-md font-medium text-on-surface hover:bg-surface-container-low transition-colors"><span class="material-symbols-outlined text-[20px] text-on-surface-variant">psychology</span><span class="">Settings</span></a><a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-body-md font-medium text-on-surface hover:bg-surface-container-low transition-colors"><span class="material-symbols-outlined text-[20px] text-on-surface-variant">notifications</span><span class="">About</span></a></div></div><div class="mt-auto p-safe-margin border-t border-outline-variant bg-surface"><a href="#" class="flex items-center gap-3 px-2 py-2 rounded-lg text-body-md font-medium text-on-surface hover:bg-surface-container-low transition-colors"><span class="material-symbols-outlined text-[20px] text-on-surface-variant">info</span><div class="flex flex-col"><span class="text-body-md font-semibold text-on-surface leading-tight">About PitchSide AI</span><span class="text-[11px] text-on-surface-variant">v2.4 · FPL Assistant &amp; Analytics</span></div></a></div></div></aside>
+<!-- Main Content Canvas -->
+<main class="pt-20 px-safe-margin max-w-[600px] mx-auto w-full flex flex-col gap-lg">
+<!-- Header & Countdown -->
+<section class="flex flex-col items-center text-center mt-sm"><div class="flex items-center gap-sm mb-2"><h2 class="text-headline-sm font-headline-sm text-on-surface">Gameweek 5</h2><div class="text-amber-500 text-[10px] font-semibold tracking-widest uppercase flex items-center gap-1"><span class="material-symbols-outlined text-[12px]">sync</span>In process</div></div></section>
+<!-- Score Summary Bento Grid -->
+<section class="grid grid-cols-2 gap-sm">
+<div class="bg-surface-container-lowest rounded-xl p-md shadow-sm border border-outline-variant flex flex-col items-center justify-center text-center">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase tracking-wider mb-xs">GW Points</span>
+<span class="text-display-lg font-display-lg text-primary">0</span>
+<div class="flex items-center gap-xs mt-xs text-secondary"><span class="material-symbols-outlined text-[16px] text-outline" data-icon="schedule">schedule</span><span class="text-label-md font-label-md text-outline">GW Locked</span></div>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="bg-surface-container-lowest rounded-lg p-sm shadow-sm border border-outline-variant flex justify-between items-center h-full">
+<div class="flex flex-col">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase">Season Total</span>
+<span class="text-headline-sm font-headline-sm text-on-surface">284</span>
+</div>
+<span class="material-symbols-outlined text-on-surface-variant opacity-50" data-icon="emoji_events">emoji_events</span>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-sm shadow-sm border border-outline-variant flex justify-between items-center h-full gap-sm">
+<div class="flex flex-col">
+<span class="text-label-md font-label-md text-on-surface-variant uppercase">Overall Rank</span>
+<span class="text-headline-sm font-headline-sm text-on-surface">1.2M</span>
+</div>
+<span class="material-symbols-outlined text-secondary opacity-50" data-icon="arrow_upward">arrow_upward</span>
+</div>
+<div class="bg-surface-container-lowest rounded-lg p-sm shadow-sm border border-outline-variant flex justify-between items-center h-full"><div class="flex flex-col"><span class="text-label-md font-label-md text-on-surface-variant uppercase">Free Transfers</span><span class="text-headline-sm font-headline-sm text-on-surface">1</span></div><span class="material-symbols-outlined text-on-surface-variant opacity-50">swap_horiz</span></div></div>
+</section>
+<!-- Team Value -->
+<section class="bg-primary-container rounded-xl p-md flex justify-between items-center shadow-md">
+<div>
+<span class="text-label-md font-label-md text-primary-fixed-dim uppercase block mb-xs">Team Value</span>
+<span class="text-headline-sm font-headline-sm text-on-primary">£101.2m</span>
+</div>
+<div class="w-px h-8 bg-surface-tint opacity-30"></div>
+<div class="text-right">
+<span class="text-label-md font-label-md text-primary-fixed-dim uppercase block mb-xs">In the Bank</span>
+<span class="text-headline-sm font-headline-sm text-on-primary">£0.5m</span>
+</div>
+</section>
+<!-- Tactical Pitch View -->
+<section class="rounded-xl overflow-hidden shadow-sm border border-outline-variant relative flex flex-col gap-0"><div class="pitch-pattern w-full aspect-[3/4] relative flex items-center justify-center p-md"><div class="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-black/25 pointer-events-none"></div>
+<!-- Pitch Lines -->
+<div class="absolute inset-3 border border-white/30 pointer-events-none rounded-sm"></div>
+<div class="absolute top-3 left-1/2 -translate-x-1/2 w-32 h-14 border-b border-x border-white/30 pointer-events-none"></div>
+<div class="absolute top-1/2 left-3 right-3 h-px bg-white/30 pointer-events-none"></div>
+<div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-20 h-20 rounded-full border border-white/30 pointer-events-none"></div>
+<div class="absolute bottom-3 left-1/2 -translate-x-1/2 w-32 h-14 border-t border-x border-white/30 pointer-events-none"></div>
+<!-- Formation Rows Container (3-4-3 Formation) -->
+<div class="relative z-10 w-full h-full flex flex-col justify-between py-2 px-1">
+<!-- Forward Line (3 FWD) -->
+<div class="flex justify-around items-center w-full px-4 pt-1">
+<!-- Player: Saka (C) -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Saka Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBGkAstiFykve9C09ZI0vwSVyUdHYpoh-EEox39CUm2-SGybfPF4phrGXnxFZ_kueiMRgSrUatGqFlihoZ7gKPIYlI8Z59Dx8ZDXeBmFlSTG1unkTEX0LXsoTezELWt9asjudrtzIZCxMTpEcMr0BZZV95QXCia_dLJ3tVbPnIti4cvaXami485z4Ve-HD1LG_qKyNM3G9LopTxXjajeZ-oC0DU9J04J3BU_FlwN4-_gfDMwbCKpxCnX1VT9fDQDk7JrA">
+
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Saka</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">ARS (H)</div>
+</div>
+<!-- Player: Haaland -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Haaland Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBP4b3ET2_4j4-0xbwS53DOpS3oXUd6pBmRGj5HvHPQEKJ94Ctj04BPkqrrBRlfvQwOHMzFd88g51oD4a8HCDoI7cwmMbMEE0KW_yWKU2e1ZVtBzBAuYtDWaF7ds8zIGin638qXKCzuAUs0w4E1aTuSDDYPjnzFUTQ2zPoHT2Uj_Y0tVBgkk3S4BaGWXHGSr_9UyHmC7PGoT-EdPx9-PNPXA9UwLGPvTK0UPjUWWukuR3O-e6xTlfBwC8hCXjqYDaAZlA">
+<span class="absolute -top-1 -right-1 bg-primary-container text-amber-500 rounded-full w-3.5 h-3.5 flex items-center justify-center shadow border border-white/30"><span class="material-symbols-outlined text-[10px] leading-none text-amber-500" style="font-variation-settings: 'FILL' 1;">star</span></span>
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Haaland</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">MCI (A)</div>
+</div>
+<!-- Player: Watkins -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Watkins Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC6EaaLNg0C9q_D9jSyyZ5F1j0ruKr8vHq9b7Mlscn1eldRfzgTjz3dKz-LJvACThx-OVvU4SzHO7aRdIW9RCRzBtaPI3sPmmlsqLfM8V8vD1eVnCn32wp2jc-KEDWGpGUBjRWgT7vAVT1fmLbJbEz_c_6_DUIzDSVi8A3acUHdWY3ayvmATSN9YtUye_NAyRV-5TfQ3zyqmbBpUjM8_vy7WXIcf4UhdUlx_LqxNF1po9v55jPANrbr">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Watkins</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">AVL (H)</div>
+</div>
+</div>
+<!-- Midfield Line (4 MID) -->
+<div class="flex justify-around items-center w-full px-1">
+<!-- Player: Palmer -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Palmer Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBgO4yoikdGMOT4fxNbzyLIR2Q8SXK_wSoLN6hZNvALlWQMYdO4NRFrxGw5GxEXI4lxlYg3TOTxqEpHC0Z3YU4DQ8WEN4qfVs8XAHQv1RBfZeJInVqLYvEV1nLO5vBr6rOiBgAdEVsReMAEfmiDuURMRgc8LjBaOfT82ZSv8qvASGCBbOdj2cBI6Oyf61gygkCNtXrkk5OgW7lU8EMpYi0i_tztpAugpZ8lXni1AL5hLtCcbEpRtnKqX1IKqbbhTsefDA">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[52px] truncate">Palmer</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">CHE (H)</div>
+</div>
+<!-- Player: Foden -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Foden Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCkejsuAUVtal155a3z0MU1YC0ZgDtQFH1PYc23dWWbM4eSHgSjINODBMWBRk3M4S5Q6fXtWcpz35wHz9xr_1YVOjYlab2y6hmEIyU6PlPQ9mKgaUZW_aVUfiOGUUvcwl1_kv9_gLT80nhM7_zTLJB8wlJ7RwdAhe2EwXAbDiQxo60i8ZLj8kuk2Vdm1LaimcGQ9jkesRCBfRkjfMEAoJ4ETmeRzcxkuKfm6a8k79Ri6DZLrkY9W_GMk40CPZAEOSA1bA">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[52px] truncate">Foden</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">MCI (A)</div>
+</div>
+<!-- Player: Bowen -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Bowen Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDlXoQAZBKvKekfCLY__Pe9SQgL9Oe2IQhSbORDXD9HpDx0nPicgWIO1yC33MzVo2uMdixSi433dMFFGeF-kYf2UYD7tyT7_Y-NgopmuYvrKbO2iNQ_9pAb0YKtWZRYn3xoymJL2aMba0bzSkkKxIuYw7Zgdku5owMtylBE5GFxDzH3IBJPQ263oRC9ngW6lCoj33CaP-n-KEVMCZtEhvJhOU5QUl6x4hHC7u7HvpzmgGHpP2W3xT8Lg1CSwE1StkSx0A">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[52px] truncate">Bowen</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">WHU (H)</div>
+</div>
+<!-- Player: Rogers -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Rogers Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBNIX5pReZWoct_oUiffhNh32YjB3WF3oxddjeJViF6i6p2Tsge2Qva4Ez6c469H7PCGfDSJ5jIoGkgu9lXEKJMSaLVmRrNbU5vwdlYz1G6eDKkYegrgDRAn03Sa6rKsUIt1dcGtA6-RlLz0EEx2b2KK-kldzw-ii_t1D1x1GH2rx0P_3G_byzuC00kT_EWeqjaDX6MGMygs5xsISS2kMAHhADIzk45iq8d8hVh25H-OwUocGPy5V96WVjp4pMjdCj3MA">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[52px] truncate">Rogers</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">AVL (H)</div>
+</div>
+</div>
+<!-- Defense Line (3 DEF) -->
+<div class="flex justify-around items-center w-full px-4">
+<!-- Player: Gabriel -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Gabriel Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3IdQf9QV7N4YKPXbf8dB5WMpCCXOJjahBcsWgULeYEyz144y5z1sr6fu7W_6yHzTP_U1vZHc2oXNtRdZH4NBUOV2FsUVBm55W04HD3FGtj-fdzbgkPUSGjQ2fjC8DADH0lktUKzEpa7Vv-Flp3_UoQQeFT7smORT0BQlTJjKSTuxwFs4QAyAujoM1amF2MsWW8IT1uahIiNUF45kW0oXGRJWpoSGbJxOwp5Q2J7DB3epDSzlKJaEo-ctiv5cRl5gDVA">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Gabriel</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">ARS (H)</div>
+</div>
+<!-- Player: Saliba -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Saliba Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9RmXtcN54gMrlBHwuPt8BgXRQJRwf2iUQpEd_5QJyYULVFiHfVrvp7pZPtRVtcOsqdkL3nv_dqOGTqnkSJDqaFyR4wY8hqeQtKA8abvGP5mITQxdNE5DM_7WHroDVslGCkwl6yAvB5UEPg177GLbn8CZNf73FtwiTvRvwkOfz42CN6uckvQLkzflW1Dig_1zLMnv_TxWpWxekhq7CH7k9eXYE6ukUJ37utUgb2MzoGJALebzUTc31WBspeHu-NZoIKA">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Saliba</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">ARS (H)</div>
+</div>
+<!-- Player: Porro -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Porro Jersey" class="w-9 h-9 object-contain drop-shadow-md" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcFQ5WHGTBEOAQDm3pLAXWeei0UcEb0XuYycqd2V2-bXNB_5UrOa0gz6w-pUyIbUbHL1qVPRymdhI7Xx9yibOzUM2ckOqDMt4IE0ZCVjJnaXQCiH1rEzduIs8PgFt-LpPN_ucT9AR7KChCDg7fCSu5mFaZfqx2Eju9BKDK-6EAwzrgf9wEQ7F6HBpDXkF9VbvTG1lLt2a1977syNB64SpdGHrYvV2nf2TDZGrz4hgKJcGu5HlaYK1G5X2kD_X0aX637Q">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Porro</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">TOT (A)</div>
+</div>
+</div>
+<!-- Goalkeeper (1 GK) -->
+<div class="flex justify-center items-center w-full pb-1">
+<!-- Player: Raya -->
+<div class="flex flex-col items-center group cursor-pointer">
+<div class="relative flex items-center justify-center">
+<img alt="Raya Jersey" class="w-9 h-9 object-contain drop-shadow-md brightness-110" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnUX72I-b-rcR0YMmpqd9hQUgef4hPDSj-1bCc_NaE1T7_QAf-gRhBBMiusfCHubDaH6lNQ0zf9Uh6bckrIQJBiO70DSpJukF1RSE_6-Nhts8UxufwXLSOlOR27aH4rJtoJgR0u0AMZvHeNfLQJgQRaQc7_MZyXUBr78oLtJPq4uGSzE_ep5bEUWPqcX3LyoZaRrP6RMJXy9m88ItjyRp8sZUTVU_iWqk27UbGjrGx_GFHZEjVjI_4o_b4YDm6ZV67XQ">
+</div>
+<div class="bg-white/95 text-on-surface text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm text-center leading-tight mt-0.5 max-w-[56px] truncate">Raya</div>
+<div class="text-[9px] font-semibold text-white/90 drop-shadow">ARS (H)</div>
+</div>
+</div>
+</div></div></section><section class="bg-surface-container-lowest rounded-xl p-md shadow-sm border border-outline-variant flex flex-col gap-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-1">
+<span class="text-headline-sm font-bold text-on-surface">Bench</span>
+<span class="material-symbols-outlined text-[16px] text-on-surface-variant cursor-pointer">info</span>
+</div>
+<div class="flex items-center gap-1 text-[11px] text-on-surface-variant font-medium">
+<span class="">Drag handle</span>
+<span class="material-symbols-outlined text-[14px]">drag_indicator</span>
+<span class="">to reorder</span>
+</div>
+</div>
+<div class="grid grid-cols-4 gap-2 pt-1">
+<!-- Sub 1: Turner (GK) -->
+<div class="bg-surface-container-low rounded-xl p-2 flex flex-col items-center justify-between text-center relative border border-outline-variant/30 min-h-[140px]">
+<span class="bg-primary-container text-white text-[9px] font-bold px-2 py-0.5 rounded-full mb-1 leading-tight whitespace-nowrap">1st (GK)</span>
+<div class="w-9 h-9 rounded-full bg-white flex items-center justify-center my-0.5 shadow-sm overflow-hidden">
+<svg class="w-7 h-7" fill="none" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 10L6 14L8 18L13 16V34H27V16L32 18L34 14L27 10H13Z" fill="#eab308"></path>
+<path d="M17 10C17 12 18.5 13 20 13C21.5 13 23 12 23 10H17Z" fill="#ca8a04"></path>
+<text fill="#000000" font-family="Inter, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" x="20" y="24">1</text>
+</svg>
+</div>
+<div class="flex flex-col items-center w-full">
+<span class="text-[11px] font-bold text-on-surface leading-tight truncate w-full">Turner</span>
+<span class="text-[9px] text-on-surface-variant font-medium leading-tight">GK · NFO</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline mt-1 cursor-grab opacity-60">drag_indicator</span>
+</div>
+<!-- Sub 2: Taylor -->
+<div class="bg-surface-container-low rounded-xl p-2 flex flex-col items-center justify-between text-center relative border border-outline-variant/30 min-h-[140px]">
+<span class="bg-surface-container-highest text-on-surface text-[9px] font-semibold px-2 py-0.5 rounded-full mb-1 leading-tight whitespace-nowrap">2nd Sub</span>
+<div class="w-9 h-9 rounded-full bg-white flex items-center justify-center my-0.5 shadow-sm overflow-hidden">
+<svg class="w-7 h-7" fill="none" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 10L6 14L8 18L13 16V34H27V16L32 18L34 14L27 10H13Z" fill="#dc2626"></path>
+<rect fill="#ffffff" height="24" width="2" x="17" y="10"></rect>
+<rect fill="#ffffff" height="24" width="2" x="21" y="10"></rect>
+</svg>
+</div>
+<div class="flex flex-col items-center w-full">
+<span class="text-[11px] font-bold text-on-surface leading-tight truncate w-full">Taylor</span>
+<span class="text-[9px] text-on-surface-variant font-medium leading-tight">DEF · SOU</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline mt-1 cursor-grab opacity-60">drag_indicator</span>
+</div>
+<!-- Sub 3: Archer -->
+<div class="bg-surface-container-low rounded-xl p-2 flex flex-col items-center justify-between text-center relative border border-outline-variant/30 min-h-[140px]">
+<span class="bg-surface-container-highest text-on-surface text-[9px] font-semibold px-2 py-0.5 rounded-full mb-1 leading-tight whitespace-nowrap">3rd</span>
+<div class="w-9 h-9 rounded-full bg-white flex items-center justify-center my-0.5 shadow-sm overflow-hidden">
+<svg class="w-7 h-7" fill="none" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 10L6 14L8 18L13 16V34H27V16L32 18L34 14L27 10H13Z" fill="#dc2626"></path>
+<rect fill="#ffffff" height="24" width="2" x="17" y="10"></rect>
+<rect fill="#ffffff" height="24" width="2" x="21" y="10"></rect>
+</svg>
+</div>
+<div class="flex flex-col items-center w-full">
+<span class="text-[11px] font-bold text-on-surface leading-tight truncate w-full">Archer</span>
+<span class="text-[9px] text-on-surface-variant font-medium leading-tight">FWD · SOU</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline mt-1 cursor-grab opacity-60">drag_indicator</span>
+</div>
+<!-- Sub 4: Kabore -->
+<div class="bg-surface-container-low rounded-xl p-2 flex flex-col items-center justify-between text-center relative border border-outline-variant/30 min-h-[140px]">
+<span class="bg-surface-container-highest text-on-surface text-[9px] font-semibold px-2 py-0.5 rounded-full mb-1 leading-tight whitespace-nowrap">4th</span>
+<div class="w-9 h-9 rounded-full bg-white flex items-center justify-center my-0.5 shadow-sm overflow-hidden">
+<svg class="w-7 h-7" fill="none" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 10L6 14L8 18L13 16V34H27V16L32 18L34 14L27 10H13Z" fill="#1e3a8a"></path>
+<path d="M6 14L13 10V16L8 18L6 14Z" fill="#dc2626"></path>
+<path d="M34 14L27 10V16L32 18L34 14Z" fill="#dc2626"></path>
+<text fill="#ffffff" font-family="Inter, sans-serif" font-size="9" font-weight="bold" text-anchor="middle" x="20" y="24">3</text>
+</svg>
+</div>
+<div class="flex flex-col items-center w-full">
+<span class="text-[11px] font-bold text-on-surface leading-tight truncate w-full">Kabore</span>
+<span class="text-[9px] text-on-surface-variant font-medium leading-tight">DEF · BEN</span>
+</div>
+<span class="material-symbols-outlined text-[13px] text-outline mt-1 cursor-grab opacity-60">drag_indicator</span>
+</div>
+</div>
+</section>
+<!-- Points Breakdown -->
+<!-- Quick Actions -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-sm mb-lg"><button class="bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl p-md border border-outline-variant flex flex-row items-center justify-between gap-sm shadow-sm" onclick="window.location.href='{{DATA:SCREEN:SCREEN_18}}'"><div class="flex items-center gap-sm"><div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary"><span class="material-symbols-outlined" data-icon="groups">groups</span></div><span class="text-body-md font-body-md font-semibold text-on-surface whitespace-nowrap">My Squad</span></div><span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span></button><button class="bg-surface-container-lowest hover:bg-surface-container-low transition-colors rounded-xl p-md border border-outline-variant flex flex-row items-center justify-between gap-sm shadow-sm"><div class="flex items-center gap-sm"><div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-primary"><span class="material-symbols-outlined" data-icon="help_outline">help_outline</span></div><span class="text-body-md font-body-md font-semibold text-on-surface whitespace-nowrap">How Points Work</span></div><span class="material-symbols-outlined text-outline" data-icon="chevron_right">chevron_right</span></button></section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 bg-surface dark:bg-surface md:hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] border-t border-outline-variant dark:border-outline">
+<div class="flex justify-around items-center w-full px-sm py-xs max-w-[600px] mx-auto">
+<a class="flex flex-col items-center justify-center text-primary bg-inverse-on-surface rounded-full px-3 py-xs" href="#">
+<span class="material-symbols-outlined" data-icon="house" style="font-variation-settings: 'FILL' 1;">house</span>
+<span class="text-label-md font-label-md mt-1 whitespace-nowrap">Home</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-xs hover:text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="groups">groups</span>
+<span class="text-label-md font-label-md mt-1 whitespace-nowrap">Starting XI</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-xs hover:text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="swap_horiz">swap_horiz</span>
+<span class="text-label-md font-label-md mt-1 whitespace-nowrap">Transfers</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-xs hover:text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="emoji_events">emoji_events</span>
+<span class="text-label-md font-label-md mt-1 whitespace-nowrap">Leagues</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant px-2 py-xs hover:text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="chat">chat</span>
+<span class="text-label-md font-label-md mt-1 whitespace-nowrap">Chats</span>
+</a>
+</div>
+</nav>
+
+
+</body></html>

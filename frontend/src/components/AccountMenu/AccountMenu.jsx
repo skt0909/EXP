@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
+import DashboardIcon from '../DashboardIcon/DashboardIcon'
 
 /**
  * The account icon button + its dropdown (email, Log out, Delete account).
@@ -59,11 +60,11 @@ function AccountMenu() {
     <div className="relative">
       <button
         aria-label="Account"
-        className="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant flex items-center justify-center hover:bg-surface-container-high transition-colors"
+        className="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-container-high transition-colors"
         onClick={() => setOpen((v) => !v)}
         type="button"
       >
-        <span className="material-symbols-outlined text-on-surface-variant text-[20px]">person</span>
+        <DashboardIcon className="text-on-surface" name="account" size={20} />
       </button>
 
       {open && (
@@ -76,7 +77,7 @@ function AccountMenu() {
             onClick={handleLogout}
             type="button"
           >
-            <span className="material-symbols-outlined text-[18px]">logout</span>
+            <DashboardIcon name="logout" size={18} />
             Log out
           </button>
 
@@ -88,7 +89,7 @@ function AccountMenu() {
             onClick={handleDeleteAccount}
             type="button"
           >
-            <span className="material-symbols-outlined text-[18px]">delete_forever</span>
+            <DashboardIcon name="trash" size={18} />
             {deleting ? 'Deleting account…' : 'Delete account'}
           </button>
         </div>

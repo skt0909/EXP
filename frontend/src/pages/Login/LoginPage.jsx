@@ -40,10 +40,22 @@ function LoginPage() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex items-center justify-center font-body-md text-body-md">
-      <main className="relative z-10 w-full max-w-[400px] px-safe-margin py-xl flex flex-col items-center">
-        <div className="mb-xl text-center">
-          <h1 className="font-display-lg text-display-lg text-primary mb-sm">PitchSide</h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant">Welcome back, manager.</p>
+      <main className="relative z-10 w-full max-w-[390px] px-safe-margin py-lg flex flex-col items-center">
+        <div className="w-full max-w-[260px] h-[170px] mb-md">
+          <img
+            alt="Football team preparing on the training ground"
+            className="w-full h-full object-contain mix-blend-multiply"
+            src="/assets/stitch/login-footballers.png"
+          />
+        </div>
+
+        <div className="mb-lg text-center">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-primary-container/40 bg-primary-container/10 px-3 py-1 mb-sm text-[10px] font-semibold uppercase tracking-[0.12em] text-primary">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary-container" />
+            Manager access
+          </div>
+          <h1 className="text-[30px] leading-none font-semibold text-on-surface mb-sm">PitchSide</h1>
+          <p className="font-body-md text-body-md text-on-surface-variant">Welcome back, manager.</p>
         </div>
 
         <form className="w-full flex flex-col gap-md" onSubmit={handleSubmit}>
@@ -118,7 +130,7 @@ function LoginPage() {
           )}
 
           <button
-            className="w-full bg-primary-container text-on-primary-container rounded-lg py-md font-label-md text-label-md uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-md mt-sm disabled:opacity-50 disabled:active:scale-100"
+            className="w-full bg-primary-container text-white rounded-lg py-md font-label-md text-label-md uppercase tracking-wider hover:bg-primary active:scale-[0.98] transition-all shadow-[0_4px_12px_rgba(79,102,0,0.18)] mt-sm disabled:opacity-50 disabled:active:scale-100"
             disabled={submitting}
             type="submit"
           >

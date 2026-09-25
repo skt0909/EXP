@@ -1,0 +1,282 @@
+{
+  "screenshot": {
+    "name": "projects/6082680430787009104/files/631828566605038873",
+    "downloadUrl": "https://lh3.googleusercontent.com/aida/AEtjO1XgglVl16SONRJHo3vc-_-Y3eNUph22HNLchxC5uNRoZpP3j43Acl9T2W4wKUEYVZTepBl5CnLw4RyrMacH3TDM4ZmD9tdwQPgf7Sq2VSUlm3XL1RD4p_kh9stlXLqLI-jCaEnZSOqZUuWYZV865RLuu8YWOC38S0tLMXPQx4RpNVKuY3oFnyIYauTgWPLAxSMYbtRKr1VHtJ05MYTcc3_RjjbaPwAwU4-GM-WQKnmvBEYcLcfpCDERzw"
+  },
+  "htmlCode": {
+    "name": "projects/6082680430787009104/files/14412563319052888140",
+    "downloadUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwMDY1YzIyOWZjNmQwZDIwNWYxMjA2MTBlMDVhNTZjEgsSBxDLrLnjgRgYAZIBIwoKcHJvamVjdF9pZBIVQhM2MDgyNjgwNDMwNzg3MDA5MTA0&filename=&opi=89354086",
+    "mimeType": "text/html"
+  },
+  "id": "42612d6a9192427087469e6110bb2f33",
+  "generatedBy": "figaro_agent",
+  "width": "780",
+  "height": "2444",
+  "title": "Create or Join League",
+  "prompt": "Mobile screen for PitchSide Intelligence fantasy football app: \"Create or Join League\".\n\nMatches the exact theme of {{DATA:SCREEN:SCREEN_5}} (PitchSide Intelligence: #38003c deep purple brand, #faf8ff soft surface background, rounded 8px / 12px cards, clean borders, high-contrast typography, Material Symbols Outlined icons).\n\nScreen Content and Features:\n1. Mode Switcher / Tab Header:\n   - Segmented toggle at top: \"Create League\" (active tab) and \"Join League\".\n2. Create League Section:\n   - League Name input field: e.g. \"The Sunday Treble\", with edit icon and char counter (18/30) + \"Suggest Name\" quick chip.\n   - League Type Selection:\n     - \"Classic Invitational\" (Total cumulative points across gameweeks) vs \"Head-to-Head\" (Weekly matchups against league members).\n   - \"Number of Players Can Join\" (Capacity Options):\n     - Interactive selector with quick pills: \"8 Players\", \"12 Players\", \"20 Players\", \"50 Players\", or \"Unlimited (Public)\". Let 12 Players or 20 Players be selected with a checked state and subtitle \"Ideal for close friends & office leagues\".\n     - Custom limit slider or stepper option (+/- count).\n   - Entry & Privacy:\n     - Toggle: \"Private (Invite Code Required)\" vs \"Public (Anyone can search & join)\". Private is toggled ON.\n   - Auto-Generated League Code preview card:\n     - Card titled \"Auto-Generated Invite Code\":\n     - Prominently displays generated code: `PITCH-784X` or `LGE-9482-WK` in high-contrast monospace badge with a \"Copy Code\" button and \"Share Link\" action.\n     - Explanation text: \"A unique 8-character invite code will be activated once created. Share it directly with managers to join.\"\n   - Primary Action Button:\n     - Prominent full-width CTA: \"Create League & Generate Code\" in deep purple (`#38003c`) with checkmark/plus icon.\n3. Quick \"Join League via Code\" Section below (or collapsible drawer/card):\n   - Card: \"Have an Invite Code?\"\n   - Input: \"Enter 8-digit League Code\" (e.g. placeholder: \"e.g. PITCH-784X\") with adjacent \"Join\" button.\n   - Helper text: \"Ask your league commissioner for the invite code to enter directly.\"\n\nDesign Quality:\n- Ensure no overflowing or clipped elements.\n- Keep generous spacing and padding suitable for 390px mobile screens.\n- Clean typography and token consistency with PitchSide Intelligence.",
+  "name": "projects/6082680430787009104/screens/42612d6a9192427087469e6110bb2f33",
+  "theme": {
+    "colorMode": "LIGHT",
+    "font": "INTER",
+    "roundness": "ROUND_EIGHT",
+    "customColor": "#38003c",
+    "headlineFont": "INTER",
+    "bodyFont": "INTER",
+    "labelFont": "INTER",
+    "namedColors": {
+      "on_primary_fixed_variant": "#6a306a",
+      "primary_container": "#38003c",
+      "on_secondary_container": "#006e36",
+      "secondary_container": "#00fa82",
+      "on_surface": "#131b2e",
+      "surface_container_low": "#f2f3ff",
+      "tertiary_fixed": "#ffd9dc",
+      "surface_container_highest": "#dae2fd",
+      "inverse_surface": "#283044",
+      "on_primary_container": "#af6eac",
+      "on_tertiary": "#ffffff",
+      "outline_variant": "#d2c2cd",
+      "surface": "#faf8ff",
+      "background": "#faf8ff",
+      "surface_dim": "#d2d9f4",
+      "inverse_primary": "#f7aff2",
+      "surface_container_lowest": "#ffffff",
+      "on_tertiary_fixed_variant": "#910030",
+      "tertiary_container": "#410011",
+      "error_container": "#ffdad6",
+      "tertiary_fixed_dim": "#ffb2ba",
+      "surface_container": "#eaedff",
+      "on_background": "#131b2e",
+      "on_secondary_fixed": "#00210c",
+      "surface_tint": "#854884",
+      "inverse_on_surface": "#eef0ff",
+      "surface_bright": "#faf8ff",
+      "tertiary": "#050000",
+      "on_surface_variant": "#4f434c",
+      "primary_fixed_dim": "#f7aff2",
+      "secondary_fixed_dim": "#00e476",
+      "surface_variant": "#dae2fd",
+      "surface_container_high": "#e2e7ff",
+      "secondary_fixed": "#61ff97",
+      "on_primary_fixed": "#37003b",
+      "on_primary": "#ffffff",
+      "on_error_container": "#93000a",
+      "on_secondary_fixed_variant": "#005227",
+      "on_secondary": "#ffffff",
+      "outline": "#80737d",
+      "on_error": "#ffffff",
+      "primary": "#040004",
+      "on_tertiary_fixed": "#400010",
+      "primary_fixed": "#ffd6f8",
+      "secondary": "#006d35",
+      "on_tertiary_container": "#fe225f",
+      "error": "#ba1a1a"
+    },
+    "colorVariant": "FIDELITY",
+    "overridePrimaryColor": "#38003c",
+    "overrideSecondaryColor": "#00ff85",
+    "overrideTertiaryColor": "#e90052",
+    "overrideNeutralColor": "#0f172a",
+    "spacingScale": 2,
+    "typography": {
+      "body-lg": {
+        "fontFamily": "Inter",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "1.6"
+      },
+      "body-md": {
+        "fontFamily": "Inter",
+        "fontSize": "14px",
+        "fontWeight": "400",
+        "lineHeight": "1.5"
+      },
+      "headline-md": {
+        "fontFamily": "Inter",
+        "fontSize": "24px",
+        "fontWeight": "700",
+        "lineHeight": "1.3",
+        "letterSpacing": "-0.01em"
+      },
+      "label-md": {
+        "fontFamily": "Inter",
+        "fontSize": "12px",
+        "fontWeight": "600",
+        "lineHeight": "1",
+        "letterSpacing": "0.05em"
+      },
+      "headline-sm": {
+        "fontFamily": "Inter",
+        "fontSize": "20px",
+        "fontWeight": "700",
+        "lineHeight": "1.3"
+      },
+      "stats-number": {
+        "fontFamily": "Inter",
+        "fontSize": "18px",
+        "fontWeight": "800",
+        "lineHeight": "1"
+      },
+      "display-lg": {
+        "fontFamily": "Inter",
+        "fontSize": "32px",
+        "fontWeight": "800",
+        "lineHeight": "1.2",
+        "letterSpacing": "-0.02em"
+      }
+    },
+    "spacing": {
+      "xs": "4px",
+      "gutter": "12px",
+      "lg": "24px",
+      "base": "4px",
+      "safe-margin": "16px",
+      "md": "16px",
+      "xl": "32px",
+      "sm": "8px"
+    },
+    "headlineFontFamily": "Inter",
+    "bodyFontFamily": "Inter",
+    "labelFontFamily": "Inter"
+  },
+  "deviceType": "MOBILE",
+  "screenType": "DESIGN",
+  "screenMetadata": {
+    "agentType": "PRO_AGENT",
+    "status": "COMPLETE",
+    "displayMode": "HTML"
+  },
+  "designSystem": {
+    "name": "assets/c7cb2e6d256e4a1f8bb77da5ed434946",
+    "designSystem": {
+      "displayName": "PitchSide Intelligence",
+      "styleGuidelines": "## Brand & Style\nThe design system is engineered for the high-stakes, data-driven environment of Fantasy Premier League management. It balances the high-energy, vibrant aesthetic of the Premier League brand with a clean, \"Utility-First\" interface. \n\nThe style is **Corporate Modern with a Sporty Edge**, utilizing heavy whitespace and crisp typography to make complex statistics digestible. The emotional response should be one of confidence, speed, and analytical clarity—helping managers make \"deadline-day\" decisions without cognitive overload.\n\n## Layout & Spacing\nThe layout follows a **Mobile-First Fluid Grid** model. \n- **Margins:** Standard side margins are 16px. \n- **Vertical Rhythm:** Elements are spaced in multiples of 4px. Use 16px (md) for standard spacing between components and 8px (sm) for internal element grouping.\n- **Stacking:** On mobile, lists and cards should span the full width minus safe-margins. On larger screens (tablet), content should be contained within a 600px max-width center column to maintain the \"chat assistant\" intimacy.\n\n## Elevation & Depth\nThe system uses **Tonal Layering** with very subtle shadows to maintain a clean, modern feel.\n- **Level 0 (Background):** `#f8f9fa` - The base canvas.\n- **Level 1 (Cards/Bubbles):** `#ffffff` - Raised slightly with a 2px blur, 4% opacity black shadow.\n- **Level 2 (Active Inputs/Modals):** `#ffffff` - Higher elevation with a 10px blur, 8% opacity shadow to indicate interactivity.\n- **Separators:** Use 1px solid lines in `#e2e8f0` rather than shadows for list items to keep the interface \"flat\" and fast.\n\n## Components\n- **Chat Bubbles:** \n    - *Assistant:* White background, primary purple text, 16px radius, aligned left.\n    - *User:* Primary purple background, white text, 16px radius, aligned right.\n- **Suggested Question Chips:** Pill-shaped, transparent background with a 1px border of `#38003c`. On tap, fill with primary color.\n- **Input Field:** Rounded (8px), white surface, subtle inner border. The active state should have a 2px secondary green bottom-border.\n- **Player Cards:** Minimalist white cards with the player's shirt icon, name (bold), and price. Use the `stats-number` type for points.\n- **Header:** Minimalist white background, 1px bottom border. Small (32px) circular avatar for the user on the right, and a simplified app icon on the left.\n- **Points Badge:** Small circular or rounded-rect containers using the secondary green background with primary purple text for \"high-score\" visibility.",
+      "theme": {
+        "colorMode": "LIGHT",
+        "font": "INTER",
+        "roundness": "ROUND_EIGHT",
+        "customColor": "#38003c",
+        "headlineFont": "INTER",
+        "bodyFont": "INTER",
+        "labelFont": "INTER",
+        "namedColors": {
+          "on_primary_fixed": "#37003b",
+          "primary": "#040004",
+          "surface_container": "#eaedff",
+          "primary_fixed_dim": "#f7aff2",
+          "surface_container_lowest": "#ffffff",
+          "surface_tint": "#854884",
+          "tertiary_container": "#410011",
+          "on_tertiary_fixed_variant": "#910030",
+          "on_secondary_container": "#006e36",
+          "outline": "#80737d",
+          "tertiary_fixed_dim": "#ffb2ba",
+          "on_primary_fixed_variant": "#6a306a",
+          "tertiary_fixed": "#ffd9dc",
+          "on_secondary_fixed_variant": "#005227",
+          "on_secondary": "#ffffff",
+          "on_tertiary_container": "#fe225f",
+          "on_tertiary_fixed": "#400010",
+          "secondary_container": "#00fa82",
+          "surface_container_highest": "#dae2fd",
+          "on_primary": "#ffffff",
+          "secondary_fixed": "#61ff97",
+          "surface_variant": "#dae2fd",
+          "on_error_container": "#93000a",
+          "inverse_primary": "#f7aff2",
+          "tertiary": "#050000",
+          "outline_variant": "#d2c2cd",
+          "primary_container": "#38003c",
+          "surface_container_high": "#e2e7ff",
+          "on_background": "#131b2e",
+          "surface": "#faf8ff",
+          "error": "#ba1a1a",
+          "on_surface": "#131b2e",
+          "error_container": "#ffdad6",
+          "surface_container_low": "#f2f3ff",
+          "on_tertiary": "#ffffff",
+          "primary_fixed": "#ffd6f8",
+          "inverse_on_surface": "#eef0ff",
+          "on_error": "#ffffff",
+          "on_secondary_fixed": "#00210c",
+          "secondary": "#006d35",
+          "secondary_fixed_dim": "#00e476",
+          "on_surface_variant": "#4f434c",
+          "on_primary_container": "#af6eac",
+          "surface_dim": "#d2d9f4",
+          "surface_bright": "#faf8ff",
+          "background": "#faf8ff",
+          "inverse_surface": "#283044"
+        },
+        "designMd": "---\nname: PitchSide Intelligence\ncolors:\n  surface: '#faf8ff'\n  surface-dim: '#d2d9f4'\n  surface-bright: '#faf8ff'\n  surface-container-lowest: '#ffffff'\n  surface-container-low: '#f2f3ff'\n  surface-container: '#eaedff'\n  surface-container-high: '#e2e7ff'\n  surface-container-highest: '#dae2fd'\n  on-surface: '#131b2e'\n  on-surface-variant: '#4f434c'\n  inverse-surface: '#283044'\n  inverse-on-surface: '#eef0ff'\n  outline: '#80737d'\n  outline-variant: '#d2c2cd'\n  surface-tint: '#854884'\n  primary: '#040004'\n  on-primary: '#ffffff'\n  primary-container: '#38003c'\n  on-primary-container: '#af6eac'\n  inverse-primary: '#f7aff2'\n  secondary: '#006d35'\n  on-secondary: '#ffffff'\n  secondary-container: '#00fa82'\n  on-secondary-container: '#006e36'\n  tertiary: '#050000'\n  on-tertiary: '#ffffff'\n  tertiary-container: '#410011'\n  on-tertiary-container: '#fe225f'\n  error: '#ba1a1a'\n  on-error: '#ffffff'\n  error-container: '#ffdad6'\n  on-error-container: '#93000a'\n  primary-fixed: '#ffd6f8'\n  primary-fixed-dim: '#f7aff2'\n  on-primary-fixed: '#37003b'\n  on-primary-fixed-variant: '#6a306a'\n  secondary-fixed: '#61ff97'\n  secondary-fixed-dim: '#00e476'\n  on-secondary-fixed: '#00210c'\n  on-secondary-fixed-variant: '#005227'\n  tertiary-fixed: '#ffd9dc'\n  tertiary-fixed-dim: '#ffb2ba'\n  on-tertiary-fixed: '#400010'\n  on-tertiary-fixed-variant: '#910030'\n  background: '#faf8ff'\n  on-background: '#131b2e'\n  surface-variant: '#dae2fd'\ntypography:\n  display-lg:\n    fontFamily: Inter\n    fontSize: 32px\n    fontWeight: '800'\n    lineHeight: '1.2'\n    letterSpacing: -0.02em\n  headline-md:\n    fontFamily: Inter\n    fontSize: 24px\n    fontWeight: '700'\n    lineHeight: '1.3'\n    letterSpacing: -0.01em\n  headline-sm:\n    fontFamily: Inter\n    fontSize: 20px\n    fontWeight: '700'\n    lineHeight: '1.3'\n  body-lg:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: '1.6'\n  body-md:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: '1.5'\n  label-md:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: '600'\n    lineHeight: '1'\n    letterSpacing: 0.05em\n  stats-number:\n    fontFamily: Inter\n    fontSize: 18px\n    fontWeight: '800'\n    lineHeight: '1'\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  base: 4px\n  xs: 4px\n  sm: 8px\n  md: 16px\n  lg: 24px\n  xl: 32px\n  safe-margin: 16px\n  gutter: 12px\n---\n\n## Brand & Style\nThe design system is engineered for the high-stakes, data-driven environment of Fantasy Premier League management. It balances the high-energy, vibrant aesthetic of the Premier League brand with a clean, \"Utility-First\" interface. \n\nThe style is **Corporate Modern with a Sporty Edge**, utilizing heavy whitespace and crisp typography to make complex statistics digestible. The emotional response should be one of confidence, speed, and analytical clarity—helping managers make \"deadline-day\" decisions without cognitive overload.\n\n## Colors\nThe palette leverages the iconic contrast of the league. \n- **Primary (Deep Purple):** Used for headers, primary actions, and brand identification to establish authority.\n- **Secondary (Vibrant Green):** Reserved for \"success\" states, price rises, and CTA accents that require high visibility.\n- **Tertiary (Electric Pink):** Used sparingly for critical alerts, price falls, or \"Live\" match indicators.\n- **Neutral:** A deep navy-black is used for all body text to ensure maximum legibility against the light gray background.\n\n## Typography\nThis design system relies on a single, highly-optimized sans-serif stack to ensure performance and clarity. \n- **Headlines:** Use tighter letter-spacing and heavier weights to mimic sports editorial styles.\n- **Data Points:** Numbers (points, prices, rank) should use the `stats-number` style to stand out from descriptive text.\n- **Labels:** Use uppercase for metadata (e.g., \"GW38\", \"FIX\") to create a clear visual hierarchy.\n\n## Layout & Spacing\nThe layout follows a **Mobile-First Fluid Grid** model. \n- **Margins:** Standard side margins are 16px. \n- **Vertical Rhythm:** Elements are spaced in multiples of 4px. Use 16px (md) for standard spacing between components and 8px (sm) for internal element grouping.\n- **Stacking:** On mobile, lists and cards should span the full width minus safe-margins. On larger screens (tablet), content should be contained within a 600px max-width center column to maintain the \"chat assistant\" intimacy.\n\n## Elevation & Depth\nThe system uses **Tonal Layering** with very subtle shadows to maintain a clean, modern feel.\n- **Level 0 (Background):** `#f8f9fa` - The base canvas.\n- **Level 1 (Cards/Bubbles):** `#ffffff` - Raised slightly with a 2px blur, 4% opacity black shadow.\n- **Level 2 (Active Inputs/Modals):** `#ffffff` - Higher elevation with a 10px blur, 8% opacity shadow to indicate interactivity.\n- **Separators:** Use 1px solid lines in `#e2e8f0` rather than shadows for list items to keep the interface \"flat\" and fast.\n\n## Shapes\nThe shape language is friendly but structured. \n- **Standard Radius:** 8px (`rounded-md`) for cards and containers.\n- **Chat Bubbles:** Specifically use 16px to distinguish conversational content from static UI.\n- **Action Elements:** Use the \"Pill\" (full radius) for buttons and suggested question chips to emphasize their \"tappability\" on mobile devices.\n\n## Components\n- **Chat Bubbles:** \n    - *Assistant:* White background, primary purple text, 16px radius, aligned left.\n    - *User:* Primary purple background, white text, 16px radius, aligned right.\n- **Suggested Question Chips:** Pill-shaped, transparent background with a 1px border of `#38003c`. On tap, fill with primary color.\n- **Input Field:** Rounded (8px), white surface, subtle inner border. The active state should have a 2px secondary green bottom-border.\n- **Player Cards:** Minimalist white cards with the player's shirt icon, name (bold), and price. Use the `stats-number` type for points.\n- **Header:** Minimalist white background, 1px bottom border. Small (32px) circular avatar for the user on the right, and a simplified app icon on the left.\n- **Points Badge:** Small circular or rounded-rect containers using the secondary green background with primary purple text for \"high-score\" visibility.",
+        "colorVariant": "FIDELITY",
+        "overridePrimaryColor": "#38003c",
+        "overrideSecondaryColor": "#00ff85",
+        "overrideTertiaryColor": "#e90052",
+        "overrideNeutralColor": "#0f172a",
+        "spacingScale": 2,
+        "typography": {
+          "headline-md": {
+            "fontFamily": "Inter",
+            "fontSize": "24px",
+            "fontWeight": "700",
+            "lineHeight": "1.3",
+            "letterSpacing": "-0.01em"
+          },
+          "headline-sm": {
+            "fontFamily": "Inter",
+            "fontSize": "20px",
+            "fontWeight": "700",
+            "lineHeight": "1.3"
+          },
+          "body-md": {
+            "fontFamily": "Inter",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lineHeight": "1.5"
+          },
+          "label-md": {
+            "fontFamily": "Inter",
+            "fontSize": "12px",
+            "fontWeight": "600",
+            "lineHeight": "1",
+            "letterSpacing": "0.05em"
+          },
+          "display-lg": {
+            "fontFamily": "Inter",
+            "fontSize": "32px",
+            "fontWeight": "800",
+            "lineHeight": "1.2",
+            "letterSpacing": "-0.02em"
+          },
+          "body-lg": {
+            "fontFamily": "Inter",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "1.6"
+          },
+          "stats-number": {
+            "fontFamily": "Inter",
+            "fontSize": "18px",
+            "fontWeight": "800",
+            "lineHeight": "1"
+          }
+        },
+        "spacing": {
+          "gutter": "12px",
+          "safe-margin": "16px",
+          "xs": "4px",
+          "base": "4px",
+          "lg": "24px",
+          "sm": "8px",
+          "xl": "32px",
+          "md": "16px"
+        },
+        "headlineFontFamily": "Inter",
+        "bodyFontFamily": "Inter",
+        "labelFontFamily": "Inter"
+      }
+    },
+    "version": "1"
+  }
+}

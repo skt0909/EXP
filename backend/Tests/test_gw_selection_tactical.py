@@ -15,7 +15,7 @@ REPLACES the captain/vice/chip selection tests in test_starting_xi.py that
 could not survive the migration, listed in PHASE3_REPORT.md.
 """
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -290,6 +290,125 @@ def test_get_reports_no_selection_rather_than_404(squad):
     assert body["has_selection"] is False
     assert body["tactic"] is None
     assert body["swaps"] == []
+
+
+# ---- fixture_windows, added for the Starting XI eligibility panel ----------
+#
+# Gameplay/lineup.py's _fixture_windows() imports last_fixture_end from
+# selection_rules.py -- the SAME function validate_selection uses for the
+# swap-timing rule -- rather than re-deriving "when a player's gameweek
+# ends". These tests exist to catch the two definitions drifting apart, not
+# just to check the new field's shape.
+
+def test_fixture_windows_present_for_every_squad_player_with_a_normal_fixture(squad):
+    resp = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                      headers=squad["headers"])
+    windows = resp.json()["fixture_windows"]
+    assert set(int(k) for k in windows) == set(squad["all"])
+    # squad's own fixture builder puts every club's single kickoff 3 days out
+    # and FIXTURE_DURATION_MIN is 115 minutes -- last_end is first_kickoff
+    # plus exactly that, for a single fixture.
+    sample = windows[str(squad["mid"][0])]
+    first = datetime.fromisoformat(sample["first_kickoff"])
+    last = datetime.fromisoformat(sample["last_end"])
+    assert last - first == timedelta(minutes=115)
+
+
+def test_fixture_windows_blank_gameweek_player_is_simply_absent(engine, squad):
+    blank = squad["fwd"][2]
+    with engine.begin() as conn:
+        conn.execute(text(
+            "DELETE FROM ml.fixtures WHERE season = :s AND gameweek = :g AND ("
+            "home_team_id = (SELECT team_id FROM ml.players WHERE season = :s AND fpl_id = :p) "
+            "OR away_team_id = (SELECT team_id FROM ml.players WHERE season = :s AND fpl_id = :p))"),
+            {"s": TEST_SEASON, "g": GAMEWEEK, "p": blank})
+
+    resp = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                      headers=squad["headers"])
+    windows = resp.json()["fixture_windows"]
+    assert str(blank) not in windows
+    # Everyone else is untouched.
+    assert str(squad["fwd"][0]) in windows
+
+
+def test_fixture_windows_double_gameweek_uses_earliest_kickoff_and_latest_end(engine, squad, make_team, make_fixture):
+    double_gw_player = squad["def"][3]
+    # A second fixture for the same club, later than the one `squad` already
+    # seeded -- last_end must track THIS one, not the first.
+    second_opponent = make_team(fpl_id=9601, name="SecondOpponent", short_name="SOP")
+    with engine.connect() as conn:
+        team_id = conn.execute(text(
+            "SELECT team_id FROM ml.players WHERE season = :s AND fpl_id = :p"),
+            {"s": TEST_SEASON, "p": double_gw_player}).scalar()
+    later_kickoff = _now_plus(engine, days=6)
+    make_fixture(fpl_id=8950, gameweek=GAMEWEEK, home_team_id=team_id,
+                away_team_id=second_opponent, kickoff_time=later_kickoff)
+
+    resp = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                      headers=squad["headers"])
+    window = resp.json()["fixture_windows"][str(double_gw_player)]
+    first = datetime.fromisoformat(window["first_kickoff"])
+    last_end = datetime.fromisoformat(window["last_end"])
+
+    # first_kickoff is the EARLIER of his two fixtures (the one `squad` seeded
+    # at +3 days), not the later one just added.
+    assert first < later_kickoff
+    # last_end tracks the LATER fixture's end, not the earlier one's.
+    assert last_end == later_kickoff + timedelta(minutes=115)
+
+
+def test_deadline_passed_reflects_shared_deadlines_check(engine, squad):
+    resp = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                      headers=squad["headers"])
+    assert resp.json()["deadline_passed"] is False  # squad's fixtures kick off 3 days out
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE ml.fixtures SET kickoff_time = :k WHERE season = :s AND gameweek = :g"),
+            {"k": _now_plus(engine, hours=-2), "s": TEST_SEASON, "g": GAMEWEEK})
+
+    resp = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                      headers=squad["headers"])
+    assert resp.json()["deadline_passed"] is True
+
+
+def test_a_pair_fixture_windows_marks_eligible_is_accepted_by_post(engine, squad):
+    """The drift check, accept side: derive eligibility from fixture_windows
+    exactly as the frontend's computeSwapEligibility does (incoming's
+    first_kickoff strictly after outgoing's last_end), then confirm
+    POST /gw_selection agrees."""
+    tactical_mid = squad["mid"][4]
+    _late_kickoff(engine, squad, tactical_mid)
+    outgoing = squad["mid"][2]
+
+    windows = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                        headers=squad["headers"]).json()["fixture_windows"]
+    incoming_kickoff = datetime.fromisoformat(windows[str(tactical_mid)]["first_kickoff"])
+    outgoing_end = datetime.fromisoformat(windows[str(outgoing)]["last_end"])
+    assert incoming_kickoff > outgoing_end  # eligible per the client-side rule
+
+    payload = _payload(squad, swaps=[{"player_out_id": outgoing, "player_in_id": tactical_mid}])
+    resp = client.post("/gw_selection", json=payload, headers=squad["headers"])
+    assert resp.status_code == 200, resp.text
+
+
+def test_a_pair_fixture_windows_marks_ineligible_is_rejected_by_post(squad):
+    """The drift check, reject side: squad's own fixture builder kicks every
+    club off at the SAME instant, so by the strictly-after rule no pair is
+    eligible without _late_kickoff -- confirm the server agrees."""
+    tactical_mid = squad["mid"][4]  # untouched: same kickoff as everyone else
+    outgoing = squad["mid"][2]
+
+    windows = client.get(f"/gw_selection?season={TEST_SEASON}&gameweek={GAMEWEEK}",
+                        headers=squad["headers"]).json()["fixture_windows"]
+    incoming_kickoff = datetime.fromisoformat(windows[str(tactical_mid)]["first_kickoff"])
+    outgoing_end = datetime.fromisoformat(windows[str(outgoing)]["last_end"])
+    assert incoming_kickoff <= outgoing_end  # ineligible per the client-side rule
+
+    payload = _payload(squad, swaps=[{"player_out_id": outgoing, "player_in_id": tactical_mid}])
+    resp = client.post("/gw_selection", json=payload, headers=squad["headers"])
+    assert resp.status_code == 422
+    assert any("must be after" in e for e in resp.json()["detail"])
 
 
 # ---- the DEFERRED triggers, which only Postgres can answer -----------------

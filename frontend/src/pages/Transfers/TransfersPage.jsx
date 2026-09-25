@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom'
 import FplHeader from '../../components/FplHeader/FplHeader'
 import { fetchCurrentSquad } from '../../api/squad'
 import { fetchPlayers } from '../../api/players'
-import { fetchTransfersUsed, submitTransfers } from '../../api/transfers'
+import { fetchTransferHistory, fetchTransfersUsed, submitTransfers } from '../../api/transfers'
 import {
   deleteTransferDraft,
   fetchTransferDrafts,
@@ -11,10 +11,11 @@ import {
 } from '../../api/transferDrafts'
 import { LockedError } from '../../api/client'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
+import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
 import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
+import { kickoffLabel } from '../../data/kickoff'
 
 const POSITION_ORDER = ['GK', 'DEF', 'MID', 'FWD']
-const POINTS_PER_EXTRA_TRANSFER = 4
 
 function netSpend(transfers, squadById, playersById) {
   return transfers.reduce((sum, t) => {
@@ -31,6 +32,42 @@ function opponentLabel(player) {
 
 function playerPoints(player) {
   return Number(player?.points ?? player?.fpl_points ?? 0)
+}
+
+// The pitch shows the whole 15-man squad (2/5/5/3), not a Starting XI +
+// bench split -- Transfers operates on the squad as a unit, independent of
+// who's in this gameweek's XI, so there's no bench-vs-starting distinction
+// to draw here at all.
+function PitchPlayer({ player, isOutgoing, isPending, onClick }) {
+  return (
+    <button
+      className="flex flex-col items-center relative active:scale-95 transition-transform"
+      onClick={onClick}
+      type="button"
+    >
+      {isOutgoing && (
+        <span className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 bg-[#B3261E] text-white text-[9px] font-bold px-2 py-1 rounded-full shadow-md flex items-center gap-1 whitespace-nowrap">
+          <DashboardIcon name="transfers" size={11} strokeWidth={2.4} />
+          OUT
+        </span>
+      )}
+      <div className={`relative ${isPending ? 'opacity-60 grayscale' : ''}`}>
+        <PlayerJersey player={player} size={isOutgoing ? 'lg' : 'md'} />
+      </div>
+      <span
+        className={`mt-0.5 px-1.5 py-0.5 rounded font-label-md text-[9px] font-bold uppercase truncate max-w-[64px] ${
+          isOutgoing
+            ? 'bg-[#B3261E] text-white ring-2 ring-white/80'
+            : isPending
+              ? 'bg-error-container text-on-error-container line-through'
+              : 'bg-surface-container-lowest text-on-surface'
+        }`}
+      >
+        £{player.price.toFixed(1)}m
+      </span>
+      <span className="font-label-md text-[9px] text-white drop-shadow">{player.position}</span>
+    </button>
+  )
 }
 
 // The cart lives on the server (GET/PUT/DELETE /transfer-drafts) so it
@@ -56,13 +93,14 @@ function TransfersPage() {
   const [squad, setSquad] = useState(null)
   const [allPlayers, setAllPlayers] = useState([])
   const [transfersUsed, setTransfersUsed] = useState(null)
+  const [transferHistory, setTransferHistory] = useState([])
+  const [historyOpen, setHistoryOpen] = useState(true)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
 
   const [pendingTransfers, setPendingTransfers] = useState([]) // [{id, outId, inId}], server-backed
   const [draftError, setDraftError] = useState(null)
   const [focusedOutId, setFocusedOutId] = useState(null)
-  const [browseExpanded, setBrowseExpanded] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [sortMode, setSortMode] = useState('price_desc')
 
@@ -76,6 +114,10 @@ function TransfersPage() {
     return fetchTransfersUsed({ season, gameweek }).then(setTransfersUsed)
   }
 
+  function reloadTransferHistory() {
+    return fetchTransferHistory({ season }).then((data) => setTransferHistory(data.transfers ?? []))
+  }
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -85,8 +127,9 @@ function TransfersPage() {
       fetchPlayers({ season, gameweek }),
       fetchTransfersUsed({ season, gameweek }),
       fetchTransferDrafts({ season, gameweek }),
+      fetchTransferHistory({ season }),
     ])
-      .then(([squadData, playersData, transfersUsedData, draftsData]) => {
+      .then(([squadData, playersData, transfersUsedData, draftsData, historyData]) => {
         if (cancelled) return
         setSquad({
           ...squadData,
@@ -94,6 +137,7 @@ function TransfersPage() {
         })
         setAllPlayers(playersData.map(normalizePremierLeaguePlayer))
         setTransfersUsed(transfersUsedData)
+        setTransferHistory(historyData.transfers ?? [])
         // Whatever was staged before the last refresh comes back here.
         setPendingTransfers((draftsData.drafts ?? []).map(toDraft))
       })
@@ -121,13 +165,10 @@ function TransfersPage() {
   const bankAfterAll = (squad?.budget_remaining ?? 0) + netSpend(pendingTransfers, squadById, playersById)
 
   // Real free-slot arithmetic from GET /transfers/used -- reflects any
-  // transfers already committed this gameweek, not just what's pending
-  // here, and honors an active wildcard/free_hit (uncapped free).
-  const chipActive = transfersUsed?.chip_active ?? false
+  // transfers already committed this gameweek, not just what's pending here.
   const freeRemaining = transfersUsed?.free_transfers_remaining ?? 0
-  const freeAppliedToPending = chipActive ? pendingTransfers.length : Math.min(pendingTransfers.length, freeRemaining)
-  const paidCount = chipActive ? 0 : Math.max(0, pendingTransfers.length - freeRemaining)
-  const costEstimate = paidCount * POINTS_PER_EXTRA_TRANSFER
+  const freeAppliedToPending = Math.min(pendingTransfers.length, freeRemaining)
+  const overLimitCount = Math.max(0, pendingTransfers.length - freeRemaining)
 
   const groupedSquad = useMemo(() => {
     const groups = { GK: [], DEF: [], MID: [], FWD: [] }
@@ -151,13 +192,6 @@ function TransfersPage() {
     return bankExcludingThisPair + focusedOutPlayer.price
   }, [focusedOutPlayer, squad, pendingTransfers, focusedOutId, squadById, playersById])
 
-  const suggested = useMemo(() => {
-    return [...candidatePool]
-      .filter((p) => p.price <= maxAffordable)
-      .sort((a, b) => b.price - a.price)
-      .slice(0, 2)
-  }, [candidatePool, maxAffordable])
-
   const browseResults = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
     let list = candidatePool.filter((p) => !q || p.name.toLowerCase().includes(q))
@@ -171,7 +205,6 @@ function TransfersPage() {
 
   function focusOut(playerId) {
     setFocusedOutId((current) => (current === playerId ? null : playerId))
-    setBrowseExpanded(false)
     setSearchQuery('')
   }
 
@@ -193,7 +226,6 @@ function TransfersPage() {
     // is now looking at, and the request below is fast enough not to warrant
     // a spinner in the list.
     setFocusedOutId(null)
-    setBrowseExpanded(false)
     setSearchQuery('')
     setDraftError(null)
     try {
@@ -232,6 +264,7 @@ function TransfersPage() {
         players: (refreshed.players ?? []).map(normalizePremierLeaguePlayer),
       })
       await reloadTransfersUsed()
+      await reloadTransferHistory()
     } catch (err) {
       // Past the deadline the backend rejects the batch with a clean 422 and
       // writes nothing (transfers are all-or-nothing) -- an expected state, so
@@ -256,188 +289,191 @@ function TransfersPage() {
   return (
     <>
       <FplHeader title="Transfers" />
-      <main className="w-full px-safe-margin py-md flex flex-col gap-lg pb-[200px]">
-        <div className="flex justify-between items-center bg-surface-container rounded-lg p-sm">
-          <span className="font-label-md text-label-md text-primary">Gameweek {gameweek}</span>
-          <div className="flex items-center gap-1 text-on-surface-variant">
-            <span className="material-symbols-outlined text-[14px]">schedule</span>
-            <span className="font-label-md text-label-md">
-              {chipActive ? 'Chip active' : `${freeRemaining} free left`}
+      <main className="w-full px-4 py-3 flex flex-col gap-3 pb-[200px] bg-[#FBF9F5] min-h-screen">
+        <div className="bg-white rounded-[20px] p-3 border border-[#E5E6E1] shadow-sm flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <span className="font-label-md text-label-md px-3 py-1.5 rounded-full bg-[#F0F0EA] text-on-surface font-bold">
+              GW {gameweek} Active
+            </span>
+            <span className="font-label-md text-label-md px-3 py-1.5 rounded-full bg-[#EDF2DF] text-[#667D28] font-bold">
+              {freeRemaining} Free Transfer{freeRemaining === 1 ? '' : 's'}
             </span>
           </div>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="bg-white rounded-[20px] border border-[#E5E6E1] p-4 text-left shadow-sm">
+              <span className="font-label-md text-[10px] uppercase tracking-wider text-on-surface-variant block">Bank Balance</span>
+              <span className="font-stats-number text-stats-number text-secondary">£{bankAfterAll.toFixed(1)}m</span>
+            </div>
+            <div className="bg-white rounded-[20px] border border-[#E5E6E1] p-4 text-left shadow-sm">
+              <span className="font-label-md text-[10px] uppercase tracking-wider text-on-surface-variant block">Transfers Remaining</span>
+              <span className={`mt-2 block font-stats-number text-stats-number tabular-nums ${overLimitCount ? 'text-error' : 'text-[#667D28]'}`}>
+                {pendingTransfers.length > 0 ? `${pendingTransfers.length} used` : `${freeRemaining} Free`}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className="bg-surface-container-lowest rounded-xl p-md border border-outline-variant shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-16 h-16 bg-primary-container/5 rounded-bl-full pointer-events-none" />
-          <h2 className="font-headline-sm text-headline-sm text-primary mb-1">
-            {chipActive
-              ? 'Unlimited Free Transfers (chip active)'
-              : `${freeRemaining} Free Transfer${freeRemaining === 1 ? '' : 's'} Available`}
-          </h2>
-          <p className="font-body-md text-body-md text-on-surface-variant">
-            Cost per extra transfer:{' '}
-            <span className="font-stats-number text-error">-{POINTS_PER_EXTRA_TRANSFER} pts</span>
-          </p>
-        </div>
-
-        <section className="flex flex-col gap-sm">
-          <h3 className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider px-2">
-            Transfers Out
-          </h3>
-          <div className="bg-surface-container-lowest rounded-xl border border-outline-variant divide-y divide-outline-variant shadow-sm overflow-hidden">
-            {POSITION_ORDER.flatMap((pos) =>
-              groupedSquad[pos].map((p) => {
+        {/* Tap any player to transfer him out. The pitch shows the whole
+            15-man squad (2/5/5/3) -- Transfers acts on the squad, not this
+            gameweek's Starting XI, so there's no bench/XI split to draw. */}
+        <section
+          className="relative min-h-[590px] rounded-[24px] overflow-hidden shadow-sm border border-[#E5E6E1] bg-gradient-to-b from-[#086834] to-[#0F7B42] flex flex-col justify-around py-6 gap-sm"
+        >
+          <div aria-hidden="true" className="pointer-events-none absolute inset-3 rounded-[18px] border border-white/40">
+            <span className="absolute left-0 right-0 top-1/2 border-t border-white/40" />
+            <span className="absolute left-1/2 top-1/2 h-24 w-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40" />
+            <span className="absolute left-1/2 top-0 h-16 w-36 -translate-x-1/2 border-x border-b border-white/40" />
+            <span className="absolute bottom-0 left-1/2 h-16 w-36 -translate-x-1/2 border-x border-t border-white/40" />
+            <span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/60" />
+          </div>
+          {POSITION_ORDER.map((pos) => (
+            <div className="relative z-10 flex justify-around flex-wrap gap-x-2 gap-y-3 px-sm" key={pos}>
+              {groupedSquad[pos].map((p) => {
                 const pending = pendingByOutId.get(p.player_id)
                 return (
-                  <div
-                    className={`flex items-center justify-between p-sm gap-sm transition-colors squad-row ${
-                      pending
-                        ? 'bg-error-container/20'
-                        : focusedOutId === p.player_id
-                          ? 'bg-surface-container-low'
-                          : 'hover:bg-surface-container-low'
-                    }`}
+                  <PitchPlayer
+                    isOutgoing={focusedOutId === p.player_id}
+                    isPending={Boolean(pending)}
                     key={p.player_id}
+                    onClick={() => (pending ? cancelPending(p.player_id) : focusOut(p.player_id))}
+                    player={p}
+                  />
+                )
+              })}
+            </div>
+          ))}
+        </section>
+
+        {transferHistory.length > 0 && (
+          <section className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-sm overflow-hidden">
+            <button
+              className="w-full flex items-center justify-between p-md"
+              onClick={() => setHistoryOpen((prev) => !prev)}
+              type="button"
+            >
+              <div className="flex items-center gap-xs">
+                <span className="material-symbols-outlined text-[18px] text-on-surface-variant">history</span>
+                <span className="font-headline-sm text-body-md text-on-surface">Transfer History</span>
+                <span className="font-label-md text-[10px] px-1.5 py-0.5 rounded-full bg-surface-container text-on-surface-variant">
+                  {transferHistory.length}
+                </span>
+              </div>
+              <span className="material-symbols-outlined text-[20px] text-on-surface-variant">
+                {historyOpen ? 'expand_less' : 'expand_more'}
+              </span>
+            </button>
+            {historyOpen && (
+              <div className="flex flex-col gap-2 px-md pb-md max-h-[320px] overflow-y-auto">
+                {transferHistory.map((t, i) => (
+                  <div
+                    className="flex items-center justify-between gap-sm p-sm rounded-lg bg-surface-container-low"
+                    key={`${t.gameweek}-${t.player_in_id}-${t.player_out_id}-${i}`}
                   >
-                    <div className="flex items-center gap-sm min-w-0">
-                      <PlayerJersey player={p} size="xs" showName={false} />
-                      <div className="min-w-0">
-                        <div
-                          className={`font-headline-sm text-[16px] leading-tight truncate ${
-                            pending ? 'text-error line-through' : 'text-primary'
-                          }`}
-                        >
-                          {p.name}
-                        </div>
-                        <div className="font-label-md text-[10px] text-on-surface-variant">
-                          {p.club}
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-xs min-w-0">
+                      <span className="font-body-md text-body-md font-bold text-on-surface truncate">
+                        {t.player_out_name}
+                      </span>
+                      <span className="material-symbols-outlined text-[14px] text-on-surface-variant shrink-0">
+                        arrow_forward
+                      </span>
+                      <span className="font-body-md text-body-md font-bold text-secondary truncate">
+                        {t.player_in_name}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="flex flex-col items-end leading-none">
-                        <span className="font-stats-number text-stats-number text-on-background">
-                          £{p.price.toFixed(1)}m
-                        </span>
-                        <span className="mt-1 font-label-md text-[10px] uppercase tracking-wide text-on-surface-variant">
-                          {playerPoints(p)} PTS
-                        </span>
-                      </div>
-                      {pending ? (
-                        <button
-                          aria-label={`Cancel transfer out for ${p.name}`}
-                          className="w-8 h-8 rounded-full bg-error text-on-error flex items-center justify-center transition-colors squad-row__btn"
-                          onClick={() => cancelPending(p.player_id)}
-                          type="button"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">close</span>
-                        </button>
-                      ) : (
-                        <button
-                          aria-label={`Transfer out ${p.name}`}
-                          className="w-8 h-8 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center hover:bg-error-container hover:text-error transition-colors squad-row__btn"
-                          onClick={() => focusOut(p.player_id)}
-                          type="button"
-                        >
-                          <span className="material-symbols-outlined text-[18px]">swap_horiz</span>
-                        </button>
-                      )}
+                    <div className="flex items-center gap-xs shrink-0">
+                      <span className="font-label-md text-[10px] text-on-surface-variant whitespace-nowrap">
+                        GW{t.gameweek} · {kickoffLabel(t.transferred_at)}
+                      </span>
+                      <span
+                        className={`font-label-md text-[10px] px-1.5 py-0.5 rounded-full whitespace-nowrap ${
+                          t.is_free
+                            ? 'bg-secondary-container text-on-secondary-container'
+                            : 'bg-error-container text-on-error-container'
+                        }`}
+                      >
+                        {t.is_free ? 'Free' : 'Paid'}
+                      </span>
                     </div>
                   </div>
-                )
-              })
+                ))}
+              </div>
             )}
-          </div>
-        </section>
+          </section>
+        )}
 
         {focusedOutPlayer && (
           <section className="flex flex-col gap-sm bg-surface-container-low p-md rounded-xl border border-dashed border-outline-variant">
             <div className="flex justify-between items-end gap-sm mb-1">
-              <h3 className="font-label-md text-label-md text-primary uppercase tracking-wider">
-                Suggested ({focusedOutPlayer.position})
+              <h3 className="font-headline-sm text-headline-sm text-on-surface">
+                Replacement for {focusedOutPlayer.name}
               </h3>
               <span className="font-label-md text-label-md text-on-surface-variant whitespace-nowrap">
                 Max £{maxAffordable.toFixed(1)}m
               </span>
             </div>
 
-            {suggested.length === 0 && (
-              <p className="font-body-md text-body-md text-on-surface-variant">
-                No affordable replacements found.
-              </p>
-            )}
-
-            <div className="flex flex-col gap-2">
-              {suggested.map((p) => (
-                <ReplacementRow key={p.id} onSelect={() => selectReplacement(p)} player={p} />
+            {/* Always visible -- no collapsed "Browse All" step. candidatePool
+                is already every player at this position not owned or already
+                staged in; sort/search only reorder or narrow it. */}
+            <div className="relative">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
+                search
+              </span>
+              <input
+                className="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary"
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={`Search ${focusedOutPlayer.position} replacements...`}
+                type="text"
+                value={searchQuery}
+              />
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              {[
+                { key: 'price_desc', label: 'Price: High to Low' },
+                { key: 'price_asc', label: 'Price: Low to High' },
+                { key: 'opponent', label: 'Next Opponent' },
+              ].map((opt) => (
+                <button
+                  className={`px-3 py-1 rounded-full font-label-md text-label-md whitespace-nowrap transition-colors ${
+                    sortMode === opt.key
+                      ? 'bg-primary-container text-on-primary'
+                      : 'bg-surface-container-lowest border border-outline-variant text-on-surface'
+                  }`}
+                  key={opt.key}
+                  onClick={() => setSortMode(opt.key)}
+                  type="button"
+                >
+                  {opt.label}
+                </button>
               ))}
             </div>
-
-            <button
-              className="w-full py-2 mt-1 text-primary font-label-md text-label-md border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container-low transition-colors flex items-center justify-center gap-2"
-              onClick={() => setBrowseExpanded((v) => !v)}
-              type="button"
-            >
-              <span>Browse All Replacements</span>
-              <span className="material-symbols-outlined text-[16px]">
-                {browseExpanded ? 'expand_less' : 'expand_more'}
-              </span>
-            </button>
-
-            {browseExpanded && (
-              <div className="mt-2 flex flex-col gap-3">
-                <div className="relative">
-                  <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">
-                    search
-                  </span>
-                  <input
-                    className="w-full pl-10 pr-4 py-2 bg-surface-container-lowest border border-outline-variant rounded-lg font-body-md text-body-md text-on-surface focus:outline-none focus:border-secondary focus:ring-1 focus:ring-secondary"
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search players..."
-                    type="text"
-                    value={searchQuery}
+            <span className="font-label-md text-[11px] text-on-surface-variant">
+              {browseResults.length} {focusedOutPlayer.position} available
+              {searchQuery ? ` matching "${searchQuery}"` : ''}
+            </span>
+            {/* Capped height, not hidden: the pool can be hundreds of
+                players, and an unbounded list pushes the pending-summary
+                bar off-screen -- it still scrolls, it's just never
+                collapsed behind an extra tap. */}
+            <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+              {browseResults.length === 0 ? (
+                <p className="font-body-md text-body-md text-on-surface-variant">
+                  No players match.
+                </p>
+              ) : (
+                browseResults.map((p) => (
+                  <ReplacementRow
+                    disabled={p.price > maxAffordable}
+                    gameweek={gameweek}
+                    key={p.id}
+                    onSelect={() => selectReplacement(p)}
+                    outgoingPrice={focusedOutPlayer.price}
+                    player={p}
+                    selected={pendingByOutId.get(focusedOutId)?.inId === p.id}
                   />
-                </div>
-                <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {[
-                    { key: 'price_desc', label: 'Price: High to Low' },
-                    { key: 'price_asc', label: 'Price: Low to High' },
-                    { key: 'opponent', label: 'Next Opponent' },
-                  ].map((opt) => (
-                    <button
-                      className={`px-3 py-1 rounded-full font-label-md text-label-md whitespace-nowrap transition-colors ${
-                        sortMode === opt.key
-                          ? 'bg-primary-container text-on-primary'
-                          : 'bg-surface-container-lowest border border-outline-variant text-on-surface'
-                      }`}
-                      key={opt.key}
-                      onClick={() => setSortMode(opt.key)}
-                      type="button"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-                {/* Capped height: the pool can be hundreds of players, and an
-                    unbounded list pushes the pending-summary bar off-screen. */}
-                <div className="flex flex-col gap-2 max-h-[320px] overflow-y-auto">
-                  {browseResults.length === 0 ? (
-                    <p className="font-body-md text-body-md text-on-surface-variant">
-                      No players match.
-                    </p>
-                  ) : (
-                    browseResults.map((p) => (
-                      <ReplacementRow
-                        disabled={p.price > maxAffordable}
-                        key={p.id}
-                        onSelect={() => selectReplacement(p)}
-                        player={p}
-                      />
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
+                ))
+              )}
+            </div>
           </section>
         )}
 
@@ -475,6 +511,41 @@ function TransfersPage() {
       {/* Pending summary sits above Layout's BottomNav. */}
       <div className="fixed bottom-[88px] left-1/2 -translate-x-1/2 w-full max-w-[600px] px-md z-40 pointer-events-none">
         <div className="bg-surface-container-lowest rounded-xl border border-outline-variant shadow-[0_-4px_12px_rgba(0,0,0,0.08)] p-md pointer-events-auto flex flex-col gap-sm">
+          {pendingTransfers.length > 0 && (
+            <div className="flex flex-col gap-xs pb-2 border-b border-outline-variant">
+              <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
+                Transfer Summary
+              </span>
+              {pendingTransfers.map((t) => {
+                const outP = squadById.get(t.outId)
+                const inP = playersById.get(t.inId)
+                if (!outP || !inP) return null
+                return (
+                  <div className="flex items-center justify-between" key={t.id}>
+                    <div className="flex items-center gap-xs min-w-0">
+                      <span className="w-5 h-5 rounded-full bg-error-container text-on-error-container flex items-center justify-center text-[12px] font-bold shrink-0">
+                        −
+                      </span>
+                      <span className="font-body-md text-body-md font-bold text-on-surface truncate">
+                        {outP.name}
+                      </span>
+                    </div>
+                    <span className="material-symbols-outlined text-[16px] text-primary-container shrink-0 mx-xs">
+                      sync_alt
+                    </span>
+                    <div className="flex items-center gap-xs min-w-0 justify-end">
+                      <span className="font-body-md text-body-md font-bold text-secondary truncate">
+                        {inP.name}
+                      </span>
+                      <span className="w-5 h-5 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center text-[12px] font-bold shrink-0">
+                        +
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
           <div className="flex justify-between items-center pb-2 border-b border-outline-variant">
             <div className="text-center">
               <div className="font-label-md text-[10px] text-on-surface-variant uppercase">
@@ -488,11 +559,13 @@ function TransfersPage() {
               </div>
             </div>
             <div className="text-center">
-              <div className="font-label-md text-[10px] text-on-surface-variant uppercase">Cost</div>
-              <div className="font-stats-number text-[16px] text-primary">{costEstimate} pts</div>
+              <div className="font-label-md text-[10px] text-on-surface-variant uppercase">Limit</div>
+              <div className={`font-stats-number text-[16px] ${overLimitCount ? 'text-error' : 'text-primary'}`}>
+                {overLimitCount ? `${overLimitCount} over` : 'OK'}
+              </div>
             </div>
             <div className="text-center">
-              <div className="font-label-md text-[10px] text-on-surface-variant uppercase">Bank</div>
+              <div className="font-label-md text-[10px] text-on-surface-variant uppercase">New Bank</div>
               <div className="font-stats-number text-[16px] text-secondary">
                 £{bankAfterAll.toFixed(1)}m
               </div>
@@ -510,7 +583,7 @@ function TransfersPage() {
             <button
               className="w-full bg-primary-container text-on-primary rounded-lg py-3 font-headline-sm text-[16px] flex items-center justify-center gap-2 shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 disabled:cursor-not-allowed"
               data-testid="confirm-transfers"
-              disabled={pendingTransfers.length === 0 || submitting}
+              disabled={pendingTransfers.length === 0 || overLimitCount > 0 || submitting}
               onClick={handleConfirm}
               type="button"
             >
@@ -524,31 +597,65 @@ function TransfersPage() {
   )
 }
 
-function ReplacementRow({ player, onSelect, disabled }) {
+function ReplacementRow({ player, onSelect, disabled, outgoingPrice, selected, gameweek }) {
+  // Positive = cheaper than the outgoing player (frees up bank); negative =
+  // costs more. Real numbers only -- this app has no FPL-style rolling
+  // "form" stat, so the card shows the same recent-form proxy Transfers
+  // already used (this gameweek's points) plus the season total, rather
+  // than inventing a decimal form rating the mockup showed.
+  const delta = outgoingPrice != null ? outgoingPrice - player.price : null
+
   return (
     <button
-      className="replacement-row flex items-center justify-between p-sm bg-surface-container-lowest rounded-lg border border-outline-variant shadow-sm hover:border-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-outline-variant w-full text-left"
+      className={`replacement-row flex items-center justify-between p-md rounded-xl shadow-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed w-full text-left ${
+        selected
+          ? 'bg-gradient-to-r from-secondary-container/20 to-surface-container-lowest border border-secondary-container'
+          : 'bg-surface-container-lowest border border-outline-variant hover:bg-surface-container-low'
+      }`}
       disabled={disabled}
       onClick={onSelect}
       type="button"
     >
-      <div className="flex items-center gap-sm min-w-0">
-        <PlayerJersey player={player} size="xs" showName={false} />
+      <div className="flex items-center gap-md min-w-0">
+        <PlayerJersey player={player} size="sm" showName={false} />
         <div className="min-w-0">
-          <div className="font-headline-sm text-[16px] leading-tight text-primary truncate">
+          <div className="font-headline-sm text-body-lg font-bold text-on-surface truncate">
             {player.name}
+          </div>
+          <div className="flex items-center gap-sm mt-0.5 text-on-surface-variant font-label-md text-[11px]">
+            <span>
+              GW{gameweek}: <strong className="text-on-surface">{playerPoints(player)}</strong>
+            </span>
+            <span>
+              Season: <strong className="text-on-surface">{player.season_points ?? 0}</strong>
+            </span>
           </div>
           <div className="font-label-md text-[10px] text-on-surface-variant truncate">
             {opponentLabel(player)}
           </div>
         </div>
       </div>
-      <div className="flex flex-col items-end leading-none shrink-0 ml-2">
-        <span className="font-stats-number text-stats-number text-on-background">
-          £{player.price.toFixed(1)}m
-        </span>
-        <span className="mt-1 font-label-md text-[10px] uppercase tracking-wide text-on-surface-variant">
-          {playerPoints(player)} PTS
+      <div className="flex items-center gap-md shrink-0 ml-2">
+        <div className="text-right">
+          <span className="font-stats-number text-stats-number text-on-surface block">
+            £{player.price.toFixed(1)}m
+          </span>
+          {delta != null && delta !== 0 && (
+            <span className={`font-label-md text-[10px] ${delta > 0 ? 'text-secondary' : 'text-error'}`}>
+              {delta > 0 ? `Saves £${delta.toFixed(1)}m` : `Costs £${Math.abs(delta).toFixed(1)}m`}
+            </span>
+          )}
+        </div>
+        <span
+          className={`w-8 h-8 rounded-full flex items-center justify-center shadow-sm ${
+            selected
+              ? 'bg-secondary-container text-on-secondary-container'
+              : 'bg-surface-container-high text-on-surface'
+          }`}
+        >
+          <span className="material-symbols-outlined text-[20px]" style={selected ? { fontVariationSettings: "'FILL' 1" } : undefined}>
+            {selected ? 'check' : 'add'}
+          </span>
         </span>
       </div>
     </button>

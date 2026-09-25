@@ -7,7 +7,7 @@ import { TONE } from '../../data/scoringRules'
  * labelled rows with a value pill on the right -- so they share these parts
  * rather than each growing their own copy that drifts. What differs (the
  * Dream11 filter tabs, its grouped clean-sheet block and dark captain tiles, the
- * classic screen's three headline stats) stays in the pages.
+ * FPL screen's three headline stats) stays in the pages.
  *
  * TONE -> palette is resolved here, once. Note `on-tertiary-container` (#fe225f)
  * used as a BACKGROUND for deductions: that is genuinely the crimson in the
@@ -79,7 +79,7 @@ export function RuleRow({ row, showDot = false }) {
 }
 
 /**
- * A callout inside a card -- the vice-captaincy protocol, the rollover cap, the
+ * A callout inside a card -- the tactic note, the rollover cap, the
  * no-bench warning. `icon` is optional so a note can be pure text with only a
  * Differs badge above it, as the Dream11 captaincy card needs.
  */
@@ -110,16 +110,51 @@ export function RuleNote({ note }) {
  * so it is deliberately not rendered. A button that does nothing is worse than
  * no button.
  */
-export function RuleCard({ icon, title, badge, children }) {
+export function RuleCard({ icon, title, badge, number, children }) {
   return (
     <section className="rounded-xl bg-surface-container-lowest border border-outline-variant overflow-hidden">
       <header className="flex items-center gap-sm px-md py-gutter bg-surface-container-low border-b border-outline-variant">
-        <span className="material-symbols-outlined text-primary-container text-[20px]">{icon}</span>
+        {number != null ? (
+          <span className="w-6 h-6 shrink-0 rounded-full bg-primary-container/15 text-primary-container font-headline-sm text-[12px] flex items-center justify-center">
+            {number}
+          </span>
+        ) : (
+          <span className="material-symbols-outlined text-primary-container text-[20px]">{icon}</span>
+        )}
         <h2 className="font-headline-sm text-headline-sm text-on-surface flex-1 min-w-0 truncate">{title}</h2>
         {badge}
       </header>
       <div className="px-md py-sm flex flex-col gap-sm">{children}</div>
     </section>
+  )
+}
+
+/**
+ * The mockup's "General + Tactical + Sub Bonus = GW Total" strip -- purely a
+ * visual explainer of how the three real fields on GET /team combine, not a
+ * live computation (no per-gameweek numbers to show here, only the concept).
+ */
+export function ScoreEquationStrip() {
+  const terms = [
+    { key: 'general', label: 'General' },
+    { key: 'tactical', label: 'Tactical' },
+    { key: 'sub-bonus', label: 'Sub Bonus' },
+  ]
+  return (
+    <div className="flex items-center justify-between gap-xs rounded-xl bg-surface-container-lowest border border-outline-variant shadow-sm px-sm py-gutter">
+      {terms.map((term, i) => (
+        <span className="contents" key={term.key}>
+          {i > 0 && <span className="font-headline-sm text-on-surface-variant">+</span>}
+          <span className="px-sm py-[3px] rounded-md bg-surface-container-low font-label-md text-[10px] font-semibold text-on-surface whitespace-nowrap">
+            {term.label}
+          </span>
+        </span>
+      ))}
+      <span className="font-headline-sm text-on-surface-variant">=</span>
+      <span className="px-sm py-[3px] rounded-md bg-primary-container text-white font-label-md text-[10px] font-bold whitespace-nowrap">
+        GW Total
+      </span>
+    </div>
   )
 }
 

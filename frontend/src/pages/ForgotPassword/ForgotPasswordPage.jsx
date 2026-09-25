@@ -3,6 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import FormField from '../../components/FormField/FormField'
 import { forgotPassword } from '../../api/auth'
 import { useAuth } from '../../auth/AuthContext'
+import AuthBrand from '../../components/AuthBrand/AuthBrand'
 
 function ForgotPasswordPage() {
   const { user } = useAuth()
@@ -34,13 +35,8 @@ function ForgotPasswordPage() {
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex items-center justify-center font-body-md text-body-md">
-      <main className="relative z-10 w-full max-w-[400px] px-safe-margin py-xl flex flex-col items-center">
-        <div className="mb-xl text-center">
-          <h1 className="font-display-lg text-display-lg text-primary mb-sm">PitchSide AI</h1>
-          <p className="font-body-lg text-body-lg text-on-surface-variant">
-            {submitted ? 'Check your email.' : 'Forgot your password?'}
-          </p>
-        </div>
+      <main className="relative z-10 w-full max-w-[390px] px-safe-margin py-lg flex flex-col items-center">
+        <AuthBrand subtitle={submitted ? 'Check your email.' : 'Forgot your password?'} />
 
         {submitted ? (
           <div className="w-full flex flex-col gap-md items-center text-center">
@@ -79,7 +75,7 @@ function ForgotPasswordPage() {
               />
 
               <button
-                className="w-full bg-primary-container text-on-primary-container rounded-lg py-md font-label-md text-label-md uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all shadow-md mt-sm disabled:opacity-50 disabled:active:scale-100"
+                className="w-full bg-primary-container text-white rounded-lg py-md font-label-md text-label-md uppercase tracking-wider hover:bg-primary active:scale-[0.98] transition-all shadow-[0_4px_12px_rgba(79,102,0,0.18)] mt-sm disabled:opacity-50 disabled:active:scale-100"
                 disabled={submitting}
                 type="submit"
               >

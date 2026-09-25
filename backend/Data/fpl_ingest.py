@@ -630,9 +630,10 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
     straight to LiveSource for the same season-mismatch guard every
     other live-API call in this module uses.
 
-    Safe to call at any cadence (e.g. Celery Beat -- see
-    Worker/tasks.py's schedule_fixture_polls, which depends on this
-    having already run): every column except identity (fpl_id/season/
+    Safe to call at any cadence (Celery Beat does, via
+    refresh_current_season_fixtures -- the finished flag it writes is what
+    makes Worker/tasks.py's poll_due_fixtures run a fixture's 'final'
+    checkpoint): every column except identity (fpl_id/season/
     home_team_id/away_team_id) is upserted, and identity is never in
     the UPDATE SET below -- enforce_fixture_identity_fn blocks changes
     to those columns regardless, so this cannot corrupt an
@@ -657,11 +658,27 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
         "fixtures feed",
     )
 
-    # Blank gameweeks (e.g. a postponed fixture not yet rescheduled into a
-    # gameweek) carry event = null -- can't file those under any
-    # gameweek, so they're skipped rather than written with a bogus value.
-    unscheduled = int(fx.event.isna().sum())
+    # A postponed fixture not yet rescheduled into a gameweek carries
+    # event = null (and kickoff_time = null). It can't be filed under a
+    # gameweek, so it isn't upserted -- but a row we ALREADY hold for it
+    # still has its old kickoff, and left alone it looks like a match that
+    # was played and never finished: polled at its old checkpoints, its
+    # Quick 11 contests waiting forever. Clearing kickoff_time is what
+    # marks it postponed (gameweek is NOT NULL, so it keeps its old one
+    # until rescheduled); dream11_scoring.void_unplayable_contests voids
+    # its contests. A finished fixture is never touched.
+    postponed = fx[fx.event.isna()]
+    unscheduled = len(postponed)
     fx = fx[fx.event.notna()].copy()
+    if unscheduled:
+        postpone_stmt = text("""
+            UPDATE ml.fixtures SET kickoff_time = NULL, updated_at = now()
+            WHERE fpl_id = :fpl_id AND season = :season
+              AND kickoff_time IS NOT NULL AND finished IS NOT TRUE
+        """)
+        with engine.begin() as conn:
+            for f in postponed.to_dict("records"):
+                conn.execute(postpone_stmt, {"fpl_id": int(f["id"]), "season": season})
 
     stmt = text("""
         INSERT INTO ml.fixtures (
@@ -672,6 +689,8 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
             :kickoff_time, :home_score, :away_score, :finished, now()
         )
         ON CONFLICT (fpl_id, season) DO UPDATE SET
+            gameweek = CASE WHEN ml.fixtures.finished IS TRUE
+                            THEN ml.fixtures.gameweek ELSE EXCLUDED.gameweek END,
             kickoff_time = EXCLUDED.kickoff_time,
             home_score = EXCLUDED.home_score,
             away_score = EXCLUDED.away_score,
@@ -682,7 +701,9 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
     # SET -- enforce_fixture_identity_fn blocks changes to them anyway
     # (same as ingest_fixtures above). kickoff_time IS updated here
     # (unlike ingest_fixtures), since a genuinely upcoming fixture's
-    # kickoff can legitimately be rescheduled before it's played.
+    # kickoff can legitimately be rescheduled before it's played -- and so
+    # is gameweek, for a postponed fixture FPL has rescheduled into a new
+    # one. A finished fixture keeps its gameweek: its stats are filed there.
 
     rows = [{
         "fpl_id": int(f["id"]), "season": season, "gameweek": int(f["event"]),
@@ -697,7 +718,7 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
     _executemany(engine, stmt, rows, "fixtures (upcoming/incremental)")
     print(f"Upcoming fixtures {season}: {len(rows)} written/updated (no finished-gate)")
     if unscheduled:
-        print(f"  note: {unscheduled} fixture(s) skipped -- no gameweek assigned yet (postponed/unscheduled)")
+        print(f"  note: {unscheduled} fixture(s) have no gameweek (postponed) -- kickoff cleared on any we held")
 
 
 def refresh_current_season_fixtures(engine) -> dict:
@@ -739,6 +760,33 @@ def refresh_current_season_fixtures(engine) -> dict:
         ingest_upcoming_fixtures(engine, season)
     except SystemExit as e:
         raise RuntimeError(f"fixture refresh aborted for {season}: {e}") from e
+
+    return {"season": season, "refreshed": True}
+
+
+def refresh_player_prices(engine) -> dict:
+    """ingest_bootstrap for whatever season the API is serving -- the
+    Beat-callable daily price refresh (Worker/tasks.py's
+    refresh_player_prices). Updates every player's now_cost, which is what
+    GW mode buys and sells at, and adds players new to the game. Same
+    season derivation and SystemExit handling as
+    refresh_current_season_fixtures, for the same reasons."""
+    season = current_live_season()
+    if season is None:
+        return {"season": None, "refreshed": False, "reason": "API is serving no events yet"}
+
+    # LiveSource reads bootstrap-static through fetch_json_cached, which
+    # memoizes for the life of the PROCESS -- right for a one-off CLI run,
+    # wrong in the long-lived worker, where every daily run after the first
+    # would re-ingest the first day's prices. Cleared here so each run makes
+    # one fresh request, then reuses it for teams + players within the run.
+    fetch_json_cached.cache_clear()
+    try:
+        source = LiveSource(season)
+        source.check_season()
+        ingest_bootstrap(engine, source)
+    except SystemExit as e:
+        raise RuntimeError(f"price refresh aborted for {season}: {e}") from e
 
     return {"season": season, "refreshed": True}
 

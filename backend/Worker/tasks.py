@@ -2,6 +2,11 @@
 tasks.py — Celery tasks for the ML prediction pipeline and gameweek
 scoring.
 
+run_ml_pipeline and schedule_predictions are currently DISABLED
+(commented out below): predictions are backfilled, and dropping them
+keeps xgboost out of the worker and Beat processes. The description of
+both below is kept for when they are re-enabled.
+
 run_ml_pipeline reuses the exact same building blocks as
 Predict/predict_gameweek.ipynb and Context_assembler/main.py:
 build_features -> predict_points (Predict/predictor.py) -> build_tiers,
@@ -41,29 +46,24 @@ celery tasks remain directly callable in-process this way, executing
 synchronously within schedule_predictions' own task run rather than
 dispatching a second async task.
 
-poll_and_score_dream11 is a ONE-OFF task (scheduled via .apply_async's
-eta parameter from Game_logic/dream11.py's create_contest, NOT a
-beat_schedule entry -- Beat is for recurring intervals, this fires
-exactly twice per contest at fixed offsets from kickoff_time). Calls
-poll_fixture_checkpoint (Data/live_poll.py -- relocated from
-under Dream11 since it was never Dream11-specific) then
-score_dream11_contest (Game_logic/dream11_scoring.py) in sequence,
-same "wrap the pure functions, retry/log here" shape as every other
-task in this file.
+poll_due_fixtures is the one live-polling task, for BOTH game modes. Beat
+runs it every 60s; it asks the database which fixtures have a checkpoint
+due (Data/live_poll.py's find_due_checkpoints: kickoff+50, kickoff+115,
+and 'final' once ml.fixtures.finished is TRUE), fetches each gameweek's
+live payload ONCE, writes every due fixture's stats from it, rescores the
+Quick 11 contests on each fixture and the gameweek's tactical scores and
+league tables, and records the checkpoint as done. Nothing is booked ahead
+in Redis, so nothing can be lost or duplicated there: a checkpoint missed
+while the worker was down is simply due on the next tick. It replaced
+three tasks -- poll_and_score_dream11 (two ETAs booked per contest at
+creation), schedule_fixture_polls and poll_and_score_fpl_fixture (ETAs
+booked per fixture) -- whose bookings a Redis restart silently dropped,
+and which, beyond Redis's 1-hour visibility_timeout, redelivered.
 
-schedule_fixture_polls / poll_and_score_fpl_fixture are the classic-FPL
-counterpart to the Dream11 pair above, added once ingest_upcoming_fixtures
-(Data/fpl_ingest.py) started giving ml.fixtures real
-future-dated rows to schedule against. schedule_fixture_polls IS a
-beat_schedule entry (recurring, unlike Dream11's one-off-at-creation
-trigger) since there's no single HTTP request that "creates" a classic
-fixture the way Game_logic/dream11.py's create_contest does -- Beat has
-to be the thing that notices a newly-ingested upcoming fixture and
-schedules its two checkpoints. poll_and_score_fpl_fixture reuses the
-SAME poll_fixture_checkpoint as Dream11, then calls the existing
-score_gameweek (Results/scoring.py) as-is -- no new scoring logic,
-same "recompute broadly and cheaply, idempotent by design" philosophy
-as refresh_active_gameweeks.
+refresh_fixtures keeps ml.fixtures current (scores, kickoffs,
+postponements, the finished flag 'final' waits on). It is on Beat every
+15 minutes but calls the FPL API only when fixtures_refresh_reason says
+so. refresh_player_prices re-pulls every player's price daily.
 
 On failure, the full exception is logged and the task retries up to 3
 times (60s apart) via Celery's built-in retry mechanism -- for transient
@@ -72,7 +72,7 @@ Celery re-raises the original exception and marks the task FAILED --
 never swallowed, since Celery's own retry/monitoring depends on failures
 being visible as failures.
 
-HEARTBEATS. Each of the eight Beat-scheduled tasks (everything in
+HEARTBEATS. Each Beat-scheduled task (everything in
 Worker/celery_app.py's beat_schedule) calls record_task_heartbeat
 (Worker/task_health.py) once on every execution -- success at its return
 point(s), failure in its except block, right before self.retry -- so
@@ -81,20 +81,16 @@ from "Beat is fine but this keeps failing." The failure-path call
 re-acquires the engine via get_engine() rather than reusing the try
 block's local, since the one thing that can make even engine
 acquisition itself fail is the case the heartbeat most needs to record.
-The five tasks that are NOT on Beat's schedule (run_ml_pipeline,
-compute_gw_scores, compute_league_standings, poll_and_score_dream11,
-poll_and_score_fpl_fixture -- one-off or manually-triggered) do not call
-it: there is no configured interval for a one-off task to go stale
-against.
+The tasks that are NOT on Beat's schedule (compute_gw_scores,
+compute_league_standings -- manually triggered) do not call it: there is
+no configured interval for a one-off task to go stale against.
 
 See Worker/celery_app.py for how to actually run Beat locally.
 """
 
 import logging
-import os
 import sys
-import time
-from datetime import timedelta
+from collections import defaultdict
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parent.parent
@@ -108,9 +104,12 @@ from sqlalchemy import text
 
 from Worker.celery_app import app
 from Shared.db_utils import get_engine
-from feature_builder import build_features
-from predictor import predict_points
-from tier_builder import build_tiers
+# ML pipeline imports are disabled along with run_ml_pipeline and
+# schedule_predictions below -- predictor pulls in xgboost, and every
+# process that imports this module (the worker AND Beat) paid for it.
+# from feature_builder import build_features
+# from predictor import predict_points
+# from tier_builder import build_tiers
 # Phase 4a: the batched tactical job. Same name, same signature, same
 # {"scored": [...], "failed": [...]} shape, so every call site below is
 # unchanged; it additionally returns "skipped_reason".
@@ -122,66 +121,71 @@ from Results.standings import compute_league_standings as compute_standings
 # functions of the same name defined below.
 from Worker.beat_registry import (
     lock_expired_gameweeks as _lock_expired_gameweeks,
+    carry_forward_selections as _carry_forward_selections,
     lock_started_contests as _lock_started_contests,
     refresh_active_gameweeks as _refresh_active_gameweeks,
     find_next_gameweek_needing_predictions,
-    find_fixtures_needing_poll_schedule,
-    mark_fixture_polls_scheduled,
+    find_due_checkpoints,
+    mark_checkpoint_done,
+    fixtures_refresh_reason,
     refresh_current_season_fixtures as _refresh_current_season_fixtures,
+    refresh_player_prices as _refresh_player_prices,
     find_contests_needing_finalization as _find_contests_needing_finalization,
     finalize_dream11_contest as _finalize_dream11_contest,
+    void_unplayable_contests as _void_unplayable_contests,
 )
 from Game_logic.dream11_scoring import score_dream11_contest, finalize_dream11_contest
 from live_poll import poll_fixture_checkpoint
+from fpl_ingest import fetch_json
 from Worker.task_health import record_task_heartbeat
-from simulation.events import MatchEvent, MatchEventType
-from simulation.event_store import insert_events
-from simulation.gameweek import simulate_gameweek as _simulate_gameweek
-from simulation.match import _fixture_context as _simulation_fixture_context
-from simulation.match import simulate_match as _simulate_match
-from simulation.season import simulate_season as _simulate_season
 
 logger = logging.getLogger(__name__)
 
 MODEL_VERSION = "xgboost_v1"
 
 
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="run_ml_pipeline")
-def run_ml_pipeline(self, season: str, target_gameweek: int) -> dict:
-    try:
-        engine = get_engine()
-
-        features = build_features(engine, season, target_gameweek)
-        predictions = predict_points(features)
-        tiers = build_tiers(engine, season, features, predictions)
-
-        rows = tiers[["player_id", "predicted_points", "tier_or_label"]].copy()
-        rows["season"] = season
-        rows["gameweek"] = target_gameweek
-        rows["model_version"] = MODEL_VERSION
-
-        with engine.begin() as conn:
-            conn.execute(
-                text(
-                    "DELETE FROM ml.ml_predictions "
-                    "WHERE season = :season AND gameweek = :gameweek AND model_version = :mv"
-                ),
-                {"season": season, "gameweek": target_gameweek, "mv": MODEL_VERSION},
-            )
-            rows.to_sql("ml_predictions", conn, schema="ml", if_exists="append", index=False)
-
-        return {
-            "season": season,
-            "gameweek": target_gameweek,
-            "rows_written": len(rows),
-            "tier_distribution": tiers["tier_or_label"].value_counts().to_dict(),
-        }
-    except Exception as exc:
-        logger.exception(
-            "run_ml_pipeline failed for season=%s, target_gameweek=%s (attempt %d/%d)",
-            season, target_gameweek, self.request.retries + 1, self.max_retries + 1,
-        )
-        raise self.retry(exc=exc)
+# DISABLED: run_ml_pipeline. Predictions are backfilled into
+# ml.ml_predictions by hand with Predict/backfill_predictions.py (same
+# steps, same write), so nothing needs to generate them live, and keeping
+# this task meant loading xgboost into the worker and Beat. Re-enable
+# together with the three imports at the top of this file and
+# schedule_predictions below (which calls this directly).
+# @app.task(bind=True, max_retries=3, default_retry_delay=60, name="run_ml_pipeline")
+# def run_ml_pipeline(self, season: str, target_gameweek: int) -> dict:
+#     try:
+#         engine = get_engine()
+#
+#         features = build_features(engine, season, target_gameweek)
+#         predictions = predict_points(features)
+#         tiers = build_tiers(engine, season, features, predictions)
+#
+#         rows = tiers[["player_id", "predicted_points", "tier_or_label"]].copy()
+#         rows["season"] = season
+#         rows["gameweek"] = target_gameweek
+#         rows["model_version"] = MODEL_VERSION
+#
+#         with engine.begin() as conn:
+#             conn.execute(
+#                 text(
+#                     "DELETE FROM ml.ml_predictions "
+#                     "WHERE season = :season AND gameweek = :gameweek AND model_version = :mv"
+#                 ),
+#                 {"season": season, "gameweek": target_gameweek, "mv": MODEL_VERSION},
+#             )
+#             rows.to_sql("ml_predictions", conn, schema="ml", if_exists="append", index=False)
+#
+#         return {
+#             "season": season,
+#             "gameweek": target_gameweek,
+#             "rows_written": len(rows),
+#             "tier_distribution": tiers["tier_or_label"].value_counts().to_dict(),
+#         }
+#     except Exception as exc:
+#         logger.exception(
+#             "run_ml_pipeline failed for season=%s, target_gameweek=%s (attempt %d/%d)",
+#             season, target_gameweek, self.request.retries + 1, self.max_retries + 1,
+#         )
+#         raise self.retry(exc=exc)
 
 
 @app.task(bind=True, max_retries=3, default_retry_delay=60, name="compute_gw_scores")
@@ -257,6 +261,25 @@ def lock_expired_gameweeks(self) -> dict:
         raise self.retry(exc=exc)
 
 
+@app.task(bind=True, max_retries=3, default_retry_delay=60, name="carry_forward_selections")
+def carry_forward_selections(self) -> dict:
+    try:
+        engine = get_engine()
+        summary = _carry_forward_selections(engine)
+
+        logger.info(
+            "carry_forward_selections: season=%s gameweek=%s carried %d, skipped %d (squad changed), skipped %d (no previous selection)",
+            summary["season"], summary["gameweek"],
+            len(summary["carried"]), len(summary["skipped_changed_squad"]), len(summary["skipped_no_previous"]),
+        )
+        record_task_heartbeat(engine, "carry_forward_selections", success=True)
+        return summary
+    except Exception as exc:
+        logger.exception("carry_forward_selections failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1)
+        record_task_heartbeat(get_engine(), "carry_forward_selections", success=False, error=str(exc))
+        raise self.retry(exc=exc)
+
+
 @app.task(bind=True, max_retries=3, default_retry_delay=60, name="lock_dream11_contests")
 def lock_dream11_contests(self) -> dict:
     try:
@@ -298,104 +321,169 @@ def refresh_active_gameweeks(self) -> dict:
 
 
 
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="schedule_predictions")
-def schedule_predictions(self) -> dict:
+# DISABLED with run_ml_pipeline above, which it calls directly. Its
+# schedule-predictions-weekly Beat entry is commented out in
+# Worker/celery_app.py.
+# @app.task(bind=True, max_retries=3, default_retry_delay=60, name="schedule_predictions")
+# def schedule_predictions(self) -> dict:
+#     try:
+#         engine = get_engine()
+#         next_gw = find_next_gameweek_needing_predictions(engine)
+#
+#         if next_gw is None:
+#             logger.info("schedule_predictions: no upcoming gameweek needs predictions -- nothing to do")
+#             record_task_heartbeat(engine, "schedule_predictions", success=True)
+#             return {"triggered": None}
+#
+#         season, gameweek = next_gw
+#         logger.info("schedule_predictions: triggering run_ml_pipeline for season=%s gameweek=%s", season, gameweek)
+#         result = run_ml_pipeline(season, gameweek)
+#         record_task_heartbeat(engine, "schedule_predictions", success=True)
+#         return {"triggered": {"season": season, "gameweek": gameweek}, "result": result}
+#     except Exception as exc:
+#         logger.exception("schedule_predictions failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1)
+#         record_task_heartbeat(get_engine(), "schedule_predictions", success=False, error=str(exc))
+#         raise self.retry(exc=exc)
+
+
+@app.task(bind=True, max_retries=0, name="poll_due_fixtures")
+def poll_due_fixtures(self) -> dict:
+    """Run every live-poll checkpoint that is due, for both game modes.
+
+    One fixture failing (FPL down, a bad row) does not stop the others and
+    is not marked done, so the next tick retries it -- which is also why
+    this task never uses self.retry: the 60s Beat cadence IS the retry. In
+    steady state (no match on) it is one small query and no API call.
+
+    Order per gameweek: fetch the live payload once; per due fixture,
+    write its stats, then rescore its Quick 11 contests ('final' finalizes
+    them); then rescore the gameweek's tactical scores and league tables
+    once; only then mark each fixture's checkpoint done. A crash before the
+    mark leaves it due, and every step is safe to repeat.
+    """
+    engine = get_engine()
     try:
-        engine = get_engine()
-        next_gw = find_next_gameweek_needing_predictions(engine)
+        by_gameweek = defaultdict(list)
+        for f in find_due_checkpoints(engine):
+            by_gameweek[(f.season, f.gameweek)].append(f)
 
-        if next_gw is None:
-            logger.info("schedule_predictions: no upcoming gameweek needs predictions -- nothing to do")
-            record_task_heartbeat(engine, "schedule_predictions", success=True)
-            return {"triggered": None}
+        done, failed = [], []
+        for (season, gameweek), fixtures in by_gameweek.items():
+            try:
+                live = fetch_json(f"event/{gameweek}/live/")
+            except Exception as e:
+                logger.exception("poll_due_fixtures: live fetch failed for %s GW%s", season, gameweek)
+                failed.extend((f.id, f.checkpoint, f"live fetch: {e}") for f in fixtures)
+                continue
 
-        season, gameweek = next_gw
-        logger.info("schedule_predictions: triggering run_ml_pipeline for season=%s gameweek=%s", season, gameweek)
-        result = run_ml_pipeline(season, gameweek)
-        record_task_heartbeat(engine, "schedule_predictions", success=True)
-        return {"triggered": {"season": season, "gameweek": gameweek}, "result": result}
-    except Exception as exc:
-        logger.exception("schedule_predictions failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1)
-        record_task_heartbeat(get_engine(), "schedule_predictions", success=False, error=str(exc))
-        raise self.retry(exc=exc)
+            polled = []
+            for f in fixtures:
+                try:
+                    poll = poll_fixture_checkpoint(engine, f.id, f.checkpoint, live=live)
+                    contests = _score_fixture_contests(engine, f.id, f.checkpoint)
+                    logger.info(
+                        "poll_due_fixtures: fixture_id=%s %s -- %d updated, %d already settled, "
+                        "%d unresolved, %d held (double gameweek); contests %s",
+                        f.id, f.checkpoint, len(poll["updated"]), len(poll["already_settled"]),
+                        len(poll["unresolved"]), len(poll["held"]), contests,
+                    )
+                    polled.append(f)
+                except Exception as e:
+                    logger.exception("poll_due_fixtures: fixture_id=%s %s failed", f.id, f.checkpoint)
+                    failed.append((f.id, f.checkpoint, f"{type(e).__name__}: {e}"))
 
+            if not polled:
+                continue
+            try:
+                summary = score_gameweek(engine, season, gameweek)
+                compute_standings(engine, season, gameweek)
+                if summary and summary.get("failed"):
+                    logger.error(
+                        "poll_due_fixtures: %s GW%s -- %d manager(s) failed to score: %s",
+                        season, gameweek, len(summary["failed"]), summary["failed"],
+                    )
+            except Exception as e:
+                # Stats are written but the gameweek wasn't rescored; leave the
+                # checkpoints due so the next tick does both again.
+                logger.exception("poll_due_fixtures: rescoring %s GW%s failed", season, gameweek)
+                failed.extend((f.id, f.checkpoint, f"rescore: {e}") for f in polled)
+                continue
 
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="poll_and_score_dream11")
-def poll_and_score_dream11(self, fixture_id: int, contest_id: int, checkpoint: str) -> dict:
-    try:
-        engine = get_engine()
-        poll_summary = poll_fixture_checkpoint(engine, fixture_id, checkpoint)
+            for f in polled:
+                mark_checkpoint_done(engine, f.id, f.checkpoint)
+                done.append((f.id, f.checkpoint))
 
-        if checkpoint == "fulltime":
-            # Try to freeze the result here, but only TRY: finalization is
-            # gated on the fixture actually reporting finished, and at
-            # kickoff+115min it usually has not yet (FPL's finished flag
-            # lags until bonus points confirm). When that gate says no this
-            # still scores the contest and leaves it open, and the
-            # finalize_dream11_contests Beat sweep picks it up later.
-            # That sweep, not this task, is what guarantees finalization
-            # happens at all -- see its docstring.
-            final_summary = finalize_dream11_contest(engine, contest_id)
-            score_summary = final_summary["score"] or {"scored": [], "failed": []}
-        else:
-            final_summary = {"finalized": False, "reason": "halftime checkpoint"}
-            score_summary = score_dream11_contest(engine, contest_id)
-
-        logger.info(
-            "poll_and_score_dream11: fixture_id=%s contest_id=%s checkpoint=%s -- "
-            "polled %d player(s) (%d already settled, %d unresolved), scored %d team(s), %d failed, finalized=%s",
-            fixture_id, contest_id, checkpoint,
-            len(poll_summary["updated"]), len(poll_summary["already_settled"]), len(poll_summary["unresolved"]),
-            len(score_summary["scored"]), len(score_summary["failed"]), final_summary["finalized"],
+        if done or failed:
+            logger.info("poll_due_fixtures: %d checkpoint(s) done %s, %d failed %s", len(done), done, len(failed), failed)
+        record_task_heartbeat(
+            engine, "poll_due_fixtures", success=not failed,
+            error="; ".join(f"fixture {fid} {cp}: {err}" for fid, cp, err in failed) or None,
         )
-        return {"poll": poll_summary, "score": score_summary, "finalize": final_summary}
+        return {"done": done, "failed": failed}
     except Exception as exc:
-        logger.exception(
-            "poll_and_score_dream11 failed for fixture_id=%s, contest_id=%s, checkpoint=%s (attempt %d/%d)",
-            fixture_id, contest_id, checkpoint, self.request.retries + 1, self.max_retries + 1,
-        )
-        raise self.retry(exc=exc)
+        logger.exception("poll_due_fixtures failed")
+        record_task_heartbeat(get_engine(), "poll_due_fixtures", success=False, error=str(exc))
+        raise
 
 
-# Offsets from kickoff_time, not from actual match events -- same
-# fixed-offset approach Game_logic/dream11.py's create_contest already
-# uses for its own two checkpoints. 50min covers kickoff + a 45min half +
-# some stoppage without waiting for full-time; 115min covers a full
-# 90min match + a typical half-time break + stoppage, well before FPL's
-# own bonus-point confirmation lag (see GameEngine/gameweek_finalize.py's
-# module docstring).
-HALFTIME_OFFSET_MINUTES = 50
-FULLTIME_OFFSET_MINUTES = 115
+# Open contests on one fixture -- a finalized (or voided) contest is frozen.
+_OPEN_CONTESTS_ON_FIXTURE_QUERY = text(
+    "SELECT id FROM dream11.contests WHERE fixture_id = :fixture_id AND finalized_at IS NULL ORDER BY id"
+)
+
+
+def _score_fixture_contests(engine, fixture_id: int, checkpoint: str) -> dict:
+    """Rescore the fixture's open Quick 11 contests from the stats just
+    written; at 'final', also finalize them (finalize_dream11_contest itself
+    refuses unless the fixture is finished and every team scored).
+
+    Raises if any contest failed, so the fixture's checkpoint stays due and
+    the next tick retries it."""
+    with engine.connect() as conn:
+        contest_ids = [r.id for r in conn.execute(_OPEN_CONTESTS_ON_FIXTURE_QUERY, {"fixture_id": fixture_id})]
+    result = {"scored": 0, "finalized": 0}
+    failed = []
+    for cid in contest_ids:
+        try:
+            if checkpoint == "final" and finalize_dream11_contest(engine, cid)["finalized"]:
+                result["finalized"] += 1
+            elif checkpoint != "final":
+                score_dream11_contest(engine, cid)
+                result["scored"] += 1
+            else:
+                result["scored"] += 1  # finished-gate or a team failed; the sweep retries
+        except Exception as e:
+            logger.exception("poll_due_fixtures: contest_id=%s failed to score", cid)
+            failed.append((cid, str(e)))
+    if failed:
+        raise RuntimeError(f"{len(failed)} contest(s) failed: {failed}")
+    return result
 
 
 @app.task(bind=True, max_retries=3, default_retry_delay=60, name="finalize_dream11_contests")
 def finalize_dream11_contests(self) -> dict:
-    """Freeze the result of every contest whose match is over.
+    """Void contests that can't finish, then freeze every contest whose
+    match is over.
 
-    WHY THIS IS A BEAT TASK AND NOT JUST THE kickoff+115min CHECKPOINT.
-    poll_and_score_dream11 does attempt finalization at full-time, but it
-    cannot be relied on to achieve it, for two independent reasons:
+    VOIDING FIRST. A contest on a postponed fixture (kickoff removed) or an
+    abandoned one (not finished a week after kickoff) would otherwise wait
+    forever, since finalization needs fixtures.finished -- see
+    Game_logic/dream11_scoring.py's void_unplayable_contests.
 
-      1. Finalization is gated on ml.fixtures.finished, and at kickoff+115
-         that flag is usually still FALSE -- FPL does not set it until
-         bonus points are confirmed, hours later. So the checkpoint's
-         attempt legitimately fails most of the time and something has to
-         come back later.
-
-      2. Those checkpoints are one-off ETAs booked at contest creation by
-         create_contest, whose scheduling is explicitly best-effort: a
-         broker outage there is caught and logged so contest creation
-         still succeeds. A contest created during an outage has NO
-         checkpoints booked at all, and before this sweep existed nothing
-         would ever have scored it.
-
-    So this is the guarantee and the checkpoint is the optimisation. It is
-    idempotent by construction -- a finalized contest no longer matches
-    find_contests_needing_finalization -- and in steady state it finds
-    nothing, which the partial index makes cheap.
+    THIS SWEEP IS THE GUARANTEE, poll_due_fixtures' 'final' checkpoint the
+    fast path. 'final' finalizes a fixture's contests as soon as it runs,
+    but finalize_dream11_contest refuses while any team fails to score;
+    this sweep retries such a contest. It is idempotent by construction --
+    a finalized contest no longer matches find_contests_needing_finalization
+    -- and in steady state it finds nothing, which the partial index makes
+    cheap.
     """
     try:
         engine = get_engine()
+        voided = _void_unplayable_contests(engine)
+        if voided:
+            logger.info("finalize_dream11_contests: voided %d contest(s) %s", len(voided), voided)
+
         contest_ids = _find_contests_needing_finalization(engine)
 
         finalized, deferred = [], []
@@ -418,7 +506,7 @@ def finalize_dream11_contests(self) -> dict:
                 len(finalized), finalized, len(deferred), deferred,
             )
         record_task_heartbeat(engine, "finalize_dream11_contests", success=True)
-        return {"finalized": finalized, "deferred": deferred}
+        return {"voided": voided, "finalized": finalized, "deferred": deferred}
     except Exception as exc:
         logger.exception(
             "finalize_dream11_contests failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1
@@ -429,24 +517,27 @@ def finalize_dream11_contests(self) -> dict:
 
 @app.task(bind=True, max_retries=3, default_retry_delay=60, name="refresh_fixtures")
 def refresh_fixtures(self) -> dict:
-    """Re-pull the current season's fixture list: scores, rescheduled
-    kickoffs, and the finished flag.
+    """Re-pull the current season's fixture list: scores, rescheduled or
+    postponed kickoffs, and the finished flag -- which is what makes a
+    fixture's 'final' checkpoint due in poll_due_fixtures.
 
-    Runs BEFORE schedule_fixture_polls in the Beat schedule's ordering of
-    concerns -- that task books polls for fixtures this one ingests, so
-    without this it can only ever schedule fixtures a human last ingested
-    by hand. That was the actual state: ml.fixtures had not been written
-    since a single manual run, leaving played matches stuck at
-    finished=FALSE indefinitely.
+    On Beat every 15 minutes, but it only calls the API when
+    fixtures_refresh_reason says it's needed: a fixture has kicked off and
+    isn't finished yet, or nothing was refreshed in the last day. Between
+    match days that is one API call a day.
     """
     try:
         engine = get_engine()
-        result = _refresh_current_season_fixtures(engine)
+        reason = fixtures_refresh_reason(engine)
+        if reason is None:
+            record_task_heartbeat(engine, "refresh_fixtures", success=True)
+            return {"refreshed": False, "reason": "not needed"}
 
+        result = _refresh_current_season_fixtures(engine)
         if not result["refreshed"]:
             logger.info("refresh_fixtures: nothing to do -- %s", result.get("reason"))
         else:
-            logger.info("refresh_fixtures: refreshed fixtures for season=%s", result["season"])
+            logger.info("refresh_fixtures: refreshed fixtures for season=%s (%s)", result["season"], reason)
         record_task_heartbeat(engine, "refresh_fixtures", success=True)
         return result
     except Exception as exc:
@@ -455,144 +546,19 @@ def refresh_fixtures(self) -> dict:
         raise self.retry(exc=exc)
 
 
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="schedule_fixture_polls")
-def schedule_fixture_polls(self) -> dict:
+@app.task(bind=True, max_retries=3, default_retry_delay=300, name="refresh_player_prices")
+def refresh_player_prices(self) -> dict:
+    """Daily: every player's now_cost (GW mode's buy/sell price) and any
+    player new to the game, from bootstrap-static. A new player has no
+    backfilled prediction until the next backfill, so /chat shows them as
+    New/Insufficient Data until then -- expected, not an error."""
     try:
         engine = get_engine()
-        fixtures = find_fixtures_needing_poll_schedule(engine)
-
-        scheduled = []
-        for f in fixtures:
-            poll_and_score_fpl_fixture.apply_async(
-                args=[f.id, "halftime"],
-                eta=f.kickoff_time + timedelta(minutes=HALFTIME_OFFSET_MINUTES),
-            )
-            poll_and_score_fpl_fixture.apply_async(
-                args=[f.id, "fulltime"],
-                eta=f.kickoff_time + timedelta(minutes=FULLTIME_OFFSET_MINUTES),
-            )
-            mark_fixture_polls_scheduled(engine, f.id)
-            scheduled.append(f.id)
-
-        logger.info(
-            "schedule_fixture_polls: scheduled polling for %d fixture(s): %s",
-            len(scheduled), scheduled,
-        )
-        record_task_heartbeat(engine, "schedule_fixture_polls", success=True)
-        return {"scheduled": scheduled}
+        result = _refresh_player_prices(engine)
+        logger.info("refresh_player_prices: %s", result)
+        record_task_heartbeat(engine, "refresh_player_prices", success=True)
+        return result
     except Exception as exc:
-        logger.exception("schedule_fixture_polls failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1)
-        record_task_heartbeat(get_engine(), "schedule_fixture_polls", success=False, error=str(exc))
-        raise self.retry(exc=exc)
-
-
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="poll_and_score_fpl_fixture")
-def poll_and_score_fpl_fixture(self, fixture_id: int, checkpoint: str) -> dict:
-    try:
-        engine = get_engine()
-        poll_summary = poll_fixture_checkpoint(engine, fixture_id, checkpoint)
-
-        with engine.connect() as conn:
-            fixture_row = conn.execute(
-                text("SELECT season, gameweek FROM ml.fixtures WHERE id = :fixture_id"),
-                {"fixture_id": fixture_id},
-            ).first()
-        score_summary = score_gameweek(engine, fixture_row.season, fixture_row.gameweek)
-
-        logger.info(
-            "poll_and_score_fpl_fixture: fixture_id=%s checkpoint=%s -- "
-            "polled %d player(s) (%d already settled, %d unresolved), scored %d user(s), %d failed",
-            fixture_id, checkpoint,
-            len(poll_summary["updated"]), len(poll_summary["already_settled"]), len(poll_summary["unresolved"]),
-            len(score_summary["scored"]), len(score_summary["failed"]),
-        )
-        return {"poll": poll_summary, "score": score_summary}
-    except Exception as exc:
-        logger.exception(
-            "poll_and_score_fpl_fixture failed for fixture_id=%s, checkpoint=%s (attempt %d/%d)",
-            fixture_id, checkpoint, self.request.retries + 1, self.max_retries + 1,
-        )
-        raise self.retry(exc=exc)
-
-
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="simulation.simulate_match")
-def simulate_match_task(self, fixture_id: int, events: list[dict]) -> dict:
-    try:
-        engine = get_engine()
-        typed_events = [
-            MatchEvent(
-                event_type=MatchEventType(event["event_type"]),
-                player_id=event.get("player_id"),
-                minute=event.get("minute", 0),
-                provider_event_id=event.get("provider_event_id"),
-                related_player_id=event.get("related_player_id"),
-                metadata=event.get("metadata") or {},
-            )
-            for event in events
-        ]
-        result = _simulate_match(engine, fixture_id, typed_events)
-        return result.__dict__
-    except Exception as exc:
-        logger.exception("simulation.simulate_match failed for fixture_id=%s", fixture_id)
-        raise self.retry(exc=exc)
-
-
-@app.task(
-    bind=True,
-    max_retries=3,
-    default_retry_delay=2,
-    name="simulation.crashable_match",
-    acks_late=True,
-    reject_on_worker_lost=True,
-)
-def crashable_simulate_match_task(self, fixture_id: int, events: list[dict], sleep_seconds: int = 20) -> dict:
-    """Simulation-only task used to prove mid-task worker loss is recoverable.
-
-    It durably writes the provider events, sleeps long enough for the harness
-    to SIGKILL the worker, and then reuses the normal match simulator on retry.
-    """
-    if os.getenv("ENVIRONMENT") != "simulation":
-        raise RuntimeError("simulation.crashable_match can only run with ENVIRONMENT=simulation")
-    try:
-        engine = get_engine()
-        typed_events = [
-            MatchEvent(
-                event_type=MatchEventType(event["event_type"]),
-                player_id=event.get("player_id"),
-                minute=event.get("minute", 0),
-                provider_event_id=event.get("provider_event_id"),
-                related_player_id=event.get("related_player_id"),
-                metadata=event.get("metadata") or {},
-            )
-            for event in events
-        ]
-        season, gameweek = _simulation_fixture_context(engine, fixture_id)
-        insert_events(engine, fixture_id, season, gameweek, sorted(typed_events, key=lambda item: item.minute))
-        time.sleep(sleep_seconds)
-        result = _simulate_match(engine, fixture_id, typed_events)
-        return result.__dict__
-    except Exception as exc:
-        logger.exception("simulation.crashable_match failed for fixture_id=%s", fixture_id)
-        raise self.retry(exc=exc)
-
-
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="simulation.simulate_gameweek")
-def simulate_gameweek_task(self, gameweek: int, users: int = 100, season: str = "SIM-2026", seed: int = 12345) -> dict:
-    try:
-        engine = get_engine()
-        result = _simulate_gameweek(engine, gameweek, users=users, season=season, seed=seed, accelerated=True)
-        return result.__dict__
-    except Exception as exc:
-        logger.exception("simulation.simulate_gameweek failed for season=%s gameweek=%s", season, gameweek)
-        raise self.retry(exc=exc)
-
-
-@app.task(bind=True, max_retries=3, default_retry_delay=60, name="simulation.simulate_season")
-def simulate_season_task(self, season: str = "SIM-2026", gameweeks: int = 38, users: int = 100, seed: int = 12345) -> dict:
-    try:
-        engine = get_engine()
-        result = _simulate_season(engine, season_id=season, gameweeks=gameweeks, users=users, seed=seed)
-        return {"season": result.season, "gameweeks": result.gameweeks, "users": result.users}
-    except Exception as exc:
-        logger.exception("simulation.simulate_season failed for season=%s", season)
+        logger.exception("refresh_player_prices failed (attempt %d/%d)", self.request.retries + 1, self.max_retries + 1)
+        record_task_heartbeat(get_engine(), "refresh_player_prices", success=False, error=str(exc))
         raise self.retry(exc=exc)

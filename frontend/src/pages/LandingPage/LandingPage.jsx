@@ -4,9 +4,9 @@ import './LandingPage.css'
 const FEATURES = [
   {
     icon: 'lightbulb',
-    title: 'Smart Captaincy',
+    title: 'Tactical Picks',
     description:
-      'AI-powered analysis of form, underlying metrics, and upcoming fixtures to ensure the armband lands on the right player.',
+      'AI-powered analysis of form, fixtures, and tactical roles to choose the right Bonus Players each gameweek.',
     featured: true,
   },
   {
@@ -16,8 +16,8 @@ const FEATURES = [
   },
   {
     icon: 'account_balance_wallet',
-    title: 'Squad Optimization',
-    description: 'Balance your budget efficiently and maximize long-term points potential.',
+    title: 'Squad Planning',
+    description: 'Balance your budget, bench roles, and swap options across the long game.',
   },
 ]
 
@@ -32,9 +32,9 @@ function LandingPage() {
 
       <main className="landing-main">
         <section className="hero">
-          <h2 className="hero__title">Dominate Your FPL League with AI</h2>
+          <h2 className="hero__title">Master Your Fantasy Gameweek with AI</h2>
           <p className="hero__subtitle">
-            Get data-driven captaincy picks, transfer advice, and squad optimizations in seconds.
+            Get data-driven Bonus Player picks, transfer advice, and tactical squad plans in seconds.
           </p>
           <button className="hero__cta" onClick={() => navigate('/chat')}>
             Get Started
@@ -61,7 +61,7 @@ function LandingPage() {
           <span>Terms of Service</span>
           <span>Contact</span>
         </div>
-        <p className="landing-footer__copy">© 2026 PitchSide AI. All rights reserved.</p>
+        <p className="landing-footer__copy">(c) 2026 PitchSide AI. All rights reserved.</p>
       </footer>
     </div>
   )

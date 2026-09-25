@@ -3,40 +3,40 @@
 @tailwind utilities;
 
 /* The CSS custom properties below predate Tailwind and back the hand-written
-   per-component stylesheets (SquadSelectionPage.css, StartingXIPage.css, ...).
+   per-component stylesheets (SquadSelectionPage.css, ...).
    They carry the same values as tailwind.config.js's palette -- both are
    generated from the one Stitch token set -- and are kept so the already-
    verified pages keep working while new pages are built with utilities. */
 :root {
-  --color-background: #faf8ff;
-  --color-surface: #faf8ff;
-  --color-surface-container-low: #f2f3ff;
-  --color-surface-container: #eaedff;
-  --color-surface-container-high: #e2e7ff;
-  --color-surface-container-highest: #dae2fd;
+  --color-background: #fbf9f5;
+  --color-surface: #fbf9f5;
+  --color-surface-container-low: #f5f3f0;
+  --color-surface-container: #efeeea;
+  --color-surface-container-high: #e9e8e4;
+  --color-surface-container-highest: #e4e2df;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-variant: #dae2fd;
+  --color-surface-variant: #e4e2df;
 
-  --color-on-background: #131b2e;
-  --color-on-surface: #131b2e;
-  --color-on-surface-variant: #4f434c;
+  --color-on-background: #1b1c1a;
+  --color-on-surface: #1b1c1a;
+  --color-on-surface-variant: #454839;
 
-  --color-primary: #040004;
-  --color-primary-container: #38003c;
+  --color-primary: #4f6600;
+  --color-primary-container: #8daa3c;
   --color-on-primary: #ffffff;
-  --color-on-primary-container: #af6eac;
-  --color-primary-fixed-dim: #f7aff2;
-  --color-surface-tint: #854884;
+  --color-on-primary-container: #2d3b00;
+  --color-primary-fixed-dim: #b3d25f;
+  --color-surface-tint: #4f6600;
 
   --color-error: #ba1a1a;
 
-  --color-outline: #80737d;
-  --color-outline-variant: #d2c2cd;
-  --color-secondary: #006d35;
+  --color-outline: #757967;
+  --color-outline-variant: #c5c8b4;
+  --color-secondary: #196c3b;
   --color-on-secondary: #ffffff;
-  --color-secondary-container: #00fa82;
-  --color-on-secondary-container: #006e36;
-  --color-on-tertiary-container: #fe225f;
+  --color-secondary-container: #a3f5b6;
+  --color-on-secondary-container: #217240;
+  --color-on-tertiary-container: #2c3c00;
 
   --radius-full: 9999px;
   --radius-lg: 0.5rem;
@@ -63,8 +63,8 @@ body,
 
 body {
   margin: 0;
-  font-family: 'Inter', sans-serif;
-  background: linear-gradient(to bottom, var(--color-surface), var(--color-surface-container-low));
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: var(--color-background);
   color: var(--color-on-background);
 }
 
@@ -85,6 +85,15 @@ body {
 button {
   font-family: inherit;
   cursor: pointer;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary-container);
+  outline-offset: 2px;
 }
 
 input {

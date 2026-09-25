@@ -1,0 +1,28 @@
+# FastAPI app. One uvicorn process on 127.0.0.1:8030, behind nginx.
+#
+# --proxy-headers --forwarded-allow-ips=127.0.0.1: take the client IP from
+#   nginx's X-Forwarded-For, or every visitor shares nginx's one rate-limit
+#   bucket (backend/Shared/rate_limit.py).
+# --limit-concurrency 20: beyond 20 requests in flight, answer 503 rather
+#   than let memory grow with the queue.
+# --timeout-keep-alive 5: don't hold idle connections open.
+# No --workers: each worker is another ~110 MB copy of the app.
+#
+# Paths assume the app at /opt/fpl, venv at /opt/fpl/venv, user "fpl".
+[Unit]
+Description=FPL API (uvicorn)
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+User=fpl
+WorkingDirectory=/opt/fpl/backend/Context_assembler
+ExecStart=/opt/fpl/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8030 \
+    --proxy-headers --forwarded-allow-ips=127.0.0.1 \
+    --limit-concurrency 20 --timeout-keep-alive 5
+Restart=always
+RestartSec=5
+MemoryMax=350M
+
+[Install]
+WantedBy=multi-user.target
