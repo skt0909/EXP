@@ -30,6 +30,7 @@ naturally respects MAX_PLAYERS (kept as a defensive cap regardless).
 
 import logging
 import os
+import re
 import sys
 from datetime import datetime
 from functools import lru_cache
@@ -121,15 +122,19 @@ MODEL_VERSION = "xgboost_v1"
 
 MAX_PLAYERS = 15
 
-INSTRUCTIONS = """You are helping a Fantasy Premier League manager make squad decisions.
+INSTRUCTIONS = """You are PitchSide AI, helping a manager make squad decisions in the
+PitchSide fantasy football game.
 
-You may be advising on one of two separate game modes: the Tactical game,
-where the user picks a per-gameweek starting XI under an
-attack/defence/balanced tactic, or a Dream11 contest, where the user
-drafts a one-off team against other members for a single fixture under
-its own scoring rules. Treat them as unrelated games -- do not assume
-Tactical-game concepts (tactics, gameweek-long squads, transfers) apply to
-a Dream11 team, or vice versa.
+You may be advising on one of two separate game modes: Tactic mode, where
+the user picks a per-gameweek starting XI under an attack/defence/balanced
+tactic, or Quick 11 mode, where the user drafts a one-off team against
+other members for a single match under its own scoring rules. Treat them as
+unrelated games -- do not assume Tactic mode concepts (tactics,
+gameweek-long squads, transfers) apply to a Quick 11 team, or vice versa.
+
+Names: always call the two modes "Tactic mode" and "Quick 11 mode". Never
+write "FPL", "Fantasy Premier League" or "Dream11" -- this app does not use
+those names, and the user will not recognise them.
 
 You are given each player's tier, not a raw predicted score. A tier may
 have been computed for an earlier gameweek than the one being discussed if
@@ -415,8 +420,28 @@ class ChatResponse(BaseModel):
     response: str
 
 
+# The instructions tell the model which names to use, but models don't
+# always comply, so replies are also rewritten on the way out. Longest
+# patterns first; each swallows a trailing "mode"/"game" so "Dream11 mode"
+# can't become "Quick 11 mode mode".
+_MODE_NAME_REWRITES = [
+    (re.compile(r"\bFantasy Premier League(?: (?:mode|game))?\b", re.IGNORECASE), "Tactic mode"),
+    (re.compile(r"\bFPL(?: (?:mode|game))?\b", re.IGNORECASE), "Tactic mode"),
+    (re.compile(r"\bTactical (?:mode|game)\b", re.IGNORECASE), "Tactic mode"),
+    (re.compile(r"\bDream ?-?11(?: (?:mode|game))?\b", re.IGNORECASE), "Quick 11 mode"),
+]
+
+
+def _use_app_mode_names(text_: str) -> str:
+    """Replace FPL / Fantasy Premier League / Dream11 in a chat reply with
+    the app's own names, Tactic mode and Quick 11 mode."""
+    for pattern, replacement in _MODE_NAME_REWRITES:
+        text_ = pattern.sub(replacement, text_)
+    return text_
+
+
 def _build_prompt(context_df: pd.DataFrame, message: str, mode: str) -> str:
-    squad_label = "Dream11 team" if mode == "dream11" else "Tactical starting XI"
+    squad_label = "Quick 11 mode team" if mode == "dream11" else "Tactic mode starting XI"
     lines = [INSTRUCTIONS, "", f"Player context (your current {squad_label}):"]
     for player_id, row in context_df.iterrows():
         price = f"£{row['price_current']}m" if pd.notna(row["price_current"]) else "price unknown"
@@ -524,4 +549,4 @@ def chat(
         logger.error("Groq API call failed: %s: %s", type(e).__name__, e)
         return ChatResponse(response=GROQ_UNAVAILABLE_MESSAGE)
 
-    return ChatResponse(response=answer)
+    return ChatResponse(response=_use_app_mode_names(answer))

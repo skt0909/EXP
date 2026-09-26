@@ -277,7 +277,7 @@ function DashboardPage() {
 
   return (
     <div className="bg-[#FBF9F5] text-on-background font-body-md min-h-screen pb-24">
-      <FplHeader title="Dashboard" />
+      <FplHeader helpTo="/scoring" showHelp title="Dashboard" />
 
       <main className="px-4 max-w-[600px] mx-auto w-full flex flex-col gap-4">
         {loading && <p className="font-body-md text-on-surface-variant mt-lg">Loading your team…</p>}

@@ -863,7 +863,7 @@ function StartingXIPage() {
 
   return (
     <>
-      <FplHeader title="Starting XI" />
+      <FplHeader helpTo="/scoring" showHelp title="Starting XI" />
       <main className="w-full flex flex-col pb-[180px] bg-[#FBF9F5] min-h-screen">
         <section className="mx-4 mt-3 rounded-[20px] border border-[#E5E6E1] bg-white p-4 shadow-sm flex flex-col gap-3">
           <h2 className="font-label-md text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Select Mode</h2>

@@ -16,7 +16,7 @@ const MODE_DREAM11 = 'dream11'
 // this page tracks its own toggle instead, local to the conversation.
 const WELCOME_MESSAGES = {
   [MODE_TACTICAL]: "Hi, I'm PitchSide AI. Ask me about your starting XI, Bonus Players, transfers, or anything else about your squad.",
-  [MODE_DREAM11]: "Hi, I'm PitchSide AI. Ask me about your tactic mode or quick 11 mode squad.",
+  [MODE_DREAM11]: "Hi, I'm PitchSide AI. Ask me about your Quick 11 mode team for this match.",
 }
 
 function welcomeMessage(mode) {
@@ -94,7 +94,11 @@ function ChatPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <FplHeader title="Assist" />
+      <FplHeader
+        helpTo={appMode === MODE_CONTESTS ? '/dream11/scoring' : '/scoring'}
+        showHelp
+        title="Assist"
+      />
       <ChatLog isTyping={isTyping} messages={messages} />
 
       {/* Composer block: text bar first, then the mode toggle, then (in

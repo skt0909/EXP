@@ -257,3 +257,31 @@ def test_the_llm_instructions_no_longer_promise_a_captain_tag():
 
     assert "CURRENT CAPTAIN" not in main.INSTRUCTIONS
     assert "CURRENT VICE-CAPTAIN" not in main.INSTRUCTIONS
+
+
+def test_the_llm_is_told_the_apps_own_mode_names():
+    """The app calls its modes Tactic mode and Quick 11 mode. The prompt used
+    to say "Fantasy Premier League" and "Dream11", and the model repeated
+    those names back to users."""
+    assert "Tactic mode" in main.INSTRUCTIONS and "Quick 11 mode" in main.INSTRUCTIONS
+    assert "Fantasy Premier League manager" not in main.INSTRUCTIONS
+    assert "Dream11 contest" not in main.INSTRUCTIONS
+    assert "your current Quick 11 mode team" in main._build_prompt(pd.DataFrame(), "hi", "dream11")
+    assert "your current Tactic mode starting XI" in main._build_prompt(pd.DataFrame(), "hi", "tactical")
+
+
+@pytest.mark.parametrize(
+    "reply, expected",
+    [
+        ("In FPL, captain Salah.", "In Tactic mode, captain Salah."),
+        ("Your Dream11 team looks strong.", "Your Quick 11 mode team looks strong."),
+        ("In Dream11 mode the captain gets 2x.", "In Quick 11 mode the captain gets 2x."),
+        ("Unlike dream-11, FPL mode scores differently.", "Unlike Quick 11 mode, Tactic mode scores differently."),
+        ("Fantasy Premier League managers bench him.", "Tactic mode managers bench him."),
+        ("Salah is Elite; tactics matter.", "Salah is Elite; tactics matter."),
+    ],
+)
+def test_chat_replies_never_show_fpl_or_dream11(reply, expected):
+    """The safety net for when the model ignores the naming instruction."""
+    assert main._use_app_mode_names(reply) == expected
+

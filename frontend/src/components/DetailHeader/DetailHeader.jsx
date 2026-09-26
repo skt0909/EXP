@@ -1,7 +1,8 @@
 import AccountMenu from '../AccountMenu/AccountMenu'
 import DashboardIcon from '../DashboardIcon/DashboardIcon'
+import { Link } from 'react-router-dom'
 
-function DetailHeader({ onBack, title }) {
+function DetailHeader({ onBack, title, helpTo = '/dream11/scoring' }) {
   return (
     <header className="sticky top-0 z-40 -mx-safe-margin -mt-md mb-sm bg-surface/95 backdrop-blur-xl border-b border-outline-variant/60">
       <div className="flex items-center gap-sm h-16 px-md w-full max-w-[600px] mx-auto">
@@ -16,13 +17,13 @@ function DetailHeader({ onBack, title }) {
         <h1 className="flex-1 min-w-0 text-left truncate font-headline-sm text-headline-sm font-semibold text-on-surface">
           {title}
         </h1>
-        <button
+        <Link
           aria-label="Help"
           className="w-10 h-10 rounded-full border border-outline-variant/70 bg-surface-container-lowest shadow-sm flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-all"
-          type="button"
+          to={helpTo}
         >
           <DashboardIcon name="help" size={19} />
-        </button>
+        </Link>
         <AccountMenu />
       </div>
     </header>

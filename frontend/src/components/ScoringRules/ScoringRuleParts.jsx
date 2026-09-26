@@ -85,7 +85,7 @@ export function RuleRow({ row, showDot = false }) {
  */
 export function RuleNote({ note }) {
   return (
-    <div className="flex gap-sm p-gutter rounded-xl bg-surface-container-low">
+    <div className="flex gap-sm p-gutter rounded-xl bg-[#F7F6FB]">
       {note.icon && (
         <span className="material-symbols-outlined text-on-surface-variant text-[20px] shrink-0">
           {note.icon}
@@ -112,8 +112,8 @@ export function RuleNote({ note }) {
  */
 export function RuleCard({ icon, title, badge, number, children }) {
   return (
-    <section className="rounded-xl bg-surface-container-lowest border border-outline-variant overflow-hidden">
-      <header className="flex items-center gap-sm px-md py-gutter bg-surface-container-low border-b border-outline-variant">
+    <section className="rounded-[20px] bg-white border border-[#E5E6E1] overflow-hidden shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      <header className="flex items-center gap-sm px-md py-gutter bg-white border-b border-[#E5E6E1]">
         {number != null ? (
           <span className="w-6 h-6 shrink-0 rounded-full bg-primary-container/15 text-primary-container font-headline-sm text-[12px] flex items-center justify-center">
             {number}
@@ -121,7 +121,7 @@ export function RuleCard({ icon, title, badge, number, children }) {
         ) : (
           <span className="material-symbols-outlined text-primary-container text-[20px]">{icon}</span>
         )}
-        <h2 className="font-headline-sm text-headline-sm text-on-surface flex-1 min-w-0 truncate">{title}</h2>
+        <h2 className="font-headline-sm text-[17px] font-bold text-on-surface flex-1 min-w-0 truncate">{title}</h2>
         {badge}
       </header>
       <div className="px-md py-sm flex flex-col gap-sm">{children}</div>

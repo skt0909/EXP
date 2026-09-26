@@ -220,7 +220,7 @@ function Dream11ContestsPage() {
 
   return (
     <>
-      <FplHeader showHelp title="Leagues" />
+      <FplHeader helpTo="/dream11/scoring" showHelp title="Leagues" />
       <main className="w-full px-4 py-3 pb-28 flex flex-col gap-4 bg-[#FBF9F5] min-h-screen font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">
         {formErrors.length > 0 && (
           <div className="bg-error-container text-on-error-container rounded-lg p-sm flex flex-col gap-xs" role="alert">

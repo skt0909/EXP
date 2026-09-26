@@ -45,10 +45,10 @@ function Dream11ScoringPage() {
       : content.sections.filter((section) => section.filter === filter)
 
   return (
-    <div className="px-safe-margin py-md flex flex-col gap-md">
+    <div className="min-h-screen bg-[#FBF9F5] px-4 py-3 pb-28 flex flex-col gap-4 font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">
       <ScoringPageHeader
-        eyebrow="Dream11 Rules"
-        eyebrowTone="bg-surface-container-highest text-on-surface-variant"
+        eyebrow="Quick 11 Rules"
+        eyebrowTone="bg-[#EEEAF8] text-[#76527D]"
         intro={content?.intro ?? 'Single-Match Daily Fantasy scoring dynamics.'}
         onBack={handleBack}
         tag={content?.statusLabel}
@@ -71,7 +71,7 @@ function Dream11ScoringPage() {
               the same failure mode BottomNav's labels have hit before. */}
           <div
             aria-label="Filter rules"
-            className="flex gap-sm overflow-x-auto -mx-safe-margin px-safe-margin pb-1"
+            className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1"
             role="tablist"
           >
             {content.filters.map((option) => {
@@ -84,8 +84,8 @@ function Dream11ScoringPage() {
                   // clips behind the scroll edge.
                   className={`shrink-0 px-gutter py-sm rounded-full font-label-md text-[13px] tracking-normal transition-colors ${
                     active
-                      ? 'bg-primary text-white'
-                      : 'bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high'
+                      ? 'bg-[#1B1C1A] text-white'
+                      : 'bg-white border border-[#E5E6E1] text-on-surface-variant hover:bg-[#F5F3F0]'
                   }`}
                   key={option.key}
                   onClick={() => setFilter(option.key)}
@@ -103,7 +103,7 @@ function Dream11ScoringPage() {
               {/* Grouped block: the clean-sheet trio sits under one heading because
                   the minutes threshold applies to all three at once. */}
               {section.groups?.map((group) => (
-                <div className="rounded-xl bg-surface-container-low p-gutter" key={group.key}>
+                <div className="rounded-xl bg-[#F7F6FB] p-gutter" key={group.key}>
                   {/* Badge stacked under the heading rather than beside it -- side
                       by side, "Clean Sheet (at 54+ mins)" wraps mid-phrase at 390px. */}
                   <div className="mb-xs">
@@ -122,7 +122,7 @@ function Dream11ScoringPage() {
                 <div className="grid grid-cols-2 gap-sm">
                   {section.tiles.map((tile) => (
                     <div
-                      className="flex flex-col items-center gap-1 py-md rounded-xl bg-primary"
+                      className="flex flex-col items-center gap-1 py-md rounded-lg bg-[#1B101B] shadow-sm"
                       key={tile.key}
                     >
                       <span className="font-label-md text-[10px] uppercase tracking-wider text-white/70">

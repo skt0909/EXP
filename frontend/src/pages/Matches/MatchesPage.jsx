@@ -278,7 +278,7 @@ function MatchesPage() {
 
   return (
     <>
-      <FplHeader showHelp title="Matches" />
+      <FplHeader helpTo="/dream11/scoring" showHelp title="Matches" />
       <main className="w-full px-4 py-3 pb-28 flex flex-col gap-4 bg-[#FBF9F5] min-h-screen font-['Helvetica_Neue',Helvetica,Arial,sans-serif]">
         <div className="flex items-center justify-between gap-3">
           <p className="font-body-md text-body-md text-on-surface-variant">

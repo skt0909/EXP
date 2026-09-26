@@ -146,7 +146,7 @@ function LeaguesPage() {
 
   return (
     <>
-      <FplHeader title="Leagues" />
+      <FplHeader helpTo="/scoring" showHelp title="Leagues" />
       <main className="w-full px-4 py-3 pb-28 flex flex-col gap-4 bg-[#FBF9F5] min-h-screen">
         {/* Season label and the joined-count subtitle are real, useful
             context -- just not what the <h1> is for. They now sit below

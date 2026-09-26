@@ -36,7 +36,7 @@ import DashboardIcon from '../DashboardIcon/DashboardIcon'
  * genuine risk of wrapping in that narrower center column. Matches
  * Squad Selection's own pre-existing (and correct) title size exactly.
  */
-function FplHeader({ title, showHelp = false }) {
+function FplHeader({ title, showHelp = false, helpTo = '/scoring' }) {
   const [drawerOpen, setDrawerOpen] = useState(false)
 
   return (
@@ -63,7 +63,7 @@ function FplHeader({ title, showHelp = false }) {
             <Link
               aria-label="Help and scoring rules"
               className="w-10 h-10 rounded-full bg-surface-container-lowest border border-outline-variant/70 shadow-sm flex items-center justify-center hover:bg-surface-container-high active:scale-95 transition-all shrink-0"
-              to="/dream11/scoring"
+              to={helpTo}
             >
               <DashboardIcon className="text-on-surface" name="help" size={19} />
             </Link>

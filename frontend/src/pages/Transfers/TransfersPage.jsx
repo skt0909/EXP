@@ -288,7 +288,7 @@ function TransfersPage() {
 
   return (
     <>
-      <FplHeader title="Transfers" />
+      <FplHeader helpTo="/scoring" showHelp title="Transfers" />
       <main className="w-full px-4 py-3 flex flex-col gap-3 pb-[200px] bg-[#FBF9F5] min-h-screen">
         <div className="bg-white rounded-[20px] p-3 border border-[#E5E6E1] shadow-sm flex flex-col gap-3">
           <div className="flex items-center justify-between">

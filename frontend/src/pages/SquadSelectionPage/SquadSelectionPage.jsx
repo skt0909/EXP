@@ -168,7 +168,7 @@ function SquadSelectionPage() {
   return (
     <div className="bg-background text-on-background font-body-md antialiased min-h-screen">
       <div className="max-w-[600px] mx-auto bg-surface min-h-screen relative">
-        <FplHeader title="Squad Selection" />
+        <FplHeader helpTo="/scoring" showHelp title="Squad Selection" />
 
         <div className="sticky top-16 z-40 bg-surface/95 backdrop-blur-md border-b border-outline-variant px-md py-sm flex justify-between items-end shadow-sm">
           <div className="flex flex-col">
