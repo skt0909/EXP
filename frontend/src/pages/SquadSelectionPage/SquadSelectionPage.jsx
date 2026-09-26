@@ -271,10 +271,8 @@ function SquadSelectionPage() {
             className="fixed bottom-[190px] left-1/2 -translate-x-1/2 z-50 w-[calc(100%-32px)] max-w-[520px] bg-secondary-container text-on-secondary-container px-md py-sm rounded-[20px] shadow-md text-center"
             data-testid="squad-saved-toast"
           >
-            <p className="font-body-md text-body-md font-bold">
-              Squad saved — £{budgetRemaining.toFixed(1)}m remaining.
-            </p>
-            <p className="mt-1 font-label-md text-label-md">
+            <p className="font-body-md text-body-md leading-relaxed">
+              <strong>Squad saved — £{budgetRemaining.toFixed(1)}m remaining.</strong>{' '}
               Now go back to the Home screen and select your Starting XI squad.
             </p>
           </div>
