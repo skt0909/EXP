@@ -373,7 +373,8 @@ def test_transfers_no_longer_references_chip_state():
     """
     import pathlib as _pathlib
 
-    src = _pathlib.Path(r"d:\Exp\backend\Gameplay\transfers.py").read_text(encoding="utf-8")
+    transfers_path = _pathlib.Path(__file__).resolve().parents[2] / "Gameplay" / "transfers.py"
+    src = transfers_path.read_text(encoding="utf-8")
     # The IMPORTS, not the bare strings: the module docstring discusses both
     # by name when explaining what used to exist, and a prose mention is not a
     # dependency.
