@@ -29,7 +29,9 @@ scp -r frontend/dist "vboxuser@<VM_ADDRESS>:staging-dist-$sha"
 Use the VM's actual SSH address in place of `<VM_ADDRESS>`. The bundle is not
 committed. If you build on Windows, create `.release-sha` as a UTF-8 text file
 with the full SHA and a final newline; avoid PowerShell 5's default UTF-16
-encoding. Check `cat ~/staging-dist-*/.release-sha` on the VM.
+encoding. Python's `write_text` on Windows may produce CRLF line endings;
+the deploy script accepts either CRLF or LF in the marker. Check
+`cat ~/staging-dist-*/.release-sha` on the VM.
 
 ## Deploy on the VM
 

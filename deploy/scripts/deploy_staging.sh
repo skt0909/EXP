@@ -22,7 +22,8 @@ dist=$(realpath "$2")
 [[ -f $dist/index.html && -d $dist/assets && -f $dist/.release-sha ]] || {
     echo "Frontend bundle needs index.html, assets/, and .release-sha" >&2; exit 2;
 }
-[[ $(cat "$dist/.release-sha") == "$sha" ]] || {
+# Windows text writes may use CRLF; compare the SHA after removing line endings.
+[[ $(tr -d '\r\n' < "$dist/.release-sha") == "$sha" ]] || {
     echo "Frontend bundle was built from a different Git SHA" >&2; exit 2;
 }
 [[ -f $APP/.env && -x $APP/venv/bin/python && -d $WEB ]] || {
@@ -76,7 +77,7 @@ for attempt in {1..15}; do
     sleep 2
 done
 curl --fail --silent --show-error "$API_URL" >/dev/null
-served_sha=$(curl --fail --silent --show-error "$WEB_URL")
+served_sha=$(curl --fail --silent --show-error "$WEB_URL" | tr -d '\r\n')
 [[ $served_sha == "$sha" ]] || { echo "nginx serves $served_sha, expected $sha" >&2; exit 1; }
 
 sudo systemctl start pitchside-worker pitchside-beat
