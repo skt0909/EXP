@@ -62,6 +62,7 @@ def upgrade() -> None:
     """Upgrade schema."""
     sql = _BASELINE_SQL_PATH.read_text(encoding="utf-8")
     op.execute(sql)
+    op.execute("SET search_path TO public")
 
 
 def downgrade() -> None:
