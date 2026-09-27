@@ -4,11 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    paths:
-      - "backend/**"
-      - "requirements.txt"
-      - "alembic.ini"
-      - ".github/workflows/backend-tests.yml"
 
 jobs:
   test:
@@ -50,6 +45,9 @@ jobs:
       # point at fpl_game_test, so this unlocks the wipe for the CI database
       # and nothing else. It must never name fpl_game or pitchside_db.
       ALLOW_GAMEPLAY_WIPE: fpl_game_test
+      JWT_SECRET: ci-only-secret-never-used-outside-this-job
+      ALLOWED_ORIGINS: http://localhost:5173
+      RATE_LIMIT_ENABLED: "0"
 
     steps:
       - uses: actions/checkout@v4
@@ -66,3 +64,20 @@ jobs:
 
       - name: Run backend tests
         run: python -m pytest backend/Tests -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
