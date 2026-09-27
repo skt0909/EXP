@@ -16,7 +16,7 @@ without failing here.
 
 import uuid
 from datetime import datetime, timedelta, timezone
-
+from conftest import TEST_SEASON
 import jwt
 import pytest
 from fastapi.testclient import TestClient

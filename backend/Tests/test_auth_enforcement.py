@@ -97,6 +97,7 @@ ENDPOINTS = [
      {"season": TEST_SEASON, "gameweek": GAMEWEEK, "player_out_id": 1, "player_in_id": 2}),
     ("DELETE", "/transfer-drafts/{draft_id}", {"season": TEST_SEASON, "gameweek": GAMEWEEK}, None),
     ("GET", "/transfers/used", {"season": TEST_SEASON, "gameweek": GAMEWEEK}, None),
+    ("GET", "/transfers/history", {"season": TEST_SEASON}, None),
     ("POST", "/transfers", None, {"season": TEST_SEASON, "gameweek": GAMEWEEK, "transfers": []}),
     ("POST", "/chat", None, {"season": TEST_SEASON, "gameweek": GAMEWEEK, "message": "hi"}),
     # --- dream11: all nine, reads and writes alike. The three writes are the
@@ -113,6 +114,12 @@ ENDPOINTS = [
     ("POST", "/dream11/contests/{contest_id}/team", None,
      {"player_ids": [], "captain_id": 1, "vice_captain_id": 2}),
     ("GET", "/dream11/fixtures/{fixture_id}/contests", None, None),
+    ("GET", "/dream11/fixtures/{fixture_id}/players", None, None),
+    ("PATCH", "/dream11/contests/{contest_id}/team", None, {"player_ids": []}),
+    ("DELETE", "/dream11/contests/{contest_id}", None, None),
+    ("GET", "/dream11/saved-teams", None, None),
+    ("POST", "/dream11/saved-teams", None, {"fixture_id": 1, "player_ids": []}),
+    ("DELETE", "/dream11/saved-teams/{saved_team_id}", None, None),
 ]
 
 # Routes that answer without a credential, and why. Everything not here must
@@ -274,7 +281,7 @@ def test_every_dream11_route_is_in_the_authenticated_table():
     tabled = {(m, t) for m, t, _, _ in ENDPOINTS if t.startswith("/dream11")}
 
     assert dream11_routes == tabled
-    assert len(tabled) == 9, f"expected all 9 dream11 routes, table has {len(tabled)}"
+    assert len(tabled) == 15, f"expected all 15 dream11 routes, table has {len(tabled)}"
 
 
 # ------------------------------------------------------- 2. bad credentials
