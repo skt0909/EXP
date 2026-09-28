@@ -23,6 +23,21 @@ function welcomeMessage(mode) {
   return { role: 'assistant', text: WELCOME_MESSAGES[mode] }
 }
 
+// Canned, client-side only -- "how do I use this app" isn't a squad
+// question, so it never goes through sendChatMessage/PitchSide AI. The PDF
+// itself ships as a static public asset (see public/docs/), not something
+// the backend serves, so this works even if /chat is unavailable.
+const USER_GUIDE_PDF = {
+  name: 'PitchSide User Guide.pdf',
+  href: '/docs/User%20Guide.pdf',
+}
+
+const HOW_TO_PLAY_RESPONSE = {
+  role: 'assistant',
+  text: 'User guide',
+  attachment: USER_GUIDE_PDF,
+}
+
 function ChatPage() {
   const { settings } = useOutletContext()
   const { mode: appMode, setMode: setAppMode } = useAppMode()
@@ -65,6 +80,10 @@ function ChatPage() {
     }
   }, [mode, contests, settings.user_id])
 
+  function handleHowToPlay() {
+    setMessages((prev) => [...prev, { role: 'user', text: 'How to play?' }, HOW_TO_PLAY_RESPONSE])
+  }
+
   async function handleSend(text) {
     setMessages((prev) => [...prev, { role: 'user', text }])
     setIsTyping(true)
@@ -99,7 +118,31 @@ function ChatPage() {
         showHelp
         title="Assist"
       />
-      <ChatLog isTyping={isTyping} messages={messages} />
+      <ChatLog
+        isTyping={isTyping}
+        messages={messages}
+        trailingAction={
+          // Only offered on a fresh conversation -- once the manager has
+          // asked anything else, repeating this suggestion under every
+          // reply would be noise rather than help.
+          messages.length === 1 && (
+            // pl-10 lines this up under the welcome bubble's TEXT, not under
+            // the avatar column to its left (w-7 avatar + gap-3 = 40px) --
+            // self-start alone left it flush with the avatar instead.
+            <div className="pl-10">
+              <button
+                className="inline-flex items-center px-4 py-2 rounded-full bg-surface-container-lowest border border-outline-variant text-on-surface text-label-md font-bold hover:bg-surface-container-low transition-colors"
+                style={{ fontFamily: 'Helvetica, Arial, sans-serif' }}
+                data-testid="chat-how-to-play"
+                onClick={handleHowToPlay}
+                type="button"
+              >
+                How to play?
+              </button>
+            </div>
+          )
+        }
+      />
 
       {/* Composer block: text bar first, then the mode toggle, then (in
           Quick 11 mode) the contest/match picker below that -- all one

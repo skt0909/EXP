@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import MessageBubble from '../MessageBubble/MessageBubble'
 import TypingIndicator from '../TypingIndicator/TypingIndicator'
 
-function ChatLog({ messages, isTyping }) {
+function ChatLog({ messages, isTyping, trailingAction }) {
   const logRef = useRef(null)
 
   // Pin to the newest message. isTyping is in the deps so the log also scrolls
@@ -23,9 +23,10 @@ function ChatLog({ messages, isTyping }) {
     >
       <div className="flex flex-col gap-6">
         {messages.map((m, i) => (
-          <MessageBubble key={i} role={m.role} text={m.text} />
+          <MessageBubble attachment={m.attachment} key={i} role={m.role} text={m.text} />
         ))}
         {isTyping && <TypingIndicator />}
+        {!isTyping && trailingAction}
       </div>
     </main>
   )
