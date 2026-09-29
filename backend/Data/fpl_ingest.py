@@ -55,6 +55,7 @@ Fields the live API does not expose, and what happens to them:
 
 import argparse
 import io
+import logging
 import sys
 from functools import lru_cache
 
@@ -63,6 +64,8 @@ import requests
 from sqlalchemy import text
 
 from utils.db_utils import get_engine, safe_url
+
+logger = logging.getLogger(__name__)
 
 ARCHIVE = "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data"
 API = "https://fantasy.premierleague.com/api"
@@ -654,9 +657,11 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
     _require_columns(
         fx,
         ["id", "event", "team_h", "team_a", "kickoff_time",
-         "team_h_score", "team_a_score", "finished"],
+         "team_h_score", "team_a_score", "finished",
+         "started", "finished_provisional", "minutes"],
         "fixtures feed",
     )
+    _log_live_fixture_state(fx)
 
     # A postponed fixture not yet rescheduled into a gameweek carries
     # event = null (and kickoff_time = null). It can't be filed under a
@@ -683,10 +688,12 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
     stmt = text("""
         INSERT INTO ml.fixtures (
             fpl_id, season, gameweek, home_team_id, away_team_id,
-            kickoff_time, home_score, away_score, finished, updated_at
+            kickoff_time, home_score, away_score, finished,
+            started, finished_provisional, minutes, updated_at
         ) VALUES (
             :fpl_id, :season, :gameweek, :home_team_id, :away_team_id,
-            :kickoff_time, :home_score, :away_score, :finished, now()
+            :kickoff_time, :home_score, :away_score, :finished,
+            :started, :finished_provisional, :minutes, now()
         )
         ON CONFLICT (fpl_id, season) DO UPDATE SET
             gameweek = CASE WHEN ml.fixtures.finished IS TRUE
@@ -695,8 +702,15 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
             home_score = EXCLUDED.home_score,
             away_score = EXCLUDED.away_score,
             finished = EXCLUDED.finished,
+            started = EXCLUDED.started,
+            finished_provisional = EXCLUDED.finished_provisional,
+            minutes = EXCLUDED.minutes,
             updated_at = now()
     """)
+    # started / finished_provisional / minutes are FPL's real match state,
+    # which Data/live_poll.py's checkpoints key on instead of the scheduled
+    # kickoff (a delayed kickoff made kickoff+N wrong). See migration
+    # b7e3f1a9c2d4.
     # home_team_id/away_team_id/fpl_id are intentionally NOT in the UPDATE
     # SET -- enforce_fixture_identity_fn blocks changes to them anyway
     # (same as ingest_fixtures above). kickoff_time IS updated here
@@ -713,12 +727,40 @@ def ingest_upcoming_fixtures(engine, season: str) -> None:
         "home_score": num(f["team_h_score"], int),
         "away_score": num(f["team_a_score"], int),
         "finished": bool(f["finished"]),
+        "started": bool(f["started"]) if not pd.isna(f["started"]) else False,
+        "finished_provisional": (
+            bool(f["finished_provisional"]) if not pd.isna(f["finished_provisional"]) else False
+        ),
+        "minutes": num(f["minutes"], int, 0),
     } for f in fx.to_dict("records")]
 
     _executemany(engine, stmt, rows, "fixtures (upcoming/incremental)")
     print(f"Upcoming fixtures {season}: {len(rows)} written/updated (no finished-gate)")
     if unscheduled:
         print(f"  note: {unscheduled} fixture(s) have no gameweek (postponed) -- kickoff cleared on any we held")
+
+
+# Diagnostic only. Fixture-level `minutes` hasn't been observed during live
+# play, so nothing keys on it yet (halftime due-selection is disabled in
+# Data/live_poll.py for exactly that reason). One line per fixture in its
+# live window, from the payload already fetched -- no extra request.
+LIVE_STATE_LOG_WINDOW = pd.Timedelta(hours=4)
+
+
+def _log_live_fixture_state(fx: pd.DataFrame) -> None:
+    kickoff = pd.to_datetime(fx["kickoff_time"], utc=True, errors="coerce")
+    now = pd.Timestamp.now(tz="UTC")
+    live = fx[
+        kickoff.notna()
+        & (kickoff <= now)
+        & (kickoff > now - LIVE_STATE_LOG_WINDOW)
+        & (fx["finished"] != True)  # noqa: E712 -- column may hold NaN
+    ]
+    for f in live.to_dict("records"):
+        logger.info(
+            "fixture state fpl_id=%s kickoff=%s started=%s minutes=%s finished_provisional=%s finished=%s",
+            f["id"], f["kickoff_time"], f["started"], f["minutes"], f["finished_provisional"], f["finished"],
+        )
 
 
 def refresh_current_season_fixtures(engine) -> dict:

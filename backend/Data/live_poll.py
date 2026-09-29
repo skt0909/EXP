@@ -23,17 +23,31 @@ also accepts an already-fetched payload, so a tick with several fixtures
 due in one gameweek makes one request, not one per fixture.
 
 CHECKPOINTS. Three, found by find_due_checkpoints below rather than booked
-ahead as Celery ETAs:
+ahead as Celery ETAs, and due from FPL's real match state (ml.fixtures'
+started / finished_provisional / finished, stored by
+fpl_ingest.ingest_upcoming_fixtures), never from the scheduled kickoff
+alone -- a delayed kickoff made "kickoff + N minutes" wrong:
 
-  * 'halftime'  kickoff + 50 min   is_live = TRUE
-  * 'fulltime'  kickoff + 115 min  is_live = TRUE
-  * 'final'     once ml.fixtures.finished is TRUE   is_live = FALSE
+  * 'halftime'  NOT due automatically (see below)          is_live = TRUE
+  * 'fulltime'  once finished_provisional is TRUE           is_live = TRUE
+  * 'final'     once finished is TRUE (takes precedence)    is_live = FALSE
+
+HALFTIME IS DISABLED as an automatic checkpoint, on purpose. Nothing in
+ml.fixtures proves halftime has actually been reached: scheduled
+kickoff + 50 is wrong for a delayed kickoff (a match that started 30
+minutes late has had ~20 minutes of football), and fixture-level `minutes`
+has not been observed during live play, so `minutes >= 45` would be an
+assumption. poll_fixture_checkpoint(..., 'halftime') still works when
+called directly. fpl_ingest logs each live fixture's started/minutes/
+finished_provisional/finished on every refresh so `minutes` can be
+verified; once it is, the halftime branch of DUE_CHECKPOINTS_QUERY can be
+enabled as: started AND NOT finished_provisional AND minutes >= 45.
 
 Only 'final' settles. enforce_gw_stats_immutability_fn blocks any UPDATE
-to a row whose OLD.is_live is FALSE, so settling at kickoff+115 -- which is
-what 'fulltime' used to do -- froze a guess at when the match ended, before
-FPL's late corrections. FPL sets finished only once bonus is confirmed, so
-waiting for it settles the numbers FPL itself considers final.
+to a row whose OLD.is_live is FALSE, so settling at the final whistle
+would freeze numbers before FPL's late corrections. FPL sets finished only
+once bonus is confirmed, so waiting for it settles the numbers FPL itself
+considers final.
 
 Re-polling an already-settled row hits that trigger. That's caught
 per-player here and treated as an expected no-op (already settled), not a
@@ -47,7 +61,8 @@ instead: it lists only stats that earned points (a midfielder's
 goals_conceded is absent) and carries no creativity. So a fixture's row
 for such a player is the gameweek total MINUS what is already stored for
 that player's team's earlier fixtures in the gameweek. And once a later
-fixture has kicked off, the earlier one is no longer re-polled from the
+fixture has actually started (ml.fixtures.started, not its scheduled
+kickoff), the earlier one is no longer re-polled from the
 total (it would absorb the later match's stats); its final checkpoint
 settles the values it already holds.
 """
@@ -65,8 +80,9 @@ logger = logging.getLogger(__name__)
 
 VALID_CHECKPOINTS = ("halftime", "fulltime", "final")
 
-HALFTIME_OFFSET_MINUTES = 50
-FULLTIME_OFFSET_MINUTES = 115
+# Only a cheap search window for DUE_CHECKPOINTS_QUERY, never proof that a
+# checkpoint is due -- that comes from the fixture's FPL state.
+MIN_MINUTES_AFTER_KICKOFF = 50
 
 # Checkpoints are looked for within this long after kickoff. Long enough to
 # catch up a gameweek missed while the worker was down, short enough never
@@ -87,10 +103,13 @@ STAT_COLS = COUNTING_COLS + DECIMAL_COLS
 
 # --- which checkpoint is due -----------------------------------------
 #
-# At most one checkpoint per fixture per tick, the latest that applies:
-# a fixture already finished goes straight to 'final'; one past kickoff+115
-# skips a halftime it missed. A fixture with no poll-schedule row yet has
-# every polled_at NULL, i.e. nothing done.
+# At most one checkpoint per fixture per tick, the latest that applies: a
+# finished fixture goes straight to 'final'; a provisionally finished one
+# gets 'fulltime'. A fixture that has kicked off by the clock but that FPL
+# has not marked finished_provisional is NOT due -- elapsed scheduled time
+# certifies nothing -- and stays that way until a fixture refresh stores
+# the new state, so the next 60-second tick picks it up. A fixture with no
+# poll-schedule row yet has every polled_at NULL, i.e. nothing done.
 DUE_CHECKPOINTS_QUERY = text(
     f"""
     SELECT * FROM (
@@ -99,20 +118,24 @@ DUE_CHECKPOINTS_QUERY = text(
                    WHEN f.finished IS TRUE AND ps.final_polled_at IS NULL
                        THEN 'final'
                    WHEN f.finished IS NOT TRUE
-                        AND NOW() >= f.kickoff_time + INTERVAL '{FULLTIME_OFFSET_MINUTES} minutes'
+                        AND f.finished_provisional IS TRUE
                         AND ps.fulltime_polled_at IS NULL
                        THEN 'fulltime'
-                   WHEN f.finished IS NOT TRUE
-                        AND NOW() >= f.kickoff_time + INTERVAL '{HALFTIME_OFFSET_MINUTES} minutes'
-                        AND ps.halftime_polled_at IS NULL
-                        AND ps.fulltime_polled_at IS NULL
-                       THEN 'halftime'
+                   -- HALFTIME DISABLED: no stored signal proves halftime
+                   -- was reached (module docstring). Enable, once fixture
+                   -- `minutes` is verified live, as:
+                   --   WHEN f.finished IS NOT TRUE
+                   --        AND f.finished_provisional IS NOT TRUE
+                   --        AND f.started IS TRUE AND f.minutes >= 45
+                   --        AND ps.halftime_polled_at IS NULL
+                   --        AND ps.fulltime_polled_at IS NULL
+                   --       THEN 'halftime'
                END AS checkpoint
         FROM ml.fixtures f
         LEFT JOIN ml.fixture_poll_schedule ps ON ps.fixture_id = f.id
         WHERE {real_season_sql('f.season')}
           AND f.kickoff_time IS NOT NULL
-          AND f.kickoff_time <= NOW() - INTERVAL '{HALFTIME_OFFSET_MINUTES} minutes'
+          AND f.kickoff_time <= NOW() - INTERVAL '{MIN_MINUTES_AFTER_KICKOFF} minutes'
           AND f.kickoff_time > NOW() - INTERVAL '{POLL_LOOKBACK}'
     ) due
     WHERE checkpoint IS NOT NULL
@@ -199,11 +222,13 @@ FIXTURE_TEAM_PLAYERS_QUERY = text(
 )
 
 # This fixture's teams' OTHER fixtures in the same gameweek -- only ever
-# non-empty in a double gameweek. `started` is judged by the DB clock.
+# non-empty in a double gameweek. `started` is FPL's real match state, not
+# "scheduled kickoff has passed": a later fixture whose kickoff is delayed
+# hasn't absorbed any stats into the gameweek total yet.
 SIBLING_FIXTURES_QUERY = text(
     """
     SELECT f.id, f.kickoff_time, f.home_team_id, f.away_team_id,
-           (f.kickoff_time <= NOW()) AS started
+           f.started AS started
     FROM ml.fixtures f
     WHERE f.season = :season AND f.gameweek = :gameweek AND f.id <> :fixture_id
       AND f.kickoff_time IS NOT NULL

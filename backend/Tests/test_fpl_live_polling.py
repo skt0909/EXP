@@ -68,7 +68,13 @@ def _fake_fetch_json(fixtures_payload):
         if path == "bootstrap-static/":
             return {"events": [{"deadline_time": "2099-08-01T00:00:00Z"}]}
         if path == "fixtures/":
-            return fixtures_payload
+            # The real feed always carries FPL's match state; a test that
+            # doesn't care gets values consistent with its `finished`.
+            return [
+                {"started": bool(f.get("finished")), "finished_provisional": bool(f.get("finished")),
+                 "minutes": 90 if f.get("finished") else 0, **f}
+                for f in fixtures_payload
+            ]
         raise AssertionError(f"unexpected fetch_json path in test: {path!r}")
 
     return _fake
@@ -157,6 +163,35 @@ def test_ingest_upcoming_fixtures_rerun_does_not_touch_identity_fields(engine, m
     assert row.home_score == 1
 
 
+def _match_state(engine, fpl_id):
+    with engine.connect() as conn:
+        return conn.execute(
+            text("SELECT started, minutes, finished_provisional, finished FROM ml.fixtures "
+                 "WHERE fpl_id = :fid AND season = :s"),
+            {"fid": fpl_id, "s": TEST_SEASON},
+        ).first()
+
+
+def test_ingest_upcoming_fixtures_stores_and_updates_fpl_match_state(engine, make_team, monkeypatch):
+    """G. started / minutes / finished_provisional come from the same
+    fixtures/ response and are what the live-poll checkpoints key on."""
+    make_team(fpl_id=211, name="StateH", short_name="STH")
+    make_team(fpl_id=212, name="StateA", short_name="STA")
+    base = {"id": 5150, "event": 12, "team_h": 211, "team_a": 212,
+            "kickoff_time": (NOW() - timedelta(minutes=30)).isoformat(),
+            "team_h_score": None, "team_a_score": None, "finished": False}
+
+    monkeypatch.setattr(fpl_ingest, "fetch_json", _fake_fetch_json([
+        dict(base, started=False, minutes=0, finished_provisional=False)]))
+    fpl_ingest.ingest_upcoming_fixtures(engine, TEST_SEASON)
+    assert tuple(_match_state(engine, 5150)) == (False, 0, False, False)
+
+    monkeypatch.setattr(fpl_ingest, "fetch_json", _fake_fetch_json([
+        dict(base, started=True, minutes=90, finished_provisional=True, team_h_score=1, team_a_score=0)]))
+    fpl_ingest.ingest_upcoming_fixtures(engine, TEST_SEASON)
+    assert tuple(_match_state(engine, 5150)) == (True, 90, True, False)
+
+
 def test_ingest_upcoming_fixtures_no_data_is_a_no_op_not_an_error(engine, make_team, monkeypatch):
     make_team(fpl_id=301, name="H", short_name="HHH")
     monkeypatch.setattr(fpl_ingest, "fetch_json", _fake_fetch_json([]))
@@ -209,13 +244,24 @@ def _due(engine, fixture_id):
     return next((r.checkpoint for r in find_due_checkpoints(engine) if r.id == fixture_id), None)
 
 
-def _fixture(make_team, make_fixture, n, kickoff, finished=False, gameweek=1):
+def _set_state(engine, fixture_id, **state):
+    """Set FPL match state (started / finished_provisional / finished /
+    minutes) on a fixture, as a fixture refresh would."""
+    cols = ", ".join(f"{k} = :{k}" for k in state)
+    with engine.begin() as conn:
+        conn.execute(text(f"UPDATE ml.fixtures SET {cols} WHERE id = :f"), {"f": fixture_id, **state})
+
+
+def _fixture(make_team, make_fixture, n, kickoff, finished=False, gameweek=1, engine=None, **state):
     home = make_team(fpl_id=400 + 2 * n, name=f"H{n}", short_name=f"H{n}T")
     away = make_team(fpl_id=401 + 2 * n, name=f"A{n}", short_name=f"A{n}T")
-    return make_fixture(
+    fixture_id = make_fixture(
         fpl_id=6000 + n, gameweek=gameweek, home_team_id=home, away_team_id=away,
         kickoff_time=kickoff, finished=finished,
     )
+    if state:
+        _set_state(engine, fixture_id, **state)
+    return fixture_id
 
 
 def test_nothing_is_due_before_halftime(engine, make_team, make_fixture):
@@ -226,40 +272,61 @@ def test_nothing_is_due_before_halftime(engine, make_team, make_fixture):
     assert _due(engine, just_started) is None
 
 
-def test_halftime_is_due_fifty_minutes_after_kickoff(engine, make_team, make_fixture):
-    fixture_id = _fixture(make_team, make_fixture, 3, NOW() - timedelta(minutes=60))
+def test_delayed_kickoff_is_not_halftime(engine, make_team, make_fixture):
+    """A. Scheduled kickoff + 50 has passed, but FPL says the match hasn't
+    started (kickoff delayed). Nothing may be polled."""
+    fixture_id = _fixture(make_team, make_fixture, 3, NOW() - timedelta(minutes=60), engine=engine, started=False)
 
-    assert _due(engine, fixture_id) == "halftime"
+    assert _due(engine, fixture_id) is None
 
 
-def test_a_missed_halftime_is_skipped_for_fulltime(engine, make_team, make_fixture):
-    """The worker was down through the whole match: catch up with the
-    latest checkpoint, not a stale halftime one."""
-    fixture_id = _fixture(make_team, make_fixture, 4, NOW() - timedelta(hours=2))
+def test_a_started_match_is_not_auto_polled_at_halftime(engine, make_team, make_fixture):
+    """B. Automatic halftime is disabled: kickoff + 50 on the scheduled time
+    is wrong for a delayed kickoff, and fixture-level `minutes` hasn't been
+    verified during live play, so nothing stored proves halftime was
+    reached -- even with started = TRUE and minutes >= 45."""
+    fixture_id = _fixture(make_team, make_fixture, 4, NOW() - timedelta(minutes=60),
+                          engine=engine, started=True, minutes=50)
+
+    assert _due(engine, fixture_id) is None
+
+
+def test_fulltime_is_not_due_from_elapsed_time_while_the_match_runs(engine, make_team, make_fixture):
+    """C. Scheduled kickoff + 115 has passed but FPL hasn't ended the match
+    (a delayed kickoff, a long stoppage)."""
+    fixture_id = _fixture(make_team, make_fixture, 10, NOW() - timedelta(hours=2),
+                          engine=engine, started=True, finished_provisional=False)
+
+    assert _due(engine, fixture_id) is None
+
+
+def test_fulltime_is_due_from_a_provisional_finish(engine, make_team, make_fixture):
+    """D. FPL marks the whistle before it confirms the result. Also catches
+    up a worker that was down through the whole match -- no halftime first."""
+    fixture_id = _fixture(make_team, make_fixture, 11, NOW() - timedelta(hours=2),
+                          engine=engine, started=True, finished_provisional=True)
 
     assert _due(engine, fixture_id) == "fulltime"
 
 
 def test_a_finished_fixture_goes_straight_to_final(engine, make_team, make_fixture):
-    fixture_id = _fixture(make_team, make_fixture, 5, NOW() - timedelta(hours=3), finished=True)
+    """E. finished takes precedence over finished_provisional."""
+    fixture_id = _fixture(make_team, make_fixture, 5, NOW() - timedelta(hours=3), finished=True,
+                          engine=engine, started=True, finished_provisional=True)
 
     assert _due(engine, fixture_id) == "final"
 
 
 def test_a_done_checkpoint_is_not_due_again(engine, make_team, make_fixture):
-    fixture_id = _fixture(make_team, make_fixture, 6, NOW() - timedelta(minutes=60))
-
-    mark_checkpoint_done(engine, fixture_id, "halftime")
+    fixture_id = _fixture(make_team, make_fixture, 6, NOW() - timedelta(hours=2), engine=engine, started=True)
     assert _due(engine, fixture_id) is None
 
-    with engine.begin() as conn:  # the match runs on past kickoff+115
-        conn.execute(text("UPDATE ml.fixtures SET kickoff_time = NOW() - INTERVAL '2 hours' WHERE id = :f"), {"f": fixture_id})
+    _set_state(engine, fixture_id, finished_provisional=True)  # the whistle
     assert _due(engine, fixture_id) == "fulltime"
     mark_checkpoint_done(engine, fixture_id, "fulltime")
     assert _due(engine, fixture_id) is None
 
-    with engine.begin() as conn:  # FPL confirms the result
-        conn.execute(text("UPDATE ml.fixtures SET finished = TRUE WHERE id = :f"), {"f": fixture_id})
+    _set_state(engine, fixture_id, finished=True)  # FPL confirms the result
     assert _due(engine, fixture_id) == "final"
     mark_checkpoint_done(engine, fixture_id, "final")
     assert _due(engine, fixture_id) is None
@@ -325,9 +392,11 @@ def test_poll_due_fixtures_fetches_once_per_gameweek_and_rescores_both_modes(
     home2, away2 = make_team(fpl_id=473, name="PH2", short_name="PH2"), make_team(fpl_id=474, name="PA2", short_name="PA2")
     p1 = make_player(fpl_id=7601, position="MID", team_id=home1)
     make_player(fpl_id=7602, position="FWD", team_id=home2)
-    kickoff = NOW() - timedelta(minutes=60)
+    kickoff = NOW() - timedelta(hours=2)
     f1 = make_fixture(fpl_id=6031, gameweek=11, home_team_id=home1, away_team_id=away1, kickoff_time=kickoff)
     f2 = make_fixture(fpl_id=6032, gameweek=11, home_team_id=home2, away_team_id=away2, kickoff_time=kickoff)
+    for f in (f1, f2):
+        _set_state(engine, f, started=True, finished_provisional=True)
     payload = {"elements": [
         {"id": 7601, "stats": {"minutes": 45, "goals_scored": 1, "creativity": "12.4"}},
         {"id": 7602, "stats": {"minutes": 45}},
@@ -336,7 +405,7 @@ def test_poll_due_fixtures_fetches_once_per_gameweek_and_rescores_both_modes(
     result, fetched, rescored = _run_poll_due_fixtures(monkeypatch, tasks, {"event/11/live/": payload})
 
     assert fetched == ["event/11/live/"], "two fixtures in one gameweek share one live fetch"
-    assert set(result["done"]) == {(f1, "halftime"), (f2, "halftime")}
+    assert set(result["done"]) == {(f1, "fulltime"), (f2, "fulltime")}
     assert rescored == [("score", TEST_SEASON, 11), ("standings", TEST_SEASON, 11)], "tactical rescored once per gameweek"
     with engine.connect() as conn:
         row = conn.execute(
@@ -355,17 +424,19 @@ def test_poll_due_fixtures_fetches_once_per_gameweek_and_rescores_both_modes(
 def test_poll_due_fixtures_leaves_a_failed_fixture_due(engine, make_team, make_fixture, monkeypatch):
     from Worker import tasks
 
-    ok = _fixture(make_team, make_fixture, 12, NOW() - timedelta(minutes=60), gameweek=12)
-    bad = _fixture(make_team, make_fixture, 13, NOW() - timedelta(minutes=60), gameweek=12)
+    ok = _fixture(make_team, make_fixture, 12, NOW() - timedelta(hours=2), gameweek=12,
+                  engine=engine, started=True, finished_provisional=True)
+    bad = _fixture(make_team, make_fixture, 13, NOW() - timedelta(hours=2), gameweek=12,
+                   engine=engine, started=True, finished_provisional=True)
 
     result, _, _ = _run_poll_due_fixtures(
         monkeypatch, tasks, {"event/12/live/": {"elements": []}}, fail_fixture=bad,
     )
 
-    assert result["done"] == [(ok, "halftime")]
-    assert [(fid, cp) for fid, cp, _err in result["failed"]] == [(bad, "halftime")]
+    assert result["done"] == [(ok, "fulltime")]
+    assert [(fid, cp) for fid, cp, _err in result["failed"]] == [(bad, "fulltime")]
     assert _due(engine, ok) is None
-    assert _due(engine, bad) == "halftime", "a failed checkpoint is retried on the next tick"
+    assert _due(engine, bad) == "fulltime", "a failed checkpoint is retried on the next tick"
 
 
 # ---------------------------------------------------------------- double gameweeks
@@ -419,8 +490,9 @@ def test_double_gameweek_first_fixture_is_held_once_the_second_starts(
     pid = make_player(fpl_id=7801, position="DEF", team_id=team)
     first = make_fixture(fpl_id=6051, gameweek=14, home_team_id=team, away_team_id=opp1,
                          kickoff_time=NOW() - timedelta(days=3))
-    make_fixture(fpl_id=6052, gameweek=14, home_team_id=team, away_team_id=opp2,
-                 kickoff_time=NOW() - timedelta(hours=1))
+    second = make_fixture(fpl_id=6052, gameweek=14, home_team_id=team, away_team_id=opp2,
+                          kickoff_time=NOW() - timedelta(hours=1))
+    _set_state(engine, second, started=True)  # F. FPL: the second match is under way
     with engine.begin() as conn:
         conn.execute(
             text("INSERT INTO ml.player_gw_stats (player_id, season, gameweek, fixture_id, is_live, value, total_points, minutes, goals_scored) "
@@ -433,6 +505,35 @@ def test_double_gameweek_first_fixture_is_held_once_the_second_starts(
     summary = live_poll.poll_fixture_checkpoint(engine, first, "final")
 
     assert summary["held"] == [7801]
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT is_live, minutes, goals_scored FROM ml.player_gw_stats WHERE player_id = :p AND fixture_id = :f"),
+            {"p": pid, "f": first},
+        ).first()
+    assert (row.is_live, row.minutes, row.goals_scored) == (False, 90, 1)
+
+
+def test_double_gameweek_later_fixture_delayed_kickoff_is_not_started(
+    engine, make_team, make_player, make_fixture, monkeypatch
+):
+    """F. The later fixture's SCHEDULED kickoff has passed, but FPL says it
+    hasn't started (delayed). The gameweek total still covers only the
+    first match, so the first fixture is polled normally, not held."""
+    team = make_team(fpl_id=495, name="DGW3", short_name="DG3")
+    opp1 = make_team(fpl_id=496, name="Opp5", short_name="OP5")
+    opp2 = make_team(fpl_id=497, name="Opp6", short_name="OP6")
+    pid = make_player(fpl_id=7851, position="MID", team_id=team)
+    first = make_fixture(fpl_id=6056, gameweek=15, home_team_id=team, away_team_id=opp1,
+                         kickoff_time=NOW() - timedelta(days=3))
+    second = make_fixture(fpl_id=6057, gameweek=15, home_team_id=team, away_team_id=opp2,
+                          kickoff_time=NOW() - timedelta(minutes=30))
+    _set_state(engine, second, started=False)
+
+    monkeypatch.setattr(live_poll, "fetch_json", lambda path: {"elements": [
+        {"id": 7851, "stats": {"minutes": 90, "goals_scored": 1}}]})
+    summary = live_poll.poll_fixture_checkpoint(engine, first, "final")
+
+    assert summary["held"] == [] and summary["updated"] == [7851]
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT is_live, minutes, goals_scored FROM ml.player_gw_stats WHERE player_id = :p AND fixture_id = :f"),
