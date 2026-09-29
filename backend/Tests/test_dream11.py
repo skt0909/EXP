@@ -620,23 +620,116 @@ def test_get_user_team_returns_players_with_live_points(engine, make_user, make_
     assert blank_row["breakdown"]["goals_count"] == 0
 
 
-def test_get_user_team_breakdown_is_none_once_finalized(engine, make_user, make_team, make_player):
-    """dream11.team_players only ever persists final_points/final_minutes at
-    finalization (UPDATE_TEAM_PLAYER_FINAL_STMT), not the itemized
-    breakdown -- and ml.player_gw_stats, what the breakdown is computed
-    from, is off-limits once a result is frozen. So the sheet has no
-    per-category data to show for a finalized team, even though the total
-    itself is still exactly right."""
-    cid, _fixture_id, creator, _team, _pool = _finalized_contest(
+def _stored_final_rows(engine, contest_id, user_id):
+    with engine.connect() as conn:
+        return conn.execute(
+            text(
+                "SELECT p.fpl_id, tp.final_points, tp.final_minutes, tp.final_breakdown "
+                "FROM dream11.team_players tp JOIN dream11.teams t ON t.id = tp.team_id "
+                "JOIN ml.players p ON p.id = tp.player_id "
+                "WHERE t.contest_id = :cid AND t.user_id = :uid"
+            ),
+            {"cid": contest_id, "uid": user_id},
+        ).all()
+
+
+def test_finalization_stores_the_breakdown_with_final_points_and_minutes(engine, make_user, make_team, make_player):
+    """The finalizing pass writes the itemized breakdown in the same UPDATE
+    as final_points/final_minutes, and its total IS final_points."""
+    cid, _fixture_id, creator, team, _pool = _finalized_contest(
         engine, make_user, make_team, make_player, 5350
     )
+
+    rows = _stored_final_rows(engine, cid, creator)
+
+    assert len(rows) == 11
+    for r in rows:
+        assert r.final_points == 20 and r.final_minutes == 90  # one assist each, 90 minutes
+        assert r.final_breakdown is not None
+        assert r.final_breakdown["total"] == r.final_points, "frozen breakdown and frozen total must agree"
+        assert (r.final_breakdown["assists"], r.final_breakdown["assists_count"]) == (20, 1)
+        assert r.final_breakdown["minutes"] == r.final_minutes
+
+
+def test_get_user_team_returns_the_stored_breakdown_once_finalized(engine, make_user, make_team, make_player):
+    cid, _fixture_id, creator, _team, _pool = _finalized_contest(
+        engine, make_user, make_team, make_player, 5355
+    )
+    stored = {r.fpl_id: r.final_breakdown for r in _stored_final_rows(engine, cid, creator)}
 
     body = _get_team(cid, creator).json()
 
     assert body["is_finalized"] is True
-    assert len(body["players"]) == 11
+    for p in body["players"]:
+        assert p["breakdown"] == stored[p["player_id"]], "must be the stored snapshot, verbatim"
+        assert p["breakdown"]["total"] == p["points"] == 20
+
+
+def test_a_finalized_breakdown_does_not_move_when_stats_or_rules_change(
+    engine, make_user, make_team, make_player, monkeypatch
+):
+    """After finalization, both the evidence (ml.player_gw_stats) and the
+    rules (a scoring constant) change. The returned breakdown must not."""
+    cid, fixture_id, creator, _team, _pool = _finalized_contest(
+        engine, make_user, make_team, make_player, 5360
+    )
+    before = _get_team(cid, creator).json()["players"]
+
+    monkeypatch.setattr(dream11_scoring, "ASSIST_POINTS", 3)
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM ml.player_gw_stats WHERE fixture_id = :f AND season = :s"),
+            {"f": fixture_id, "s": TEST_SEASON},
+        )
+    assert score_dream11_contest(engine, cid)["skipped_finalized"] is True
+
+    after = _get_team(cid, creator).json()["players"]
+    assert [p["breakdown"] for p in after] == [p["breakdown"] for p in before]
+    assert all(p["breakdown"]["assists"] == 20 for p in after)
+
+
+def test_captain_and_vice_bonuses_agree_with_the_frozen_breakdown(engine, make_user, make_team, make_player):
+    """Pre-multiplier breakdown totals -> captain 2x and vice 1.5x bonuses
+    -> the frozen team total, all from the same stored snapshot."""
+    cid, _fixture_id, creator, team, _pool = _finalized_contest(
+        engine, make_user, make_team, make_player, 5365
+    )
+
+    body = _get_team(cid, creator).json()
+    by_id = {p["player_id"]: p for p in body["players"]}
+    captain, vice = by_id[team[0]], by_id[team[1]]
+    assert captain["is_captain"] and vice["is_vice_captain"]
+
+    raw = sum(p["breakdown"]["total"] for p in body["players"])
+    assert body["captain_bonus"] == captain["breakdown"]["total"] * 1.0
+    assert body["vice_captain_bonus"] == vice["breakdown"]["total"] * 0.5
+    assert body["live_total_points"] == body["contest_total_points"] == round(
+        raw + body["captain_bonus"] + body["vice_captain_bonus"]
+    ) == 250
+
+
+def test_a_legacy_finalized_team_has_no_breakdown_but_keeps_its_total(engine, make_user, make_team, make_player):
+    """Finalized before final_breakdown existed: NULL. Nothing is rebuilt
+    from today's rules; the frozen totals still read correctly."""
+    cid, _fixture_id, creator, _team, _pool = _finalized_contest(
+        engine, make_user, make_team, make_player, 5370
+    )
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE dream11.team_players SET final_breakdown = NULL WHERE team_id IN "
+                "(SELECT id FROM dream11.teams WHERE contest_id = :cid)"
+            ),
+            {"cid": cid},
+        )
+
+    resp = _get_team(cid, creator)
+
+    assert resp.status_code == 200
+    body = resp.json()
     assert all(p["breakdown"] is None for p in body["players"])
-    assert all(p["points"] == 20 for p in body["players"])  # each player's 1 assist, unaffected
+    assert all(p["points"] == 20 for p in body["players"])
+    assert body["contest_total_points"] == body["live_total_points"] == 250
 
 
 def test_get_user_team_before_kickoff_is_all_zeroes_not_an_error(engine, make_user, make_team, make_player):

@@ -422,3 +422,145 @@ def test_team_value_available_is_true_once_a_finance_row_exists(
     assert body["team_value_available"] is True
     assert body["bank"] == 3.5           # budget_remaining 35 tenths
     assert body["team_value"] == 75.0    # 15 players at 50 tenths
+
+
+# ---- frozen per-player breakdown snapshots (gw_scores.player_breakdowns) ---
+
+from Results import tactical_scoring  # noqa: E402
+
+
+@pytest.fixture
+def settle(engine):
+    """Mark GAMEWEEK settled (gameweeks.scored_at set) or live (NULL)."""
+    def _set(is_settled):
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO gameweeks (season, gameweek, scored_at) VALUES (:s, :g, "
+                + ("now()" if is_settled else "NULL") + ") "
+                "ON CONFLICT (season, gameweek) DO UPDATE SET scored_at = EXCLUDED.scored_at"),
+                {"s": TEST_SEASON, "g": GAMEWEEK})
+    yield _set
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM gameweeks WHERE season = :s"), {"s": TEST_SEASON})
+
+
+def _snapshot(engine, uid):
+    with engine.connect() as conn:
+        return conn.execute(text(
+            "SELECT raw_points, tactical_points, rules_version, player_breakdowns FROM gw_scores "
+            "WHERE user_id = :u AND season = :s AND gameweek = :g"),
+            {"u": uid, "s": TEST_SEASON, "g": GAMEWEEK}).first()
+
+
+def _scored_balanced_manager(engine, make_user, make_team, make_player, make_fixture, make_gw_stat, base):
+    uid = make_user()
+    pairs = _squad_for(engine, make_team, make_player, make_fixture, uid, base,
+                       "balanced", (7, 8), gameweek=GAMEWEEK)
+    _seed_stats(make_gw_stat, pairs,
+                {7: dict(minutes=90, goals_scored=1, creativity=40),
+                 9: dict(minutes=45, assists=1)}, gameweek=GAMEWEEK)
+    assert uid in score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)["scored"]
+    return uid, pairs
+
+
+def test_scoring_stores_a_snapshot_that_explains_the_totals(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat
+):
+    """One scoring result -> totals -> snapshot, in one row."""
+    uid, pairs = _scored_balanced_manager(engine, make_user, make_team, make_player,
+                                          make_fixture, make_gw_stat, BASE + 700)
+    row = _snapshot(engine, uid)
+    players = row.player_breakdowns["players"]
+
+    assert len(players) == 15
+    for p in players:
+        assert sum(r["points"] for r in p["general_breakdown"]) == p["general_points"]
+        assert sum(r["points"] for r in p["tactical_breakdown"]) == p["tactical_points"]
+    assert sum(p["general_points"] for p in players if p["counted"]) == row.raw_points
+    assert sum(p["tactical_points"] for p in players) == row.tactical_points
+    star = next(p for p in players if p["player_id"] == pairs[7][0])
+    assert (star["minutes"], star["general_points"], star["tactical_points"]) == (90, 7, 4)
+
+
+def test_a_settled_gameweek_shows_the_stored_snapshot_even_after_the_rules_change(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers, settle, monkeypatch
+):
+    uid, pairs = _scored_balanced_manager(engine, make_user, make_team, make_player,
+                                          make_fixture, make_gw_stat, BASE + 710)
+    settle(True)
+    before = _all_players(_get(uid, auth_headers))
+
+    # Tomorrow's rules: a MID goal is worth 50. The frozen gameweek must not move.
+    monkeypatch.setitem(tactical_scoring.GOAL_POINTS, "MID", 50)
+    after = _all_players(_get(uid, auth_headers))
+
+    star = after[pairs[7][0]]
+    assert star["general_points"] == 7
+    assert {r["rule"]: r["points"] for r in star["general_breakdown"]} == {"appearance_60_plus": 2, "goals": 5}
+    assert star["minutes"] == 90 and star["breakdown_available"] is True
+    for pid, p in after.items():
+        for key in ("general_points", "tactical_points", "general_breakdown", "tactical_breakdown", "minutes"):
+            assert p[key] == before[pid][key], f"{pid} {key} moved on a settled gameweek"
+
+
+def test_a_live_gameweek_is_still_scored_by_the_current_engine(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers, settle, monkeypatch
+):
+    """The counterpart: unsettled, the Dashboard follows the engine, so the
+    test above passes for the right reason."""
+    uid, pairs = _scored_balanced_manager(engine, make_user, make_team, make_player,
+                                          make_fixture, make_gw_stat, BASE + 720)
+    settle(False)
+    monkeypatch.setitem(tactical_scoring.GOAL_POINTS, "MID", 50)
+
+    star = _all_players(_get(uid, auth_headers))[pairs[7][0]]
+
+    assert star["general_points"] == 52  # 2 appearance + 50
+    assert {r["rule"]: r["points"] for r in star["general_breakdown"]} == {"appearance_60_plus": 2, "goals": 50}
+
+
+def test_a_legacy_settled_row_without_a_snapshot(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, auth_headers, settle
+):
+    """No stored snapshot: rebuilt only if it was scored under today's
+    rules_version; otherwise the frozen totals and no categories."""
+    uid, pairs = _scored_balanced_manager(engine, make_user, make_team, make_player,
+                                          make_fixture, make_gw_stat, BASE + 730)
+    settle(True)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE gw_scores SET player_breakdowns = NULL WHERE user_id = :u AND season = :s AND gameweek = :g"),
+            {"u": uid, "s": TEST_SEASON, "g": GAMEWEEK})
+
+    same_rules = _get(uid, auth_headers)
+    star = _all_players(same_rules)[pairs[7][0]]
+    assert star["breakdown_available"] is True and star["general_points"] == 7
+    assert star["general_breakdown"]
+
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE gw_scores SET rules_version = :rv WHERE user_id = :u AND season = :s AND gameweek = :g"),
+            {"rv": RULES_VERSION - 1, "u": uid, "s": TEST_SEASON, "g": GAMEWEEK})
+    older_rules = _get(uid, auth_headers)
+    for p in _all_players(older_rules).values():
+        assert p["breakdown_available"] is False
+        assert p["general_points"] is None and p["general_breakdown"] == [] and p["tactical_breakdown"] == []
+    assert older_rules["total"] == same_rules["total"], "frozen totals still shown"
+
+
+def test_a_rescore_replaces_the_snapshot_and_totals_together(
+    engine, make_user, make_team, make_player, make_fixture, make_gw_stat, monkeypatch
+):
+    """Rescoring rewrites totals and snapshot in the same UPSERT, so they
+    always describe the same pass. (Settled stat rows are immutable, so the
+    scoring input is changed via a constant instead.)"""
+    uid, pairs = _scored_balanced_manager(engine, make_user, make_team, make_player,
+                                          make_fixture, make_gw_stat, BASE + 740)
+    monkeypatch.setitem(tactical_scoring.GOAL_POINTS, "MID", 50)
+    score_gameweek_tactical(engine, TEST_SEASON, GAMEWEEK)
+
+    row = _snapshot(engine, uid)
+    players = row.player_breakdowns["players"]
+    star = next(p for p in players if p["player_id"] == pairs[7][0])
+    assert star["general_points"] == 52
+    assert sum(p["general_points"] for p in players if p["counted"]) == row.raw_points

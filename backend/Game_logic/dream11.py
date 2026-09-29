@@ -541,7 +541,8 @@ FINALIZED_USER_TEAM_QUERY = text(
            tp.is_captain, tp.is_vice_captain,
            pp.credit_price,
            COALESCE(tp.final_points, 0) AS points,
-           COALESCE(tp.final_minutes, 0) AS minutes
+           COALESCE(tp.final_minutes, 0) AS minutes,
+           tp.final_breakdown
     FROM dream11.teams te
     JOIN dream11.team_players tp ON tp.team_id = te.id
     JOIN ml.players p ON p.id = tp.player_id
@@ -766,13 +767,12 @@ class UserTeamPlayerResponse(BaseModel):
     is_vice_captain: bool
     minutes: int
     points: int  # this player's own Dream11 points, before any C/VC multiplier
-    # None once a contest is finalized: dream11.team_players only persists
-    # final_points/final_minutes at finalization (see
-    # UPDATE_TEAM_PLAYER_FINAL_STMT), not the itemized breakdown, and
-    # ml.player_gw_stats -- what the breakdown is computed FROM -- is
-    # deliberately off-limits once a result is frozen (see
-    # dream11_scoring.py's FINALIZATION section). A finalized team's total
-    # is still exactly right; only the per-category sheet can't be shown.
+    # Live: computed from current stats. Finalized: the frozen snapshot in
+    # dream11.team_players.final_breakdown, written with final_points by the
+    # finalizing pass (UPDATE_TEAM_PLAYER_FINAL_STMT) -- never recomputed,
+    # since ml.player_gw_stats is off-limits once a result is frozen. None
+    # only for a team finalized before that column existed (legacy): its
+    # total is still exactly right, just without categories.
     breakdown: Dream11PointsBreakdown | None = None
 
 
@@ -1280,7 +1280,10 @@ def _build_user_team_response(conn, contest_row, contest_id: int, user_id: int) 
         # breakdown by construction -- and total_points is the stored team
         # total, NOT a re-sum, so it can never drift from the leaderboard.
         points_by_fpl_id = {row.fpl_id: int(row.points) for row in rows}
-        breakdown_by_fpl_id = {}
+        # The stored snapshot, as written; a legacy row (NULL) has none.
+        breakdown_by_fpl_id = {
+            row.fpl_id: row.final_breakdown for row in rows if row.final_breakdown is not None
+        }
     else:
         # One breakdown call per player, not calculate_dream11_points AND a
         # separate breakdown call -- points_by_fpl_id is just each

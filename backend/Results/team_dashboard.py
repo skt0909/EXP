@@ -51,10 +51,8 @@ from Shared.deadlines import deadline_has_passed, resolve_gameweek_deadline
 # imported at all -- resolve_autosubs went with it, because the engine already
 # reports which players were covered and which were replaced.
 from Results.scoring_job import ruleset_first_gameweek, score_manager
-from Results.tactical_scoring import (
-    general_points_breakdown,
-    tactical_points_breakdown,
-)
+from Results.tactical_breakdowns import player_snapshot
+from Shared.rules import RULES_VERSION
 
 logger = logging.getLogger(__name__)
 
@@ -104,8 +102,16 @@ STARTING_XI_ROWS_QUERY = text(
 # points-breakdown table. They are read straight from gw_scores when the job
 # has run, and otherwise mirrored from the live tactical engine calculation.
 GW_SCORE_QUERY = text(
-    "SELECT raw_points, final_points, tactical_points, sub_bonus, total_points, season_total "
+    "SELECT raw_points, final_points, tactical_points, sub_bonus, total_points, season_total, "
+    "rules_version, player_breakdowns "
     "FROM gw_scores WHERE user_id = :user_id AND season = :season AND gameweek = :gameweek"
+)
+
+# Settled = the scoring job has marked the gameweek complete (every fixture
+# finished, batch done). Only then is gw_scores' per-player snapshot the
+# answer; before it the gameweek is still moving and is scored live.
+GAMEWEEK_SCORED_AT_QUERY = text(
+    "SELECT scored_at FROM gameweeks WHERE season = :season AND gameweek = :gameweek"
 )
 
 # Drives live_status. finished is the authoritative "match over" flag from
@@ -192,6 +198,14 @@ class PlayerLine(BaseModel):
     # numbers above, summed across the player's fixtures this gameweek.
     general_breakdown: list = Field(default_factory=list)
     tactical_breakdown: list = Field(default_factory=list)
+    # Summed across the player's fixtures, from the same stats the points
+    # came from. None when the gameweek isn't scored.
+    minutes: int | None = None
+    # False when this player's categories can't be shown truthfully: an
+    # unscored gameweek, or a settled one scored before snapshots were stored
+    # under a DIFFERENT rules_version (re-running today's engine on it would
+    # explain a score it did not produce). Totals are still shown.
+    breakdown_available: bool = True
     # Whether this player's General Points reached the manager's total. False
     # for a replaced starter and for an unused bench player.
     counted: bool = False
@@ -277,22 +291,6 @@ def _empty_lineup() -> Lineup:
     return Lineup(GK=[], DEF=[], MID=[], FWD=[])
 
 
-def _merge_breakdown(parts):
-    """Sum a player's per-fixture breakdown rows into one list per rule.
-
-    A double gameweek produces two "goals" rows; a manager wants one line
-    saying 2 goals, not two lines saying one each. Order is preserved so the
-    rules read in the order they are applied."""
-    merged, order = {}, []
-    for part in parts:
-        rule = part["rule"]
-        if rule not in merged:
-            merged[rule] = 0
-            order.append(rule)
-        merged[rule] += part["points"]
-    return [{"rule": r, "points": merged[r]} for r in order if merged[r]]
-
-
 def _resolve_live_status(row) -> str:
     """'final' only when every fixture is finished -- a gameweek with one match
     still to play is 'live', not final, so partial points aren't presented as a
@@ -364,6 +362,27 @@ def get_team_dashboard(
         swap_lines: list[SwapLine] = []
         general_total = tactical_total = sub_bonus_total = engine_total = 0
 
+        # Read before the lineup so a SETTLED gameweek's per-player values
+        # come from its stored snapshot (gw_scores.player_breakdowns), not a
+        # re-run of the engine. Live/unsettled gameweeks keep the engine.
+        gw_score_row = conn.execute(
+            GW_SCORE_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
+        ).first()
+        scored_at_row = conn.execute(
+            GAMEWEEK_SCORED_AT_QUERY, {"season": season, "gameweek": gameweek}
+        ).first()
+        settled = gw_score_row is not None and scored_at_row is not None and scored_at_row.scored_at is not None
+        stored_snapshot = gw_score_row.player_breakdowns if gw_score_row is not None else None
+        snapshot_by_player = (
+            {p["player_id"]: p for p in stored_snapshot["players"]}
+            if settled and stored_snapshot is not None else {}
+        )
+        # Legacy: settled before snapshots existed. Re-running the engine is
+        # exact only if the rules it was scored under are today's.
+        legacy_unexplainable = (
+            settled and stored_snapshot is None and gw_score_row.rules_version != RULES_VERSION
+        )
+
         if has_lineup:
             rows = conn.execute(
                 STARTING_XI_ROWS_QUERY,
@@ -396,40 +415,47 @@ def get_team_dashboard(
 
             for r in rows:
                 p = by_player.get(r.player_id)
-                fixtures = stats_by_player.get(r.player_id, [])
-                position = positions.get(r.player_id, r.position)
+                snap = snapshot_by_player.get(r.player_id)
+                if snap is None and p is not None:
+                    # Live: the same pure helper the scoring job stores with.
+                    snap = player_snapshot(
+                        p, stats_by_player.get(r.player_id, []),
+                        positions[r.player_id], tactic,
+                    )
 
-                gen_parts, tac_parts = [], []
-                for fixture in fixtures:
-                    gen_parts.extend(general_points_breakdown(fixture, position))
-                    if p is not None and p.is_bonus and p.tactical_points:
-                        tac_parts.extend(
-                            tactical_points_breakdown(fixture, position, tactic)
-                        )
-
-                line = PlayerLine(
-                    player_id=r.player_id,
-                    name=r.web_name,
-                    position=r.position,
-                    club=r.club,
-                    is_autosubbed_in=(p is not None and p.role == "auto_sub_cover"),
-                    is_autosubbed_out=(p is not None and p.role == "auto_sub_replaced"),
-                    role=p.role if p is not None else "starter",
-                    is_bonus=bool(p.is_bonus) if p is not None else False,
-                    general_points=p.general_points if p is not None else 0,
-                    tactical_points=p.tactical_points if p is not None else 0,
-                    general_breakdown=_merge_breakdown(gen_parts),
-                    tactical_breakdown=_merge_breakdown(tac_parts),
-                    counted=bool(p.counted) if p is not None else False,
-                )
+                if snap is None:
+                    line = PlayerLine(
+                        player_id=r.player_id, name=r.web_name, position=r.position, club=r.club,
+                    )
+                else:
+                    line = PlayerLine(
+                        player_id=r.player_id,
+                        name=r.web_name,
+                        position=r.position,
+                        club=r.club,
+                        is_autosubbed_in=snap["role"] == "auto_sub_cover",
+                        is_autosubbed_out=snap["role"] == "auto_sub_replaced",
+                        role=snap["role"],
+                        is_bonus=snap["is_bonus"],
+                        general_points=snap["general_points"],
+                        tactical_points=snap["tactical_points"],
+                        general_breakdown=snap["general_breakdown"],
+                        tactical_breakdown=snap["tactical_breakdown"],
+                        minutes=snap["minutes"],
+                        counted=snap["counted"],
+                    )
+                if legacy_unexplainable:
+                    # Frozen team totals are still shown below; per-player
+                    # numbers from today's rules would not match them.
+                    line.general_points = line.tactical_points = line.minutes = None
+                    line.general_breakdown = []
+                    line.tactical_breakdown = []
+                    line.breakdown_available = False
                 if r.position_slot <= 11:
                     getattr(lineup, r.position).append(line)
                 else:
                     bench.append(line)
 
-        gw_score_row = conn.execute(
-            GW_SCORE_QUERY, {"user_id": user_id, "season": season, "gameweek": gameweek}
-        ).first()
         gw_points = gw_score_row.total_points if gw_score_row is not None else 0
         season_total = gw_score_row.season_total if gw_score_row is not None else 0
 
@@ -532,6 +558,8 @@ def get_team_dashboard(
                 line.tactical_points = None
                 line.general_breakdown = []
                 line.tactical_breakdown = []
+                line.minutes = None
+                line.breakdown_available = False
 
     return TeamDashboardResponse(
         user_id=user_id,

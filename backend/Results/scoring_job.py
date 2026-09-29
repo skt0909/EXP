@@ -39,6 +39,7 @@ DECIMAL, NOT FLOAT. creativity is numeric(6,1) and psycopg2 returns Decimal.
 It is passed through untouched -- tier_points refuses floats outright, so a
 stray float() here would fail loudly rather than silently deciding a boundary.
 """
+import json
 import logging
 import re
 from types import SimpleNamespace
@@ -50,6 +51,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from Shared.seasons import REAL_SEASON_RE as _REAL_SEASON_RE
 from Gameplay.selection_rules import SelectionInput, SwapInput, validate_selection
 from Results.tactical_scoring import Selection, Slot, Swap, score_selection
+from Results.tactical_breakdowns import selection_snapshot
 from Shared.rules import FIRST_GAMEWEEK, RULES_VERSION
 
 logger = logging.getLogger(__name__)
@@ -147,10 +149,11 @@ UPSERT_GW_SCORE_STMT = text(
     """
     INSERT INTO gw_scores
         (user_id, season, gameweek, raw_points, tactical_points, sub_bonus,
-         final_points, total_points, season_total, rules_version)
+         final_points, total_points, season_total, rules_version, player_breakdowns)
     VALUES
         (:user_id, :season, :gameweek, :raw_points, :tactical_points, :sub_bonus,
-         :final_points, :total_points, :season_total, :rules_version)
+         :final_points, :total_points, :season_total, :rules_version,
+         CAST(:player_breakdowns AS jsonb))
     ON CONFLICT (user_id, season, gameweek) DO UPDATE SET
         raw_points = EXCLUDED.raw_points,
         tactical_points = EXCLUDED.tactical_points,
@@ -158,9 +161,15 @@ UPSERT_GW_SCORE_STMT = text(
         final_points = EXCLUDED.final_points,
         total_points = EXCLUDED.total_points,
         season_total = EXCLUDED.season_total,
-        rules_version = EXCLUDED.rules_version
+        rules_version = EXCLUDED.rules_version,
+        player_breakdowns = EXCLUDED.player_breakdowns
     """
 )
+# player_breakdowns is the per-player snapshot of the SAME SelectionScore
+# whose totals are in this row (Results/tactical_breakdowns.py), written in
+# this one statement so the two can never describe different passes. It is
+# what a settled gameweek's Dashboard shows, instead of re-running the
+# engine under whatever the constants are later.
 
 # Copied verbatim from scoring.py:198-207 -- the snapshot must not change
 # shape just because the scorer behind it did.
@@ -317,9 +326,16 @@ def _score_batch(engine, season: str, gameweek: int, batch, first_gameweek: int)
     scored, failed, writes, finance_writes = [], [], [], []
     for sel in batch:
         try:
-            result = _score_one(sel, slots_by_selection.get(sel.gw_selection_id, []),
+            sel_slots = slots_by_selection.get(sel.gw_selection_id, [])
+            result = _score_one(sel, sel_slots,
                                 swaps_by_selection.get(sel.gw_selection_id, []),
                                 stats_by_player, positions, season, gameweek)
+            # Same result, same stats, and the SAME positions the engine
+            # scored with (E6 placeholders included), inside this manager's
+            # try so a failure here is his alone, never the batch's.
+            snapshot = selection_snapshot(
+                result, stats_by_player, scoring_positions(sel_slots, positions), sel.tactic
+            )
         except Exception as exc:                        # noqa: BLE001
             logger.error(
                 "score_gameweek_tactical: failed to score user_id=%s (season=%s, gameweek=%s): %s: %s",
@@ -345,6 +361,9 @@ def _score_batch(engine, season: str, gameweek: int, batch, first_gameweek: int)
             "total_points": total,
             "season_total": (prior.get(sel.user_id, 0) or 0) + total,
             "rules_version": RULES_VERSION,
+            # Built from `result` itself -- the object the totals above came
+            # from -- over the same stats rows. Nothing is re-scored.
+            "player_breakdowns": json.dumps(snapshot),
         })
         if sel.user_id in finance:
             bank, team_value = finance[sel.user_id]
@@ -419,6 +438,19 @@ def _persist(engine, writes, finance_writes):
     return written, failures
 
 
+def scoring_positions(slot_rows, positions):
+    """The positions the engine scores a selection with: `positions`, plus
+    UNKNOWN_POSITION for any selected player with no ml.players row (E6,
+    see _score_one). A copy -- `positions` is shared across the batch."""
+    missing = {r.player_id for r in slot_rows} - set(positions)
+    if not missing:
+        return positions
+    patched = dict(positions)
+    for pid in missing:
+        patched[pid] = UNKNOWN_POSITION
+    return patched
+
+
 def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, gameweek):
     """Validate (advisory) and score one manager."""
     # E6: a player selected but absent from ml.players for this season used to
@@ -442,9 +474,7 @@ def _score_one(sel, slot_rows, swap_rows, stats_by_player, positions, season, ga
             "of the selection is scored normally.",
             sel.user_id, season, gameweek, missing,
         )
-        positions = dict(positions)
-        for pid in missing:
-            positions[pid] = UNKNOWN_POSITION
+        positions = scoring_positions(slot_rows, positions)
 
     slots = [Slot(position_slot=r.position_slot, player_id=r.player_id,
                   is_bonus=bool(r.is_bonus)) for r in slot_rows]
@@ -574,4 +604,6 @@ def score_manager(conn, season: str, gameweek: int, gw_selection_id: int, tactic
     sel = SimpleNamespace(user_id=None, gw_selection_id=gw_selection_id, tactic=tactic)
     result = _score_one(sel, slot_rows, swap_rows, stats_by_player, positions,
                         season, gameweek)
-    return result, stats_by_player, positions
+    # The positions the engine scored with, E6 placeholders included, so a
+    # caller building a breakdown from `result` looks up the same values.
+    return result, stats_by_player, scoring_positions(slot_rows, positions)

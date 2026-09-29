@@ -61,6 +61,7 @@ Dream11 has no recurring window to fall out of, so it needs the explicit
 flag instead of an implicit one.
 """
 
+import json
 import logging
 
 from sqlalchemy import text
@@ -194,8 +195,15 @@ UPDATE_CONTEST_MEMBER_RANK_STMT = text(
 # ml.player_gw_stats is off-limits to that read path, and storing it
 # beside the total is what keeps the breakdown summing to the total
 # permanently rather than only for as long as the constants hold still.
+#
+# final_breakdown is that breakdown itself: the dream11_points_breakdown()
+# dict whose "total" IS final_points, so the two are one snapshot. Same
+# statement, same transaction, same lifecycle -- rewritten on every pass,
+# frozen by the pass that finalizes the contest (after which the result
+# immutability trigger and finalized_at stop any further pass).
 UPDATE_TEAM_PLAYER_FINAL_STMT = text(
-    "UPDATE dream11.team_players SET final_points = :final_points, final_minutes = :final_minutes "
+    "UPDATE dream11.team_players SET final_points = :final_points, final_minutes = :final_minutes, "
+    "final_breakdown = CAST(:final_breakdown AS jsonb) "
     "WHERE team_id = :team_id AND player_id = :player_id"
 )
 
@@ -300,7 +308,10 @@ def _score_one_team(
     if len(rows) != DREAM11_TEAM_SIZE:
         raise ValueError(f"expected {DREAM11_TEAM_SIZE} team_players rows for team_id={team_id}, got {len(rows)}")
 
-    per_player_points = {r.player_id: calculate_dream11_points(r, r.position) for r in rows}
+    # One breakdown per player; its "total" is the player's points, exactly
+    # what calculate_dream11_points returns (it is this function's total).
+    per_player_breakdown = {r.player_id: dream11_points_breakdown(r, r.position) for r in rows}
+    per_player_points = {pid: b["total"] for pid, b in per_player_breakdown.items()}
     raw_points = sum(per_player_points.values())
 
     captain_row = next((r for r in rows if r.is_captain), None)
@@ -324,6 +335,7 @@ def _score_one_team(
                     "player_id": r.player_id,
                     "final_points": per_player_points[r.player_id],
                     "final_minutes": r.minutes,
+                    "final_breakdown": json.dumps(per_player_breakdown[r.player_id]),
                 }
                 for r in rows
             ],

@@ -79,10 +79,10 @@ function usePointerDismiss(onClose) {
  * and tappable while this is open.
  *
  * player is a PitchLineup lineup item: {..., breakdown, captain, viceCaptain,
- * multiplier, minutes, points, position, club, name}. breakdown is null for
- * a finalized contest (Game_logic/dream11.py's UserTeamPlayerResponse --
- * dream11.team_players only persists the final total, not the itemized
- * components, once a result is frozen); the captain/vice bonus row and the
+ * multiplier, minutes, points, position, club, name}. A finalized contest's
+ * breakdown is the frozen snapshot stored with its final points
+ * (dream11.team_players.final_breakdown). It is null only for a contest
+ * finalized before that was stored; the captain/vice bonus row and the
  * total row don't need it -- both are arithmetic on `points`, which is
  * always present -- so only the itemized section is replaced by a note.
  */
@@ -199,8 +199,8 @@ function PlayerPointsSheet({ player, onClose }) {
             </>
           ) : (
             <p className="player-points-sheet__frozen-note">
-              This contest is finalized — the per-category breakdown isn&apos;t kept once a
-              result is frozen, only the final total below.
+              The per-category breakdown isn&apos;t available for this older contest —
+              only its final total below.
             </p>
           )}
 
