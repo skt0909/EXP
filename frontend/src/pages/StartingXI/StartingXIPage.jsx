@@ -19,6 +19,7 @@ import { fetchCurrentSquad } from '../../api/squad'
 import { fetchCurrentSelection, submitGwSelection } from '../../api/gwSelection'
 import { LockedError } from '../../api/client'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
+import PitchRowLabel from '../../components/PitchRowLabel/PitchRowLabel'
 import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
 import { computeSwapEligibility } from '../../data/tacticalSwapEligibility'
 import { kickoffLabel } from '../../data/kickoff'
@@ -205,7 +206,6 @@ function SortablePitchPlayer({ player, isBonus, bonusEligible, onToggleBonus, on
       )}
       <PlayerJersey
         player={player}
-        showPosition
         size={isBonus ? 'lg' : 'md'}
       />
     </div>
@@ -1000,7 +1000,8 @@ function StartingXIPage() {
               id="starting-container"
             >
               {POSITION_ORDER.map((pos) => (
-                <div className="flex justify-center gap-4 flex-wrap" key={pos}>
+                <div className="relative flex justify-center gap-4 flex-wrap" key={pos}>
+                  <PitchRowLabel position={pos} />
                   {groupedStarting[pos].map((p) => (
                     <SortablePitchPlayer
                       key={p.player_id}

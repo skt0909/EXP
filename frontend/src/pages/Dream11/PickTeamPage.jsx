@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import PlayerCard from '../../components/PlayerCard/PlayerCard'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
+import PitchRowLabel from '../../components/PitchRowLabel/PitchRowLabel'
 import FixtureBanner from '../../components/FixtureBanner/FixtureBanner'
 import { fetchFixtures } from '../../api/fixtures'
 import {
@@ -173,7 +174,6 @@ function PitchSlot({
           captain={player.id === captainId}
           player={player}
           showName={false}
-          showPosition
           size={dense ? 'xs' : 'sm'}
           viceCaptain={player.id === viceId}
         />
@@ -843,6 +843,7 @@ function PickTeamPage({ mode = 'create' }) {
               key={position}
               style={{ gridTemplateColumns: `repeat(${Math.max(rowCount, 1)}, 1fr)` }}
             >
+              <PitchRowLabel position={position} />
               {inRow.map((player) => (
                 <PitchSlot
                   captainId={captainId}

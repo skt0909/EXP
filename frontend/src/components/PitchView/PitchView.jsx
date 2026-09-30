@@ -1,4 +1,5 @@
 import PlayerJersey from '../PlayerJersey/PlayerJersey'
+import PitchRowLabel from '../PitchRowLabel/PitchRowLabel'
 
 /**
  * Squad-building pitch: one dashed "add" slot per unfilled place, matching the
@@ -37,10 +38,11 @@ function PitchView({ selectedPlayers, onEmptySlotClick }) {
             className={`flex w-full px-sm relative z-10 ${big ? 'justify-center gap-xl' : 'justify-between'}`}
             key={position}
           >
+            <PitchRowLabel position={position} />
             {Array.from({ length: size }).map((_, slot) =>
               players[slot] ? (
                 <div className="flex items-center justify-center" key={players[slot].id} title={players[slot].name}>
-                  <PlayerJersey player={players[slot]} showPosition size={jerseySize} />
+                  <PlayerJersey player={players[slot]} size={jerseySize} />
                 </div>
               ) : (
                 <button

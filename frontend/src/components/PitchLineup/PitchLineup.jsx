@@ -1,4 +1,5 @@
 import PlayerMarker from '../PlayerMarker/PlayerMarker'
+import PitchRowLabel from '../PitchRowLabel/PitchRowLabel'
 import './PitchLineup.css'
 
 /** One position row. Column count is set from THIS row's own player count
@@ -16,6 +17,7 @@ function PitchRow({ modifier, players, position, onSelectPlayer }) {
       }`}
       style={{ gridTemplateColumns: `repeat(${count}, 1fr)` }}
     >
+      <PitchRowLabel position={position} />
       {players.map((p) => (
         <PlayerMarker key={p.player_id} {...p} onSelect={onSelectPlayer} position={position} />
       ))}

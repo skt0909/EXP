@@ -7,6 +7,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { useSquadStatus } from '../../hooks/useSquadStatus'
 import { useGameweek } from '../../config/gameweek'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
+import PitchRowLabel from '../../components/PitchRowLabel/PitchRowLabel'
 import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
 import TacticalPlayerSheet from '../../components/TacticalPlayerSheet/TacticalPlayerSheet'
 import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
@@ -139,7 +140,6 @@ function PlayerTile({ player, big = false, gameweekIsLive = false, onSelect }) {
       <div className="relative">
         <PlayerJersey
           player={player}
-          showPosition
           size={big ? 'lg' : 'md'}
         />
         {player.is_bonus && (
@@ -479,8 +479,12 @@ function DashboardPage() {
                     {pitchRows.map((row, i) => (
                       <div
                         className="flex justify-around w-full px-sm relative z-10"
-                        key={ROWS[i] ?? i}
+                        key={row[0]?.position ?? i}
                       >
+                        {/* row[0].position, not ROWS[i]: pitchRows already
+                            dropped any empty position, so the two arrays'
+                            indices no longer line up. */}
+                        <PitchRowLabel position={row[0]?.position} />
                         {row.map((p) => (
                           <PlayerTile
                             big={p.is_bonus}
