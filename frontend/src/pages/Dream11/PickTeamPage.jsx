@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import PlayerCard from '../../components/PlayerCard/PlayerCard'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
-import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import FixtureBanner from '../../components/FixtureBanner/FixtureBanner'
 import { fetchFixtures } from '../../api/fixtures'
 import {
   deleteSavedTeam,
@@ -372,6 +372,7 @@ function PickTeamPage({ mode = 'create' }) {
             home_team: fixture?.home_team,
             away_team: fixture?.away_team,
             kickoff_time: fixture?.kickoff_time,
+            gameweek: fixture?.gameweek,
             code: null,
             is_locked: false,
             budget_cap: 100,
@@ -684,20 +685,17 @@ function PickTeamPage({ mode = 'create' }) {
           onBack={handleBack}
           title="Team"
         />
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display-lg text-[24px] font-bold text-on-surface">{contest.name}</h2>
-          <span className="rounded-md bg-[#F5F3F0] px-2.5 py-1 font-label-md text-xs font-semibold text-on-surface">
-            {contest.home_team} vs {contest.away_team}
-          </span>
-        </div>
-        <div className="flex items-center gap-xs">
-          <TeamBadge shortName={contest.home_team} size="sm" />
-          <p className="font-body-md text-body-md text-on-surface-variant">
-            {contest.home_team} vs {contest.away_team}
-            {!isBuild && ' · Single Match Contest'}
-          </p>
-          <TeamBadge shortName={contest.away_team} size="sm" />
-        </div>
+        {/* Match-context card: real club badges, HOME/AWAY, gameweek,
+            contest type and kickoff time -- shared with the Leaderboard
+            (FixtureBanner) so the two can't drift apart. */}
+        <FixtureBanner
+          awayTeam={contest.away_team}
+          contestType={isBuild ? null : 'Single Match Contest'}
+          gameweek={contest.gameweek}
+          homeTeam={contest.home_team}
+          kickoffTime={contest.kickoff_time}
+        />
+        <h2 className="font-display-lg text-[24px] font-bold text-on-surface mt-sm">{contest.name}</h2>
         {/* No lock/countdown or invite code in build mode -- neither means
             anything without a real contest behind it. */}
         {!isBuild && remaining && (

@@ -1,23 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import OpponentTeamPanel from '../../components/OpponentTeam/OpponentTeamPanel'
-import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import FixtureBanner from '../../components/FixtureBanner/FixtureBanner'
 import { CONTEST_STATUS, CONTEST_STATUS_CLASSES, contestStatus, isContestLocked } from '../../data/contestStatus'
 import { fetchContestLeaderboard } from '../../api/dream11'
 import DetailHeader from '../../components/DetailHeader/DetailHeader'
-
-function kickoffLabel(kickoffTime) {
-  if (!kickoffTime) return 'Kickoff time TBC'
-  const date = new Date(kickoffTime)
-  if (Number.isNaN(date.getTime())) return 'Kickoff time TBC'
-  return date.toLocaleString(undefined, {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 // Individually-drawn "waiting for rival" rows past this count collapse into
 // one summary row -- a 50-cap public contest with 3 members shouldn't render
@@ -165,50 +152,18 @@ function Dream11ContestPage() {
           <div>
             <DetailHeader onBack={handleBack} title="Leaderboard" />
 
-            {/* Fixture banner: club badges/codes, explicit HOME/AWAY labels,
-                gameweek, contest type and kickoff time, all in one card
-                beneath the header -- separate from the contest-details card
-                below it, which is about the CONTEST (name, members, code,
-                status), not the match. Uses this contest's real fixture and
-                team data throughout; nothing here is placeholder. */}
-            <div
-              className="bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] mt-sm flex items-center justify-between gap-2"
-              data-testid="fixture-banner"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <TeamBadge shortName={contest.home_team} size="sm" />
-                <div className="min-w-0">
-                  <span className="block font-label-md text-label-md font-bold text-on-surface truncate">
-                    {contest.home_team}
-                  </span>
-                  <span className="inline-block font-label-md text-[9px] font-semibold text-on-surface-variant bg-[#F5F3F0] px-1.5 py-0.5 rounded border border-[#E5E6E1] uppercase tracking-wider">
-                    Home
-                  </span>
-                </div>
-              </div>
-              <div className="flex flex-col items-center px-2 shrink-0 text-center">
-                <span className="font-label-md text-[10px] font-black uppercase tracking-wider text-on-surface-variant bg-[#F5F3F0] px-2 py-0.5 rounded-full border border-[#E5E6E1]">
-                  VS
-                </span>
-                <span className="font-label-md text-[10px] text-on-surface-variant mt-1 whitespace-nowrap">
-                  GW{contest.gameweek} · Single Match Contest
-                </span>
-                <span className="font-label-md text-[10px] text-on-surface-variant whitespace-nowrap">
-                  {kickoffLabel(contest.kickoff_time)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 min-w-0 flex-row-reverse text-right">
-                <TeamBadge shortName={contest.away_team} size="sm" />
-                <div className="min-w-0">
-                  <span className="block font-label-md text-label-md font-bold text-on-surface truncate">
-                    {contest.away_team}
-                  </span>
-                  <span className="inline-block font-label-md text-[9px] font-semibold text-on-surface-variant bg-[#F5F3F0] px-1.5 py-0.5 rounded border border-[#E5E6E1] uppercase tracking-wider">
-                    Away
-                  </span>
-                </div>
-              </div>
-            </div>
+            {/* Match-context card: real club badges, HOME/AWAY, gameweek,
+                contest type and kickoff time -- shared with the Team screen
+                (FixtureBanner) so the two can't drift apart. Separate from
+                the contest-details card below it, which is about the
+                CONTEST (name, members, code, status), not the match. */}
+            <FixtureBanner
+              awayTeam={contest.away_team}
+              contestType="Single Match Contest"
+              gameweek={contest.gameweek}
+              homeTeam={contest.home_team}
+              kickoffTime={contest.kickoff_time}
+            />
 
             {/* Contest card: name, members/code, and the contest's own
                 Open/Live/Completed/Cancelled state (distinct from the
