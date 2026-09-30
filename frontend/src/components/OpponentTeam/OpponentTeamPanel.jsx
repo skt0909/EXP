@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import PitchLineup from '../PitchLineup/PitchLineup'
 import PlayerPointsSheet from '../PlayerPointsSheet/PlayerPointsSheet'
-import { fetchContestTeam, ForbiddenError, NotFoundError } from '../../api/dream11'
+import { fetchContestTeam, fetchSavedTeams, ForbiddenError, NotFoundError } from '../../api/dream11'
 
 const ROWS = ['GK', 'DEF', 'MID', 'FWD']
+
+function formationOf(players) {
+  const counts = { DEF: 0, MID: 0, FWD: 0 }
+  for (const p of players) if (counts[p.position] != null) counts[p.position] += 1
+  return counts.DEF + '-' + counts.MID + '-' + counts.FWD
+}
 
 const CAPTAIN_MULTIPLIER = 2
 const VICE_CAPTAIN_MULTIPLIER = 1.5
@@ -107,11 +113,17 @@ function NoTeamSubmitted() {
  * own 403 rule above), so isSelf alone isn't enough -- editing must stop the
  * moment the contest locks, same as submitting a first team does.
  */
-function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, isLocked = false, onClose }) {
+function OpponentTeamPanel({ contestId, fixtureId, opponent, kickoffTime, isSelf = false, isLocked = false, onClose }) {
+  const navigate = useNavigate()
   const [team, setTeam] = useState(null)
   const [status, setStatus] = useState('loading') // loading | ready | hidden | no-team | error
   const [message, setMessage] = useState('')
   const [selectedPlayer, setSelectedPlayer] = useState(null)
+  // Saved (reusable) lineups for this fixture -- offered as a picker only
+  // when there's a real choice to make; one team (or none) just edits the
+  // team already in the contest, same as before this existed.
+  const [savedTeams, setSavedTeams] = useState([])
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -143,6 +155,39 @@ function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, i
       cancelled = true
     }
   }, [contestId, opponent.user_id])
+
+  useEffect(() => {
+    if (!isSelf || isLocked || !fixtureId) {
+      setSavedTeams([])
+      return undefined
+    }
+    let cancelled = false
+    fetchSavedTeams({ fixture_id: fixtureId })
+      .then((teams) => {
+        if (!cancelled) setSavedTeams(teams)
+      })
+      .catch(() => {
+        // Non-fatal: Edit Team still works, it just skips the picker.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isSelf, isLocked, fixtureId])
+
+  function editUrl(savedTeamId) {
+    return savedTeamId
+      ? `/dream11/contests/${contestId}/edit?savedTeamId=${savedTeamId}`
+      : `/dream11/contests/${contestId}/edit`
+  }
+
+  function handleEditTeam() {
+    // More than one saved team is a real choice -- which one should this
+    // contest's entry become. One (or none) leaves nothing to choose, so it
+    // opens the Team screen with the contest's current entry, same as
+    // before there was a picker at all.
+    if (savedTeams.length > 1) setPickerOpen(true)
+    else navigate(editUrl())
+  }
 
   const title = opponent.team_name || opponent.username || `User ${opponent.user_id}`
 
@@ -226,18 +271,78 @@ function OpponentTeamPanel({ contestId, opponent, kickoffTime, isSelf = false, i
             </div>
           </dl>
           {isSelf && !isLocked && (
-            <Link
+            <button
               className="w-full text-center bg-primary-container text-on-primary-container rounded-lg py-sm font-label-md text-label-md uppercase tracking-wider hover:opacity-90 transition-opacity"
-              to={`/dream11/contests/${contestId}/edit`}
+              data-testid="edit-team-button"
+              onClick={handleEditTeam}
+              type="button"
             >
               Edit Team
-            </Link>
+            </button>
           )}
         </>
       )}
 
       {selectedPlayer && (
         <PlayerPointsSheet onClose={() => setSelectedPlayer(null)} player={selectedPlayer} />
+      )}
+
+      {pickerOpen && (
+        <>
+          <button
+            aria-label="Close team picker"
+            className="fixed inset-0 z-[55] bg-black/30"
+            onClick={() => setPickerOpen(false)}
+            type="button"
+          />
+          <div
+            aria-label="Choose a team to edit"
+            className="fixed bottom-0 left-1/2 z-[60] w-full max-w-[600px] -translate-x-1/2 rounded-t-2xl border border-outline-variant bg-surface-container-lowest p-md shadow-[0_-12px_32px_rgba(23,24,22,0.14)]"
+            data-testid="saved-team-picker"
+            role="dialog"
+          >
+            <div className="mx-auto mb-sm h-1 w-10 rounded-full bg-outline-variant" />
+            <h3 className="font-headline-sm text-headline-sm text-on-surface mb-sm">
+              Which team do you want to edit?
+            </h3>
+            <div className="flex flex-col gap-xs max-h-[50vh] overflow-y-auto">
+              <button
+                className="text-left rounded-lg border border-outline-variant bg-surface p-sm hover:border-secondary transition-colors"
+                onClick={() => navigate(editUrl())}
+                type="button"
+              >
+                <span className="block font-body-md text-body-md text-on-surface font-bold">
+                  This contest current team
+                </span>
+                <span className="block font-label-md text-label-md text-on-surface-variant">
+                  Keep editing what you already submitted here
+                </span>
+              </button>
+              {savedTeams.map((saved) => (
+                <button
+                  className="text-left rounded-lg border border-outline-variant bg-surface p-sm hover:border-secondary transition-colors"
+                  key={saved.saved_team_id}
+                  onClick={() => navigate(editUrl(saved.saved_team_id))}
+                  type="button"
+                >
+                  <span className="block font-body-md text-body-md text-on-surface font-bold truncate">
+                    {saved.name}
+                  </span>
+                  <span className="block font-label-md text-label-md text-on-surface-variant">
+                    {formationOf(saved.players)}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <button
+              className="w-full mt-sm text-center rounded-lg py-sm font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              onClick={() => setPickerOpen(false)}
+              type="button"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
     </section>
   )

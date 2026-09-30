@@ -40,7 +40,7 @@ function PitchView({ selectedPlayers, onEmptySlotClick }) {
             {Array.from({ length: size }).map((_, slot) =>
               players[slot] ? (
                 <div className="flex items-center justify-center" key={players[slot].id} title={players[slot].name}>
-                  <PlayerJersey player={players[slot]} size={jerseySize} />
+                  <PlayerJersey player={players[slot]} showPosition size={jerseySize} />
                 </div>
               ) : (
                 <button

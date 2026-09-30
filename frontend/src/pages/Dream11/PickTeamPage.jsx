@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useOutletContext, useParams, useSearchParams } from 'react-router-dom'
 import PlayerCard from '../../components/PlayerCard/PlayerCard'
 import PlayerJersey from '../../components/PlayerJersey/PlayerJersey'
 import TeamBadge from '../../components/TeamBadge/TeamBadge'
@@ -86,8 +86,15 @@ function validate(selected, captainId, viceId, budgetCap, teamSize, maxPerClub) 
   }
   const cost = selected.reduce((sum, p) => sum + p.credit_price, 0)
   if (cost > budgetCap) errors.push(`Over budget by ${(cost - budgetCap).toFixed(1)} credits`)
-  if (!captainId) errors.push('Pick a captain')
-  if (!viceId) errors.push('Pick a vice-captain')
+  // A full 11 with C/VC missing gets one specific message, not the generic
+  // "pick a captain"/"pick a vice-captain" pair -- those still apply while
+  // the team itself is incomplete, where they're the more useful prompt.
+  if (selected.length === teamSize && (!captainId || !viceId)) {
+    errors.push('Select your captain and vice captain')
+  } else {
+    if (!captainId) errors.push('Pick a captain')
+    if (!viceId) errors.push('Pick a vice-captain')
+  }
   if (captainId && captainId === viceId) errors.push('Captain and vice-captain must differ')
 
   return { errors, counts, cost, clubCounts }
@@ -166,6 +173,7 @@ function PitchSlot({
           captain={player.id === captainId}
           player={player}
           showName={false}
+          showPosition
           size={dense ? 'xs' : 'sm'}
           viceCaptain={player.id === viceId}
         />
@@ -222,14 +230,17 @@ function formationOf(players) {
  */
 function SavedTeamCard({ team, onLoad, onDelete }) {
   return (
-    <div className="relative shrink-0 w-32">
+    <div className="relative shrink-0 w-36">
       <button
         className="w-full h-full bg-surface-container-lowest rounded-lg border border-outline-variant p-sm text-left hover:border-secondary transition-colors"
         data-testid="saved-team-card"
         onClick={onLoad}
         type="button"
       >
-        <p className="font-label-md text-label-md text-on-surface font-bold truncate pr-4">
+        {/* The chip stays compact -- two lines is enough for any real team
+            name without cutting it off mid-word the way a single truncated
+            line did. */}
+        <p className="font-label-md text-label-md text-on-surface font-bold leading-snug line-clamp-2 pr-4" title={team.name}>
           {team.name}
         </p>
         <p className="font-label-md text-label-md text-on-surface-variant mt-1">
@@ -281,6 +292,11 @@ function PickTeamPage({ mode = 'create' }) {
   const { settings } = useOutletContext()
   const { user_id, season } = settings
   const navigate = useNavigate()
+  // Set by OpponentTeamPanel's "which team do you want to edit?" picker,
+  // when a manager has more than one saved team for this fixture and picks
+  // one other than the contest's current entry.
+  const [searchParams] = useSearchParams()
+  const savedTeamIdParam = searchParams.get('savedTeamId')
   // Local-storage keys (team name draft) need SOME id to key off -- build
   // mode has no contestId, so fixtureId stands in for it there.
   const storageKey = contestId ?? `fixture-${fixtureId}`
@@ -309,6 +325,20 @@ function PickTeamPage({ mode = 'create' }) {
   // once you've actually changed something.
   const [justSaved, setJustSaved] = useState(false)
   const [saveTemplateName, setSaveTemplateName] = useState('')
+
+  // Moved above the loading effect: it's now in that effect's own
+  // dependency array (applying a picked saved team calls it), so it has to
+  // exist -- as a stable identity, not a fresh function every render -- by
+  // the time that array is evaluated.
+  const updateTeamName = useCallback((next) => {
+    const trimmed = next.slice(0, TEAM_NAME_MAX)
+    setTeamName(trimmed)
+    try {
+      localStorage.setItem(TEAM_NAME_KEY(storageKey), trimmed)
+    } catch {
+      // Non-fatal: the name just won't survive a reload this session.
+    }
+  }, [storageKey])
 
   function handleBack() {
     if (window.history.state?.idx > 0) navigate(-1)
@@ -385,10 +415,30 @@ function PickTeamPage({ mode = 'create' }) {
         setPool(
           poolBody.map((p) => ({ ...p, id: p.player_id, price: p.credit_price, points: p.rolling_points }))
         )
-        if (teamBody) {
-          setSelectedIds(teamBody.players.map((p) => p.player_id))
-          setCaptainId(teamBody.players.find((p) => p.is_captain)?.player_id ?? null)
-          setViceId(teamBody.players.find((p) => p.is_vice_captain)?.player_id ?? null)
+        function applyTeam(source) {
+          setSelectedIds(source.players.map((p) => p.player_id))
+          setCaptainId(source.players.find((p) => p.is_captain)?.player_id ?? null)
+          setViceId(source.players.find((p) => p.is_vice_captain)?.player_id ?? null)
+        }
+        if (isEdit && savedTeamIdParam) {
+          // Load the chosen saved team instead of (overriding) the contest's
+          // current entry -- nothing is written back until Save Team.
+          fetchSavedTeams({ fixture_id: contestBody.fixture_id })
+            .then((teams) => {
+              if (cancelled) return
+              const saved = teams.find((t) => String(t.saved_team_id) === savedTeamIdParam)
+              if (saved) {
+                applyTeam(saved)
+                updateTeamName(saved.name)
+              } else if (teamBody) {
+                applyTeam(teamBody)
+              }
+            })
+            .catch(() => {
+              if (!cancelled && teamBody) applyTeam(teamBody)
+            })
+        } else if (teamBody) {
+          applyTeam(teamBody)
         }
       })
       .catch((err) => {
@@ -407,7 +457,7 @@ function PickTeamPage({ mode = 'create' }) {
     return () => {
       cancelled = true
     }
-  }, [contestId, fixtureId, isBuild, isEdit, season, user_id])
+  }, [contestId, fixtureId, isBuild, isEdit, season, user_id, savedTeamIdParam, updateTeamName])
 
   // Left open across kickoff, the picker locks itself at kickoff rather
   // than letting the user build a team the server will refuse.
@@ -514,16 +564,6 @@ function PickTeamPage({ mode = 'create' }) {
       setServerErrors(err instanceof ValidationError ? err.errors : [err.message || 'Could not save this team'])
     } finally {
       setSavingTemplate(false)
-    }
-  }
-
-  function updateTeamName(next) {
-    const trimmed = next.slice(0, TEAM_NAME_MAX)
-    setTeamName(trimmed)
-    try {
-      localStorage.setItem(TEAM_NAME_KEY(storageKey), trimmed)
-    } catch {
-      // Non-fatal: the name just won't survive a reload this session.
     }
   }
 
@@ -639,7 +679,7 @@ function PickTeamPage({ mode = 'create' }) {
       <div>
         <DetailHeader
           onBack={handleBack}
-          title={isBuild ? 'Build a Team' : isEdit ? 'Edit Team' : 'Pick Team'}
+          title="Team"
         />
         <div className="flex items-center justify-between gap-3">
           <h2 className="font-display-lg text-[24px] font-bold text-on-surface">{contest.name}</h2>
@@ -773,11 +813,13 @@ function PickTeamPage({ mode = 'create' }) {
         </div>
       </div>
 
-      {/* A full DEF or MID row is 5 across at 390-420px, so rows get their own
-          vertical space and the jerseys sit tight rather than wrapping into
-          each other's name tags. */}
+      {/* min-h is ~1.35x the old 420px: at 420 a full 11 (GK/DEF/MID/FWD
+          rows) plus the now-larger position-label jerseys left rows cramped
+          and overlapping their name tags on small phones. Height, not
+          aspect-ratio, so a tall/narrow viewport still gets full row spacing
+          rather than shrinking with the pitch's width. */}
       <div
-        className="relative overflow-visible bg-gradient-to-b from-[#086834] to-[#0F7B42] rounded-[24px] p-3 flex flex-col justify-evenly gap-md min-h-[420px] shadow-sm"
+        className="relative overflow-visible bg-gradient-to-b from-[#086834] to-[#0F7B42] rounded-[24px] p-3 flex flex-col justify-evenly gap-md min-h-[560px] shadow-sm"
         data-testid="pitch"
       >
         <div aria-hidden="true" className="pointer-events-none absolute inset-3 rounded-[18px] border border-white/40">

@@ -32,6 +32,7 @@ function PlayerJersey({
   viceCaptain = false,
   size = 'md',
   showName = true,
+  showPosition = false,
   className = '',
 }) {
   const team = getTeamByPlayer(player)
@@ -61,6 +62,9 @@ function PlayerJersey({
           </span>
         )}
       </div>
+      {showPosition && player?.position && (
+        <span className="player-jersey__position">{player.position}</span>
+      )}
       {showName && (
         <span className="player-jersey__name" title={player?.name}>
           {shortName(player?.name)}

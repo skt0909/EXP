@@ -27,6 +27,7 @@ function PlayerMarker({
         captain={captain}
         player={jerseyPlayer}
         showName={false}
+        showPosition
         size={captain ? 'lg' : 'md'}
         viceCaptain={viceCaptain}
       />

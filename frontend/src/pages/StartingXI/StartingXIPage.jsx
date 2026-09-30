@@ -205,11 +205,9 @@ function SortablePitchPlayer({ player, isBonus, bonusEligible, onToggleBonus, on
       )}
       <PlayerJersey
         player={player}
+        showPosition
         size={isBonus ? 'lg' : 'md'}
       />
-      <span className="mt-0.5 rounded bg-surface-container-lowest/90 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-on-surface-variant shadow-sm">
-        {player.position}
-      </span>
     </div>
   )
 }
@@ -936,7 +934,10 @@ function StartingXIPage() {
             </span>
             <select
               aria-label="Formation"
-              className="rounded-full border border-[#E5E6E1] bg-[#FBF9F5] px-3 h-9 font-label-md text-label-md font-bold text-on-surface focus:border-[#667D28] focus:ring-1 focus:ring-[#667D28] outline-none"
+              // Extra right padding (pr-7 instead of the pl-3 the left side
+              // keeps) is room for the native dropdown arrow -- at even
+              // padding it sat on top of the formation's last digit.
+              className="rounded-full border border-[#E5E6E1] bg-[#FBF9F5] pl-3 pr-7 h-9 font-label-md text-label-md font-bold text-on-surface focus:border-[#667D28] focus:ring-1 focus:ring-[#667D28] outline-none"
               onChange={(e) => applyFormation(e.target.value)}
               value={formationLabel}
             >

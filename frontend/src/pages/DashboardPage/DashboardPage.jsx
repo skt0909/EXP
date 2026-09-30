@@ -139,6 +139,7 @@ function PlayerTile({ player, big = false, gameweekIsLive = false, onSelect }) {
       <div className="relative">
         <PlayerJersey
           player={player}
+          showPosition
           size={big ? 'lg' : 'md'}
         />
         {player.is_bonus && (

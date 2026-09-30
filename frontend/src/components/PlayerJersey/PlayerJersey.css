@@ -114,6 +114,22 @@
   font-size: 8px;
 }
 
+/* Bold white, small dark-shadowed label -- readable on the green pitch
+   background whatever team-kit colours sit behind it. Shared by every pitch
+   (Tactic mode / squad-build, Dashboard, Starting XI, Quick 11 mode) via
+   PlayerJersey's showPosition prop, so they can't drift out of sync. */
+.player-jersey__position {
+  color: #ffffff;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65), 0 0 3px rgba(0, 0, 0, 0.45);
+  text-transform: uppercase;
+}
+
 @media (max-width: 420px) {
   .player-jersey--md {
     --jersey-size: 50px;

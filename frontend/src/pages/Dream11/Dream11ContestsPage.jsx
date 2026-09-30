@@ -323,13 +323,13 @@ function Dream11ContestsPage() {
             ))}
           </select>
           <button
-            className="mt-1 w-full bg-[#8DAA3C] text-white rounded-xl py-3.5 font-label-md text-label-md font-bold shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition-all"
+            className="mt-1 w-full bg-[#8DAA3C] text-white rounded-xl py-3.5 font-label-md text-label-md font-bold shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.99] transition-all leading-normal"
             data-testid="league-create"
             disabled={submitting || !createForm.fixture_id}
             type="submit"
           >
-            <DashboardIcon name="add" size={18} strokeWidth={2.2} />
-            {submitting ? 'Creating…' : 'Create Contest'}
+            <DashboardIcon className="shrink-0" name="add" size={18} strokeWidth={2.2} />
+            <span className="whitespace-nowrap">{submitting ? 'Creating…' : 'Create Contest'}</span>
           </button>
         </form>
 
@@ -435,10 +435,10 @@ function Dream11ContestsPage() {
                         <DashboardIcon name={deletingId === contest.contest_id ? 'sync' : 'trash'} size={15} />
                       </button>
                     )}
-                    <p className="font-stats-number text-stats-number tabular-nums text-on-surface">
+                    <p className="font-stats-number text-stats-number tabular-nums text-on-surface leading-normal">
                       {contest.user_total_points}
                     </p>
-                    <p className="font-label-md text-label-md text-on-surface-variant opacity-70">
+                    <p className="font-label-md text-label-md text-on-surface-variant opacity-70 leading-normal whitespace-nowrap">
                       {contest.user_rank ? `Rank ${contest.user_rank}` : 'Pts'}
                     </p>
                     {!isContestLocked(contest) && (

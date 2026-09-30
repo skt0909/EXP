@@ -98,7 +98,15 @@ function MatchCard({ fixture, now, flat = false }) {
           : `relative block overflow-hidden bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow ${inContests ? 'border-l-4 border-l-[#78952D]' : ''}`
       }
       data-testid="match-card"
-      to={`/matches/${fixture.fixture_id}`}
+      // Create Team (no contest yet, not completed) skips the match-detail
+      // screen and opens the Team screen directly, with this fixture as
+      // context. A match already in a contest, or finished, still opens
+      // match detail -- it has real contests/results to show there.
+      to={
+        inContests || fixture.status === 'completed'
+          ? `/matches/${fixture.fixture_id}`
+          : `/matches/${fixture.fixture_id}/build`
+      }
     >
       <div className="flex items-center justify-between gap-sm mb-sm">
         <span className="font-label-md text-label-md text-on-surface-variant">

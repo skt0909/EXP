@@ -295,6 +295,7 @@ function Dream11ContestPage() {
           {selectedRow && (
             <OpponentTeamPanel
               contestId={contestId}
+              fixtureId={contest.fixture_id}
               isLocked={locked}
               isSelf={selectedRow.user_id === user_id}
               kickoffTime={contest.kickoff_time}
