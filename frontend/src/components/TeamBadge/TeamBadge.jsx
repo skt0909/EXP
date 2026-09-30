@@ -15,17 +15,23 @@ import { getTeamByPlayer } from '../../data/premierLeague2026'
  */
 function TeamBadge({ shortName, name, size = 'md' }) {
   const team = getTeamByPlayer({ club: shortName })
-  const dims = size === 'sm' ? 'w-7 h-7' : size === 'lg' ? 'w-12 h-12' : 'w-9 h-9'
-  const imgDims = size === 'sm' ? 'w-[22px] h-[22px]' : size === 'lg' ? 'w-9 h-9' : 'w-7 h-7'
+  const dims = size === 'sm' ? 'w-7 h-7' : size === 'lg' ? 'w-12 h-12' : size === 'xl' ? 'w-16 h-16' : 'w-9 h-9'
+  const imgDims = size === 'sm' ? 'w-[22px] h-[22px]' : size === 'lg' ? 'w-9 h-9' : size === 'xl' ? 'w-12 h-12' : 'w-7 h-7'
+  // "xl" only -- the Fixture banner's enlarged crest treatment (crisp
+  // hairline border, elevated shadow, a subtle hover lift). Every other
+  // size keeps the plain flat badge already used across compact rows.
+  const elevated = size === 'xl'
+    ? 'border-2 shadow-[0_4px_10px_rgba(0,0,0,0.14)] transition-transform duration-150 hover:scale-105'
+    : ''
 
   return (
     <div
-      className={`${dims} rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant shrink-0`}
+      className={`${dims} rounded-full bg-surface-container flex items-center justify-center overflow-hidden border border-outline-variant shrink-0 ${elevated}`}
     >
       {team?.badge ? (
         <img alt={`${name ?? shortName} badge`} className={`${imgDims} object-contain`} draggable="false" src={team.badge} />
       ) : (
-        <span className={`font-label-md text-primary ${size === "lg" ? "text-xs" : "text-[10px]"}`}>{shortName}</span>
+        <span className={`font-label-md text-primary ${size === "xl" ? "text-sm" : size === "lg" ? "text-xs" : "text-[10px]"}`}>{shortName}</span>
       )}
     </div>
   )

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useOutletContext } from 'react-router-dom'
 import FplHeader from '../../components/FplHeader/FplHeader'
-import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import Scoreline from '../../components/Scoreline/Scoreline'
 import { fetchFixtures } from '../../api/fixtures'
 import { kickoffLabel } from '../../data/kickoff'
 import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
@@ -19,35 +19,6 @@ function countdown(kickoffTime, now) {
   if (days > 0) return `${days}d ${hours}h`
   if (hours > 0) return `${hours}h ${minutes}m`
   return `${minutes}m`
-}
-
-function Scoreline({ fixture }) {
-  const hasScore = fixture.home_score != null && fixture.away_score != null
-  return (
-    <div className="flex items-center justify-between gap-sm">
-      <div className="flex items-center gap-sm flex-1 min-w-0">
-        <TeamBadge name={fixture.home_team_name} shortName={fixture.home_team} />
-        <div className="min-w-0">
-          <p className="font-headline-sm text-headline-sm text-on-surface truncate">{fixture.home_team}</p>
-          <p className="font-label-md text-[9px] font-bold tracking-wider text-on-surface-variant">HOME</p>
-        </div>
-      </div>
-      {hasScore ? (
-        <p className="font-stats-number text-stats-number text-on-surface shrink-0 px-sm">
-          {fixture.home_score}–{fixture.away_score}
-        </p>
-      ) : (
-        <p className="font-label-md text-[10px] font-bold tracking-wider text-on-surface-variant shrink-0 px-sm">VS</p>
-      )}
-      <div className="flex items-center justify-end gap-sm flex-1 min-w-0 text-right">
-        <div className="min-w-0">
-          <p className="font-headline-sm text-headline-sm text-on-surface truncate">{fixture.away_team}</p>
-          <p className="font-label-md text-[9px] font-bold tracking-wider text-on-surface-variant">AWAY</p>
-        </div>
-        <TeamBadge name={fixture.away_team_name} shortName={fixture.away_team} />
-      </div>
-    </div>
-  )
 }
 
 /** The user's result on this match, when they have one.

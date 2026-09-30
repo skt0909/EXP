@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useOutletContext } from 'react-router-dom'
 import FplHeader from '../../components/FplHeader/FplHeader'
-import TeamBadge from '../../components/TeamBadge/TeamBadge'
+import Scoreline from '../../components/Scoreline/Scoreline'
 import DashboardIcon from '../../components/DashboardIcon/DashboardIcon'
 import { CONTEST_STATUS_CLASSES, contestStatus, isContestLocked } from '../../data/contestStatus'
 import { fetchFixtures } from '../../api/fixtures'
@@ -387,16 +387,20 @@ function Dream11ContestsPage() {
             <div className="flex flex-col gap-sm">
               {contests.map((contest) => (
                 <Link
-                  className="bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow flex justify-between items-start gap-sm"
+                  className="relative block overflow-hidden bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-md transition-shadow"
                   data-testid="dream11-contest-card"
                   key={contest.contest_id}
                   to={`/dream11/contests/${contest.contest_id}`}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h2 className="font-headline-sm text-[16px] font-bold text-on-surface truncate">
-                        {contest.name}
-                      </h2>
+                  {/* Top meta row -- same slot the Matches screen's card
+                      uses for GW/kickoff on the left, status pills on the
+                      right, just with contest status and the delete
+                      control instead of a live/contest-count pill. */}
+                  <div className="flex items-center justify-between gap-sm mb-sm">
+                    <span className="font-label-md text-label-md text-on-surface-variant">
+                      GW{contest.gameweek}
+                    </span>
+                    <span className="flex items-center gap-2 shrink-0">
                       <span
                         className={`px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase whitespace-nowrap ${
                           CONTEST_STATUS_CLASSES[contestStatus(contest).status]
@@ -405,48 +409,54 @@ function Dream11ContestsPage() {
                       >
                         {contestStatus(contest).label}
                       </span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-xl bg-[#F5F3F0] px-2 py-2">
-                      <TeamBadge shortName={contest.home_team} size="sm" />
-                      <p className="font-body-md text-body-md text-on-surface-variant">
-                        {contest.home_team} v {contest.away_team} · GW{contest.gameweek}
-                      </p>
-                      <TeamBadge shortName={contest.away_team} size="sm" />
-                    </div>
-                    <p className="font-label-md text-label-md text-on-surface-variant mt-1">
-                      {contest.member_count}/{contest.max_members} members
-                      {contest.user_has_team || isContestLocked(contest) ? '' : ' · you haven’t picked yet'}
-                    </p>
+                      {/* Creator-only, and only before kickoff -- matches
+                          delete_contest's own 403/422 rules, so this never
+                          shows somewhere the click would just bounce off
+                          the backend anyway. */}
+                      {contest.created_by === user_id && !isContestLocked(contest) && (
+                        <button
+                          aria-label={`Delete ${contest.name}`}
+                          className="w-7 h-7 rounded-full bg-[#F5F3F0] text-on-surface-variant hover:bg-error-container hover:text-on-error-container flex items-center justify-center transition-colors disabled:opacity-50 shrink-0"
+                          data-testid="dream11-contest-delete"
+                          disabled={deletingId === contest.contest_id}
+                          onClick={(event) => handleDeleteContest(event, contest.contest_id)}
+                          type="button"
+                        >
+                          <DashboardIcon name={deletingId === contest.contest_id ? 'sync' : 'trash'} size={14} />
+                        </button>
+                      )}
+                    </span>
                   </div>
-                  <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                    {/* Creator-only, and only before kickoff -- matches
-                        delete_contest's own 403/422 rules, so this never
-                        shows somewhere the click would just bounce off the
-                        backend anyway. */}
-                    {contest.created_by === user_id && !isContestLocked(contest) && (
-                      <button
-                        aria-label={`Delete ${contest.name}`}
-                        className="w-8 h-8 rounded-full bg-[#F5F3F0] text-on-surface-variant hover:bg-error-container hover:text-on-error-container flex items-center justify-center transition-colors disabled:opacity-50"
-                        data-testid="dream11-contest-delete"
-                        disabled={deletingId === contest.contest_id}
-                        onClick={(event) => handleDeleteContest(event, contest.contest_id)}
-                        type="button"
-                      >
-                        <DashboardIcon name={deletingId === contest.contest_id ? 'sync' : 'trash'} size={15} />
-                      </button>
-                    )}
-                    <p className="font-stats-number text-stats-number tabular-nums text-on-surface leading-normal">
-                      {contest.user_total_points}
-                    </p>
-                    <p className="font-label-md text-label-md text-on-surface-variant opacity-70 leading-normal whitespace-nowrap">
-                      {contest.user_rank ? `Rank ${contest.user_rank}` : 'Pts'}
-                    </p>
-                    {!isContestLocked(contest) && (
-                      <span className="mt-1 inline-flex items-center gap-1 font-label-md text-[10px] font-bold text-[#658223]">
-                        <span className="h-1.5 w-1.5 rounded-full bg-[#8DAA3C] animate-pulse" /> Active now
+
+                  <h2 className="font-headline-sm text-[16px] font-bold text-on-surface truncate mb-sm">
+                    {contest.name}
+                  </h2>
+
+                  {/* Same component the Matches screen's card uses for its
+                      own badge/name/HOME .. VS .. AWAY/name/badge row. */}
+                  <Scoreline fixture={contest} />
+
+                  {/* The Matches screen's PerformanceStrip, adapted: a
+                      contest has member count instead of a fixed schedule,
+                      and points+rank instead of a settled classic score. */}
+                  <div className="mt-3 flex items-center justify-between gap-sm bg-[#F5F3F0] rounded-xl px-3 py-3">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <DashboardIcon className="text-on-surface-variant shrink-0" name="chart" size={18} />
+                      <span className="font-label-md text-label-md text-on-surface-variant truncate">
+                        {contest.member_count}/{contest.max_members} members
+                        {contest.user_has_team || isContestLocked(contest) ? '' : ' · you haven’t picked yet'}
                       </span>
-                    )}
+                    </span>
+                    <span className="font-label-md text-label-md font-bold text-white bg-[#667D28] rounded-full px-2.5 py-1 shrink-0 whitespace-nowrap">
+                      {contest.user_total_points} pts{contest.user_rank ? ` · Rank ${contest.user_rank}` : ''}
+                    </span>
                   </div>
+
+                  {!isContestLocked(contest) && (
+                    <span className="mt-2 inline-flex items-center gap-1 font-label-md text-[10px] font-bold text-[#658223]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#8DAA3C] animate-pulse" /> Active now
+                    </span>
+                  )}
                 </Link>
               ))}
             </div>

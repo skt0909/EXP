@@ -49,19 +49,6 @@ function suggestTeamName(current) {
   return pool[Math.floor(Math.random() * pool.length)] ?? NAME_SUGGESTIONS[0]
 }
 
-function countdown(kickoffTime) {
-  if (!kickoffTime) return null
-  const ms = new Date(kickoffTime).getTime() - Date.now()
-  if (Number.isNaN(ms) || ms <= 0) return null
-  const totalMinutes = Math.floor(ms / 60000)
-  const days = Math.floor(totalMinutes / 1440)
-  const hours = Math.floor((totalMinutes % 1440) / 60)
-  const minutes = totalMinutes % 60
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`
-  if (hours > 0) return `${hours}h ${minutes}m`
-  return `${minutes}m`
-}
-
 function validate(selected, captainId, viceId, budgetCap, teamSize, maxPerClub) {
   const errors = []
   const counts = Object.fromEntries(ROWS.map((p) => [p, selected.filter((s) => s.position === p).length]))
@@ -212,50 +199,6 @@ function AddSlot({ position, onClick, dense = false }) {
     >
       <span className="material-symbols-outlined text-on-secondary">add</span>
     </button>
-  )
-}
-
-function formationOf(players) {
-  const counts = Object.fromEntries(ROWS.map((p) => [p, 0]))
-  for (const p of players) if (counts[p.position] != null) counts[p.position] += 1
-  return ROWS.map((p) => counts[p]).join('-')
-}
-
-/**
- * One "how many teams have I made" card -- a saved lineup for this fixture,
- * reusable across any contest on it (Game_logic/dream11.py's whole player
- * pool is drawn from a fixture's two clubs, so a saved team only makes
- * sense for another contest on this SAME match). Tapping the card loads it
- * into the picker below; the × deletes it outright, independent of loading.
- */
-function SavedTeamCard({ team, onLoad, onDelete }) {
-  return (
-    <div className="relative shrink-0 w-36">
-      <button
-        className="w-full h-full bg-surface-container-lowest rounded-lg border border-outline-variant p-sm text-left hover:border-secondary transition-colors"
-        data-testid="saved-team-card"
-        onClick={onLoad}
-        type="button"
-      >
-        {/* The chip stays compact -- two lines is enough for any real team
-            name without cutting it off mid-word the way a single truncated
-            line did. */}
-        <p className="font-label-md text-label-md text-on-surface font-bold leading-snug line-clamp-2 pr-4" title={team.name}>
-          {team.name}
-        </p>
-        <p className="font-label-md text-label-md text-on-surface-variant mt-1">
-          {formationOf(team.players)}
-        </p>
-      </button>
-      <button
-        aria-label={`Delete saved team ${team.name}`}
-        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-surface-container-high text-on-surface-variant hover:bg-error-container hover:text-on-error-container flex items-center justify-center"
-        onClick={onDelete}
-        type="button"
-      >
-        <span className="material-symbols-outlined text-[12px]">close</span>
-      </button>
-    </div>
   )
 }
 
@@ -675,7 +618,6 @@ function PickTeamPage({ mode = 'create' }) {
     )
   }
 
-  const remaining = countdown(contest.kickoff_time)
   const canAddMore = selectedIds.length < teamSize
 
   return (
@@ -696,24 +638,6 @@ function PickTeamPage({ mode = 'create' }) {
           kickoffTime={contest.kickoff_time}
         />
         <h2 className="font-display-lg text-[24px] font-bold text-on-surface mt-sm">{contest.name}</h2>
-        {/* No lock/countdown or invite code in build mode -- neither means
-            anything without a real contest behind it. */}
-        {!isBuild && remaining && (
-          <p className="font-label-md text-label-md text-on-surface-variant mt-1">
-            Locks in {remaining}
-          </p>
-        )}
-        {/* Creating a contest now drops you straight in here, so this is where
-            the invite code has to be findable -- it's the only thing that lets
-            anyone else join. */}
-        {contest.code && (
-          <p className="font-label-md text-label-md text-on-surface-variant mt-1">
-            Invite code{' '}
-            <span className="font-bold text-primary tracking-wider" data-testid="invite-code">
-              {contest.code}
-            </span>
-          </p>
-        )}
         {isBuild && (
           <p className="font-label-md text-label-md text-on-surface-variant mt-1">
             Build a lineup and save it for later — no contest is created here. Create one from the
@@ -761,32 +685,44 @@ function PickTeamPage({ mode = 'create' }) {
             <span className="material-symbols-outlined text-[18px]">edit</span>
           </button>
         </div>
-        <div className="flex items-center justify-between mt-2">
-          <button
-            className="rounded-full bg-[#8DAA3C]/15 px-3 py-1.5 font-label-md text-label-md font-bold text-[#4D631B] flex items-center gap-1"
-            data-testid="suggest-team-name"
-            onClick={() => updateTeamName(suggestTeamName(teamName))}
-            type="button"
-          >
-            ⚡ Suggest Name
-          </button>
-        </div>
       </div>
 
-      {/* Shown in both create and edit mode -- see the effect above. */}
+      {/* Shown in both create and edit mode -- see the effect above. One
+          compact chip per saved team, name only (formation dropped -- a
+          tap loads the team, so the name is what actually distinguishes
+          them). */}
       {savedTeams.length > 0 && (
-        <div>
-          <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider mb-2">
-            Your saved teams for this match ({savedTeams.length})
-          </p>
-          <div className="flex gap-sm overflow-x-auto pb-1">
+        <div
+          className="bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] flex items-center gap-2 flex-wrap"
+          data-testid="saved-teams-card"
+        >
+          <span className="font-label-md text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider shrink-0">
+            Saved Team{savedTeams.length > 1 ? 's' : ''}
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
             {savedTeams.map((team) => (
-              <SavedTeamCard
+              <span
+                className="inline-flex items-center gap-1.5 bg-[#F5F3F0] border border-[#E5E6E1] px-2.5 py-1 rounded-full text-xs text-on-surface shadow-sm"
                 key={team.saved_team_id}
-                onDelete={(event) => handleDeleteSavedTeam(event, team.saved_team_id)}
-                onLoad={() => loadSavedTeam(team)}
-                team={team}
-              />
+              >
+                <button
+                  className="font-medium leading-none hover:text-primary transition-colors max-w-[140px] truncate"
+                  data-testid="saved-team-chip"
+                  onClick={() => loadSavedTeam(team)}
+                  title={team.name}
+                  type="button"
+                >
+                  {team.name}
+                </button>
+                <button
+                  aria-label={`Delete saved team ${team.name}`}
+                  className="shrink-0 text-on-surface-variant hover:text-error font-bold text-xs leading-none flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-error-container transition-colors"
+                  onClick={(event) => handleDeleteSavedTeam(event, team.saved_team_id)}
+                  type="button"
+                >
+                  ×
+                </button>
+              </span>
             ))}
           </div>
         </div>

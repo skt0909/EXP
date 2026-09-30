@@ -40,13 +40,13 @@ function FixtureBanner({ homeTeam, awayTeam, gameweek, kickoffTime, contestType 
           </div>
         )}
 
-        <div className="flex items-center justify-center gap-6 py-1">
-          <div className="flex flex-col items-center w-24">
-            <TeamBadge name={teamFullName(homeTeam)} shortName={homeTeam} size="lg" />
-            <span className="font-label-md text-[13px] font-bold text-on-surface tracking-tight mt-1.5 truncate max-w-full">
+        <div className="flex items-center justify-center gap-5 py-1">
+          <div className="flex flex-col items-center w-28">
+            <TeamBadge name={teamFullName(homeTeam)} shortName={homeTeam} size="xl" />
+            <span className="font-label-md text-[15px] font-bold text-on-surface tracking-tight mt-2 truncate max-w-full">
               {teamFullName(homeTeam)}
             </span>
-            <span className="font-label-md text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
+            <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded-full bg-[#F5F3F0] border border-[#E5E6E1] font-label-md text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
               Home
             </span>
           </div>
@@ -55,12 +55,12 @@ function FixtureBanner({ homeTeam, awayTeam, gameweek, kickoffTime, contestType 
             VS
           </span>
 
-          <div className="flex flex-col items-center w-24">
-            <TeamBadge name={teamFullName(awayTeam)} shortName={awayTeam} size="lg" />
-            <span className="font-label-md text-[13px] font-bold text-on-surface tracking-tight mt-1.5 truncate max-w-full">
+          <div className="flex flex-col items-center w-28">
+            <TeamBadge name={teamFullName(awayTeam)} shortName={awayTeam} size="xl" />
+            <span className="font-label-md text-[15px] font-bold text-on-surface tracking-tight mt-2 truncate max-w-full">
               {teamFullName(awayTeam)}
             </span>
-            <span className="font-label-md text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
+            <span className="inline-flex items-center px-2 py-0.5 mt-1 rounded-full bg-[#F5F3F0] border border-[#E5E6E1] font-label-md text-[10px] font-semibold text-on-surface-variant uppercase tracking-wider">
               Away
             </span>
           </div>
