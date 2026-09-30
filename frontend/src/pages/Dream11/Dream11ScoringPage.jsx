@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { buildDream11Rules } from '../../data/scoringRules'
 import { useScoringRules } from '../../hooks/useScoringRules'
-import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
 import {
   DiffersBadge,
   RuleCard,
@@ -34,7 +33,7 @@ function Dream11ScoringPage() {
 
   function handleBack() {
     if (window.history.state?.idx > 0) navigate(-1)
-    else navigate(MODE_HOME[MODE_CONTESTS])
+    else navigate('/dream11')
   }
 
   const content = rules ? buildDream11Rules(rules) : null

@@ -342,7 +342,10 @@ function PickTeamPage({ mode = 'create' }) {
 
   function handleBack() {
     if (window.history.state?.idx > 0) navigate(-1)
-    else navigate(MODE_HOME[MODE_CONTESTS])
+    // Build mode is reached from a fixture on the Matches screen, so a
+    // history-less back goes back there; create/edit are reached from a
+    // contest, so they go back to the contest list, not Matches.
+    else navigate(isBuild ? MODE_HOME[MODE_CONTESTS] : '/dream11')
   }
 
   useEffect(() => {

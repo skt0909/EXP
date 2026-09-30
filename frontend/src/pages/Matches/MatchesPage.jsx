@@ -100,12 +100,16 @@ function MatchCard({ fixture, now, flat = false }) {
       data-testid="match-card"
       // Create Team (no contest yet, not completed) skips the match-detail
       // screen and opens the Team screen directly, with this fixture as
-      // context. A match already in a contest, or finished, still opens
-      // match detail -- it has real contests/results to show there.
+      // context. Already in a contest on this match -> the contest list,
+      // not this fixture's match-detail page (View Leagues means "show me
+      // my leagues", which live on /dream11, not here). Completed, with no
+      // contest of yours on it, still opens match detail for the result.
       to={
-        inContests || fixture.status === 'completed'
-          ? `/matches/${fixture.fixture_id}`
-          : `/matches/${fixture.fixture_id}/build`
+        inContests
+          ? '/dream11'
+          : fixture.status === 'completed'
+            ? `/matches/${fixture.fixture_id}`
+            : `/matches/${fixture.fixture_id}/build`
       }
     >
       <div className="flex items-center justify-between gap-sm mb-sm">

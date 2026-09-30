@@ -4,7 +4,6 @@ import OpponentTeamPanel from '../../components/OpponentTeam/OpponentTeamPanel'
 import TeamBadge from '../../components/TeamBadge/TeamBadge'
 import { CONTEST_STATUS, CONTEST_STATUS_CLASSES, contestStatus, isContestLocked } from '../../data/contestStatus'
 import { fetchContestLeaderboard } from '../../api/dream11'
-import { MODE_CONTESTS, MODE_HOME } from '../../config/appMode'
 import DetailHeader from '../../components/DetailHeader/DetailHeader'
 
 function kickoffLabel(kickoffTime) {
@@ -117,8 +116,11 @@ function Dream11ContestPage() {
   }
 
   function handleBack() {
+    // Falls back to the contest list, not Matches -- a Leaderboard is
+    // always reached from a contest (the list, or a saved-team edit
+    // round trip), never from Matches directly.
     if (window.history.state?.idx > 0) navigate(-1)
-    else navigate(MODE_HOME[MODE_CONTESTS])
+    else navigate('/dream11')
   }
 
   useEffect(() => {
@@ -162,43 +164,85 @@ function Dream11ContestPage() {
         <>
           <div>
             <DetailHeader onBack={handleBack} title="Leaderboard" />
-            <div className="flex items-center gap-xs">
-              <TeamBadge shortName={contest.home_team} size="sm" />
-              <p className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">
-                {contest.home_team} v {contest.away_team} · GW{contest.gameweek}
-              </p>
-              <TeamBadge shortName={contest.away_team} size="sm" />
-            </div>
-            <h2 className="font-display-lg text-display-lg text-primary">{contest.name}</h2>
-            <p className="font-body-md text-body-md text-on-surface-variant mt-sm flex items-center gap-1.5 flex-wrap">
-              <span>
-                {contest.member_count}/{contest.max_members} members · code{' '}
-                <span className="font-bold text-on-surface tracking-wider">{contest.code}</span>
-              </span>
-              <button
-                aria-label="Copy invite code"
-                className="inline-flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors"
-                data-testid="copy-code"
-                onClick={() => copyCode(contest.code)}
-                type="button"
-              >
-                <span className="material-symbols-outlined text-[16px]">
-                  {copied ? 'check' : 'content_copy'}
+
+            {/* Fixture banner: club badges/codes, explicit HOME/AWAY labels,
+                gameweek, contest type and kickoff time, all in one card
+                beneath the header -- separate from the contest-details card
+                below it, which is about the CONTEST (name, members, code,
+                status), not the match. Uses this contest's real fixture and
+                team data throughout; nothing here is placeholder. */}
+            <div
+              className="bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] mt-sm flex items-center justify-between gap-2"
+              data-testid="fixture-banner"
+            >
+              <div className="flex items-center gap-2 min-w-0">
+                <TeamBadge shortName={contest.home_team} size="sm" />
+                <div className="min-w-0">
+                  <span className="block font-label-md text-label-md font-bold text-on-surface truncate">
+                    {contest.home_team}
+                  </span>
+                  <span className="inline-block font-label-md text-[9px] font-semibold text-on-surface-variant bg-[#F5F3F0] px-1.5 py-0.5 rounded border border-[#E5E6E1] uppercase tracking-wider">
+                    Home
+                  </span>
+                </div>
+              </div>
+              <div className="flex flex-col items-center px-2 shrink-0 text-center">
+                <span className="font-label-md text-[10px] font-black uppercase tracking-wider text-on-surface-variant bg-[#F5F3F0] px-2 py-0.5 rounded-full border border-[#E5E6E1]">
+                  VS
                 </span>
-                <span className="font-label-md text-label-md">{copied ? 'Copied' : 'Copy'}</span>
-              </button>
-            </p>
-            <div className="flex items-center gap-2 mt-sm">
+                <span className="font-label-md text-[10px] text-on-surface-variant mt-1 whitespace-nowrap">
+                  GW{contest.gameweek} · Single Match Contest
+                </span>
+                <span className="font-label-md text-[10px] text-on-surface-variant whitespace-nowrap">
+                  {kickoffLabel(contest.kickoff_time)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 min-w-0 flex-row-reverse text-right">
+                <TeamBadge shortName={contest.away_team} size="sm" />
+                <div className="min-w-0">
+                  <span className="block font-label-md text-label-md font-bold text-on-surface truncate">
+                    {contest.away_team}
+                  </span>
+                  <span className="inline-block font-label-md text-[9px] font-semibold text-on-surface-variant bg-[#F5F3F0] px-1.5 py-0.5 rounded border border-[#E5E6E1] uppercase tracking-wider">
+                    Away
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Contest card: name, members/code, and the contest's own
+                Open/Live/Completed/Cancelled state (distinct from the
+                fixture banner above, which is about the match). */}
+            <div className="bg-white rounded-[20px] p-4 border border-[#E5E6E1] shadow-[0_2px_8px_rgba(0,0,0,0.04)] mt-sm">
+              <span className="block font-label-md text-[10px] font-bold uppercase tracking-wider text-on-surface-variant mb-0.5">
+                Contest Name
+              </span>
+              <h2 className="font-display-lg text-display-lg text-primary">{contest.name}</h2>
+              <p className="font-body-md text-body-md text-on-surface-variant mt-sm flex items-center gap-1.5 flex-wrap">
+                <span>
+                  {contest.member_count}/{contest.max_members} members · code{' '}
+                  <span className="font-bold text-on-surface tracking-wider">{contest.code}</span>
+                </span>
+                <button
+                  aria-label="Copy invite code"
+                  className="inline-flex items-center gap-1 text-on-surface-variant hover:text-primary-container transition-colors"
+                  data-testid="copy-code"
+                  onClick={() => copyCode(contest.code)}
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[16px]">
+                    {copied ? 'check' : 'content_copy'}
+                  </span>
+                  <span className="font-label-md text-label-md">{copied ? 'Copied' : 'Copy'}</span>
+                </button>
+              </p>
               <span
-                className={`px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${
+                className={`inline-block mt-sm px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${
                   CONTEST_STATUS_CLASSES[status.status]
                 }`}
                 data-testid="dream11-contest-status"
               >
                 {status.label}
-              </span>
-              <span className="font-label-md text-label-md text-on-surface-variant">
-                {kickoffLabel(contest.kickoff_time)}
               </span>
             </div>
 
