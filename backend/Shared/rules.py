@@ -244,7 +244,7 @@ PENALTY_MISSED_POINTS = -2
 # which game a constant belongs to.
 
 # Which generation the TACTICAL rules are. Decided in Phase 1 and recorded in
-# IMPLEMENTATION_PLAN.md section 2: "rules_version is an INTEGER, not a string
+# docs/history/IMPLEMENTATION_PLAN.md section 2: "rules_version is an INTEGER, not a string
 # ... holding values 1 (869 rows) and 2 (121 rows) ... The next generation is
 # therefore 3."
 #
@@ -327,7 +327,7 @@ FORMATION_MIN = {"GK": 1, "DEF": 3, "MID": 3, "FWD": 1}
 # --- Tactical Points, ruleset "Q1" ------------------------------------
 #
 # Earned by the 2 Bonus Players only, per fixture, summed across a double
-# gameweek. Adopted in section 9 of IMPLEMENTATION_PLAN.md after Q1 passed
+# gameweek. Adopted in section 9 of docs/history/IMPLEMENTATION_PLAN.md after Q1 passed
 # T1a, T1b, T2a, T2b and T5.
 #
 # TIER SEMANTICS: each tuple is (minimum, points) and the tiers are NOT

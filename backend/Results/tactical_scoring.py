@@ -13,7 +13,7 @@ in scoring.py is untouched and still authoritative, and the two disagree on
 purpose -- this one has no captain, no chips, no hits and no FPL bonus.
 
 SCORES ONE SELECTION. Batching over a league's managers belongs to Phase 4,
-which must do it in batches of a few hundred (IMPLEMENTATION_PLAN.md section
+which must do it in batches of a few hundred (docs/history/IMPLEMENTATION_PLAN.md section
 10 -- the server is a 1 GB e2-micro with a single-task worker).
 
 ORDER OF OPERATIONS, from section 6 of the plan. The order is the specification,

@@ -81,7 +81,7 @@ def test_the_classic_recurrence_is_untouched():
 # ---- constants exist and carry the Q1 values -------------------------------
 
 def test_rules_version_is_the_integer_three_decided_in_phase_1():
-    # IMPLEMENTATION_PLAN.md section 2: "rules_version is an INTEGER, not a
+    # docs/history/IMPLEMENTATION_PLAN.md section 2: "rules_version is an INTEGER, not a
     # string ... The next generation is therefore 3."
     assert rules.RULES_VERSION == 3
     assert isinstance(rules.RULES_VERSION, int)
