@@ -1,14 +1,14 @@
-Last verified against the live codebase and dev database: 13 September 2026. Re-verify significant claims (row counts, feature importances, tier distribution) before trusting this for anything beyond orientation. Nothing in the codebase or database was modified to produce this document.
+Last verified against the live codebase: 3 October 2026 (sections 01, 03, 05 and 06 and the Known Gaps were updated then; the database-derived figures in sections 02 to 04 are from 13 September 2026 and were not re-queried). Re-verify significant claims (row counts, feature importances, tier distribution) before trusting this for anything beyond orientation. Nothing in the codebase or database was modified to produce this document.
 
 ---
 
 # The prediction pipeline: raw data to chat advice
 
-System reference · read from the database and the source, 13 Sep 2026 · companion to [ARCHITECTURE.md](ARCHITECTURE.md), which this does not repeat
+System reference · read from the database and the source, 13 Sep 2026, code paths re-checked 3 Oct 2026 · companion to [ARCHITECTURE.md](ARCHITECTURE.md), which this does not repeat
 
-Everything between an FPL API response and a sentence in the chat window: one ingest layer, one feature layer, one XGBoost model, one tiering pass, one weekly scheduler, and one prompt-building handoff — six modules, one Celery task tying them together, and a database that refuses certain writes so the pipeline can't corrupt its own history.
+Everything between an FPL API response and a sentence in the chat window: one ingest layer, one feature layer, one XGBoost model, one tiering pass, one daily backfill script, and one prompt-building handoff — a handful of modules, one systemd timer tying them together, and a database that refuses certain writes so the pipeline can't corrupt its own history.
 
-**1** model (`xgboost_v1`) · **21** features · **6** tier/status labels · **1** Celery Beat task owns this whole pipeline · **4,905** `ml.player_gw_stats` rows · **841** `ml.ml_predictions` rows (all `2025-26` GW4, live dev DB)
+**1** model (`xgboost_v1`) · **21** features · **6** tier/status labels · **1** daily systemd timer (`fpl-backfill.timer`) owns this whole pipeline · **4,905** `ml.player_gw_stats` rows · **841** `ml.ml_predictions` rows (all `2025-26` GW4, live dev DB, 13 Sep 2026)
 
 ---
 
@@ -19,12 +19,20 @@ Two independent paths write `ml.player_gw_stats`, and they never overlap in what
 **`Data/fpl_ingest.py`** — the batch loader. `--source archive` (vaastav's community CSVs, completed seasons only, the CLI default) or `--source live` (FPL's public API, the only way to reach the season in progress). CLI: `--season 2025-26 --bootstrap` (teams+players), `--gw N` / `--gw-range FROM TO` (per-gameweek fixtures + stats), `--upcoming-fixtures` (live-source only), `--verify`.
 
 - `ml.teams`, `ml.players` — real upserts, `ON CONFLICT (fpl_id, season) DO UPDATE`. Safe to re-run any time.
-- `ml.fixtures` — two separate writers inside the same file: `ingest_fixtures` (per requested gameweek) **refuses to run unless every fixture in that gameweek is already `finished`** (`fpl_ingest.py:568-574`) — "ml.player_gw_stats has an immutability trigger, so partial data written now could not be corrected later." `ingest_upcoming_fixtures` is the only writer of unfinished, future-dated fixture rows, and the only one that updates `kickoff_time` (rescheduling) — live-source only.
+- `ml.fixtures` — two separate writers inside the same file (`ingest_upcoming_fixtures` also persists the live match state: `started`, `finished_provisional`, `minutes`): `ingest_fixtures` (per requested gameweek) **refuses to run unless every fixture in that gameweek is already `finished`** (`fpl_ingest.py:568-574`) — "ml.player_gw_stats has an immutability trigger, so partial data written now could not be corrected later." `ingest_upcoming_fixtures` is the only writer of unfinished, future-dated fixture rows, and the only one that updates `kickoff_time` (rescheduling) — live-source only.
 - `ml.player_gw_stats` — `ingest_gameweek_stats` (`fpl_ingest.py:770-791`) hardcodes `is_live = FALSE` **literally in the SQL**, and inserts with `ON CONFLICT DO NOTHING`. fpl_ingest never writes an in-progress row and never corrects one — that's the other module's job entirely. Re-running it is a no-op once rows exist.
 
-**`Data/live_poll.py`** — the in-gameweek poller. Not self-triggering: Celery books two ETAs per fixture, kickoff+50min ("halftime") and kickoff+115min ("fulltime") — `HALFTIME_OFFSET_MINUTES = 50`, `FULLTIME_OFFSET_MINUTES = 115` (`Worker/tasks.py:378-386`), scheduled by `schedule_fixture_polls` (classic FPL, every 15 min via Beat) and inline at Dream11 contest creation (`Game_logic/dream11.py`). Each checkpoint calls FPL's live endpoint and writes `ml.player_gw_stats` for just the two teams in that fixture via a real `ON CONFLICT ... DO UPDATE` (`live_poll.py:122-135`) — unlike fpl_ingest's `DO NOTHING`.
+**`Data/live_poll.py`** — the in-gameweek poller. Driven by the `poll_due_fixtures` Beat task every minute, which asks Postgres which fixtures have a checkpoint due (`DUE_CHECKPOINTS_QUERY`) rather than relying on pre-booked Celery ETAs. The checkpoints key on the real match state that `ingest_upcoming_fixtures` stores on `ml.fixtures` (`started`, `finished_provisional`, `minutes`, `finished`):
 
-`is_live` is set directly from which checkpoint fired: `is_live = (checkpoint == "halftime")` (`live_poll.py:26-34, 158`). So a row's life is: **halftime poll** (`is_live=TRUE`, freely correctable) → **fulltime poll or a later batch ingest** (`is_live=FALSE`, sealed forever). Re-polling an already-sealed row hits the trigger below; `live_poll.py` catches that specific error and treats it as an expected no-op (`SETTLED_ERROR_SUBSTRING` match, `:108-111, 190-200`), not a failure.
+| Checkpoint | Due | `is_live` |
+|---|---|---|
+| `halftime` | **disabled** — no stored signal proves halftime was reached; the query carries the commented-out condition to enable once fixture `minutes` is verified live | TRUE |
+| `fulltime` | once `finished_provisional` is TRUE and the fixture isn't yet `finished` | TRUE |
+| `final` | once `finished` is TRUE (takes precedence) | FALSE |
+
+Each checkpoint calls FPL's live endpoint (once per gameweek, shared by every due fixture) and writes `ml.player_gw_stats` for the two teams in that fixture via a real `ON CONFLICT ... DO UPDATE`, unlike fpl_ingest's `DO NOTHING`. Progress is recorded in `ml.fixture_poll_schedule` (`*_polled_at` columns). See ARCHITECTURE.md section 04 for the full flow.
+
+So a row's life is: **fulltime poll** (`is_live=TRUE`, freely correctable) → **final poll or a later batch ingest** (`is_live=FALSE`, sealed forever). Re-polling an already-sealed row hits the trigger below; `live_poll.py` treats that specific error as an expected no-op, not a failure.
 
 ### The trigger that makes settlement real
 
@@ -74,8 +82,8 @@ END IF;
 | `Data/fpl_ingest.py` | `ml.fixtures` | INSERT … ON CONFLICT DO UPDATE (finished-gated for past gameweeks; ungated for upcoming) |
 | `Data/fpl_ingest.py` | `ml.player_gw_stats` | INSERT … ON CONFLICT DO NOTHING, `is_live` hardcoded FALSE |
 | `Data/live_poll.py` | `ml.player_gw_stats` | INSERT … ON CONFLICT DO UPDATE, `is_live` from checkpoint |
-| `Data/live_poll.py` | `ml.fixture_poll_schedule` | INSERT … ON CONFLICT DO UPDATE (bookkeeping: which checkpoints have been scheduled) |
-| `Worker/tasks.py` (`run_ml_pipeline`) | `ml.ml_predictions` | DELETE then INSERT — see §05 |
+| `Data/live_poll.py` | `ml.fixture_poll_schedule` | INSERT … ON CONFLICT DO UPDATE (bookkeeping: which checkpoints are done) |
+| `Predict/backfill_predictions.py` | `ml.ml_predictions` | DELETE then INSERT — see §05 |
 
 `Feature_engineering/feature_builder.py`, `Predict/predictor.py` and `Predict/tier_builder.py` are all confirmed pure-compute — no database writes anywhere in any of the three. `ml.season_stats` and `ml.player_gw_features` have schemas but no writer found anywhere in application code (see Known Gaps).
 
@@ -119,7 +127,7 @@ No zero-imputation anywhere — the docstring is explicit that "the model was tr
 
 **Confirmed model type**: XGBoost, not a scikit-learn wrapper or a pickle. `model_metadata.json`'s `"winner": "xgboost_v1"`, `Predict/predictor.py`'s `import xgboost as xgb` / `xgb.Booster()` / `booster.load_model(...)`, and `model.json` itself (a native XGBoost booster JSON dump — top-level `{"learner": {...}}`, `feature_names` matching `FEATURE_COLS` exactly) all agree.
 
-`Predict/predictor.py` (39 lines, the entire prediction step): loads `Data/model.json` (159,485 bytes) into a module-level cached `xgb.Booster()`, and `predict_points(features)` builds `xgb.DMatrix(features[FEATURE_COLS], feature_names=FEATURE_COLS, missing=np.nan)` then calls `booster.predict(dmatrix)`, returning a DataFrame indexed by `player_id` with one column, `predicted_points`. This exact function is shared by three call sites: `predict_gameweek.ipynb` (generated, gitignored build output — see `Predict/build_notebook.py`), `Worker/tasks.py`'s `run_ml_pipeline`, and (historically) `Context_assembler/main.py` — though `/chat` no longer calls it at request time (see §06).
+`Predict/predictor.py` (39 lines, the entire prediction step): loads `Data/model.json` (159,485 bytes) into a module-level cached `xgb.Booster()`, and `predict_points(features)` builds `xgb.DMatrix(features[FEATURE_COLS], feature_names=FEATURE_COLS, missing=np.nan)` then calls `booster.predict(dmatrix)`, returning a DataFrame indexed by `player_id` with one column, `predicted_points`. This exact function is shared by three call sites: `predict_gameweek.ipynb` (generated, gitignored build output — see `Predict/build_notebook.py`), `Predict/backfill_predictions.py` (which replaced the now-disabled `run_ml_pipeline` task in `Worker/tasks.py`), and (historically) `Context_assembler/main.py` — though `/chat` no longer calls it at request time (see §06).
 
 `Data/model_metadata.json`, in full:
 
@@ -190,20 +198,13 @@ Every one of the 117 "New/Insufficient Data" rows falls inside a 0.04-point band
 
 ---
 
-## 05 — Scheduling: one Beat task, weekly, idempotent
+## 05 — Scheduling: one daily timer, idempotent
 
-Celery Beat: `Worker/celery_app.py:184-191` —
+Predictions are no longer produced by Celery. The `run_ml_pipeline` and `schedule_predictions` tasks in `Worker/tasks.py` are commented out and their Beat entry is gone: `xgboost` and `pandas` peak around 270 MB, which a 1 GB server's long-lived worker shouldn't carry. Instead `Predict/backfill_predictions.py` does the same three steps (`build_features` → `predict_points` → `build_tiers`) as a short-lived script.
 
-```python
-"schedule-predictions-weekly": {
-    "task": "schedule_predictions",
-    "schedule": crontab(hour=6, minute=0, day_of_week=2),
-},
-```
+On the server, `deploy/systemd/fpl-backfill.timer` runs `backfill_predictions.py --auto` daily at 05:30 UTC. It is daily rather than weekly because `--auto` writes only once the previous gameweek is finished and settled, and otherwise does nothing; a run with nothing to do costs one small query. By hand, a dry run is the default (`--season 2026-27 --gw 7` prints the tier distribution and writes nothing; add `--write` to persist).
 
-`day_of_week=2` in Celery's convention (0=Sunday) is **Tuesday**, 06:00 UTC — the comment beside it explains the timing: FPL deadlines are typically Friday/Saturday, so this leaves several days' lead time.
-
-**"The next gameweek with no predictions," exact SQL** (`Predict/prediction_scheduling.py:32-44`):
+**"The next gameweek with no predictions"** is still found by `Predict/prediction_scheduling.py`'s `find_next_gameweek_needing_predictions`:
 
 ```sql
 SELECT f.season, f.gameweek
@@ -217,18 +218,13 @@ ORDER BY MIN(f.kickoff_time) ASC
 LIMIT 1
 ```
 
-Three conditions, all required: the gameweek has fixtures at all, none of its fixtures have a prediction row yet, and its earliest kickoff is still in the future (comparison done in SQL so the DB clock is authoritative). If nothing matches, the task logs "nothing to do" and exits — this is a normal, expected outcome, not an error.
+Three conditions, all required: the gameweek has fixtures at all, none of its fixtures have a prediction row yet, and its earliest kickoff is still in the future. `--auto` then also checks `previous_gameweek_not_ready` and skips with a message if the previous gameweek isn't finished and settled.
 
-**Full call chain**: Beat fires `schedule_predictions` (`Worker/tasks.py:319-337`) → `find_next_gameweek_needing_predictions(engine)` → if a `(season, gameweek)` comes back, calls `run_ml_pipeline(season, gameweek)` **as a plain synchronous function call**, not `.delay()` — it runs inside `schedule_predictions`'s own task execution, not as a second queued task.
-
-`run_ml_pipeline` (`Worker/tasks.py:147-182`) is the one place all three earlier layers meet: `build_features` → `predict_points` → `build_tiers` → write. The write is deliberately **delete-then-insert**, never UPDATE:
+The write is deliberately **delete-then-insert**, never UPDATE:
 
 ```python
-with engine.begin() as conn:
-    conn.execute(text(
-        "DELETE FROM ml.ml_predictions WHERE season = :season AND gameweek = :gameweek AND model_version = :mv"
-    ), {...})
-    rows.to_sql("ml_predictions", conn, schema="ml", if_exists="append", index=False)
+DELETE FROM ml.ml_predictions WHERE season = :season AND gameweek = :gameweek AND model_version = :mv
+rows.to_sql("ml_predictions", conn, schema="ml", if_exists="append", index=False)
 ```
 
 This isn't a style choice — `ml.ml_predictions` has its own immutability trigger that makes UPDATE impossible outright:
@@ -242,13 +238,13 @@ END;
 $$ LANGUAGE plpgsql;
 ```
 
-So delete+insert is the *only* legal way to refresh a gameweek's predictions, and it's exactly what makes re-running `run_ml_pipeline` for the same `(season, gameweek, model_version)` idempotent by construction. `ml.ml_predictions` itself: `id serial PK`, `UNIQUE (player_id, season, gameweek, model_version)`, FK `player_id → ml.players(id) ON DELETE CASCADE`, columns `predicted_points numeric(6,2)`, `tier_or_label varchar(40)`, `model_version varchar(50)` (currently always `"xgboost_v1"`), `created_at` default `now()`.
+So delete+insert is the *only* legal way to refresh a gameweek's predictions, and it's exactly what makes re-running the script for the same `(season, gameweek, model_version)` idempotent by construction. `ml.ml_predictions` itself: `id serial PK`, `UNIQUE (player_id, season, gameweek, model_version)`, FK `player_id → ml.players(id) ON DELETE CASCADE`, columns `predicted_points numeric(6,2)`, `tier_or_label varchar(40)`, `model_version varchar(50)` (currently always `"xgboost_v1"`), `created_at` default `now()`.
 
 ---
 
 ## 06 — The handoff to chat
 
-`Context_assembler/main.py`'s module docstring is explicit that this endpoint **does not run the pipeline** — it only reads what `run_ml_pipeline` already wrote:
+`Context_assembler/main.py`'s module docstring is explicit that this endpoint **does not run the pipeline** — it only reads what the backfill script already wrote:
 
 ```sql
 SELECT player_id, tier_or_label
@@ -258,9 +254,9 @@ WHERE season = :season AND gameweek = :gameweek
   AND model_version = :model_version
 ```
 
-filtered to `MODEL_VERSION = "xgboost_v1"` (`main.py:119`). Squad comes from `STARTING_XI_QUERY` (joining `starting_xi`/`gw_selections`/`ml.players`), captain/vice from a `gw_selections` lookup. A squad player with no matching `ml.ml_predictions` row is defaulted to `"New/Insufficient Data"` with a logged warning — not an error.
+filtered to `MODEL_VERSION = "xgboost_v1"` (`MODEL_VERSION` in `main.py`). Squad comes from `STARTING_XI_QUERY` (joining `starting_xi`/`gw_selections`/`ml.players`), captain/vice from a `gw_selections` lookup. A squad player with no matching `ml.ml_predictions` row is defaulted to `"New/Insufficient Data"` with a logged warning — not an error.
 
-**The readiness gate**, exact code (`main.py:342-350`):
+**The readiness gate**, exact code (`is_chat_available` in `main.py`):
 
 ```python
 def is_chat_available(engine, season: str) -> bool:
@@ -272,7 +268,7 @@ def is_chat_available(engine, season: str) -> bool:
     return result > 0
 ```
 
-called as `is_chat_available(engine, req.season)` at `main.py:396` — `season` is whatever the client's `ChatRequest` body sends, not a server-side constant. On failure it is **not an HTTP error** — the endpoint returns a normal `200 OK` `ChatResponse`:
+called as `is_chat_available(engine, req.season)` in the chat handler — `season` is whatever the client's `ChatRequest` body sends, not a server-side constant. On failure it is **not an HTTP error** — the endpoint returns a normal `200 OK` `ChatResponse`:
 
 ```python
 CHAT_AVAILABILITY_MESSAGE = (
@@ -281,7 +277,7 @@ CHAT_AVAILABILITY_MESSAGE = (
 )
 ```
 
-**The prompt itself never receives a number.** `PREDICTIONS_QUERY` selects only `player_id, tier_or_label` — `predicted_points` is not even in the result set that reaches the prompt builder. The instruction text baked into every `/chat` call (`main.py:123-148`) is explicit both about what a tier means and what the model must never do:
+**The prompt itself never receives a number.** `PREDICTIONS_QUERY` selects only `player_id, tier_or_label` — `predicted_points` is not even in the result set that reaches the prompt builder. The instruction text baked into every `/chat` call (in `main.py`) is explicit both about what a tier means and what the model must never do:
 
 > "You are given each player's tier, not a raw predicted score... The underlying prediction model is known to underestimate big, explosive performances... treat a tier as a FLOOR on expected performance, not a ceiling... Never state a specific predicted-points number or invent one, even if asked directly — you were not given one and do not have one."
 
@@ -300,12 +296,12 @@ Things this reference would be dishonest to leave out.
 | One prior game is enough to exit "insufficient data" | `min_periods=1` in the rolling-mean computation means a player with exactly one game has a real (non-NaN) feature and is tiered normally — the label only protects against *zero* history, not against a single noisy data point. |
 | `model.pkl` is broken, `model.json` is the only usable artifact | Confirmed via the training notebook's own recorded error (`XGBoostError: input stream corrupted` under the current xgboost 3.3.0). If `model.json` were ever lost or corrupted, there is no working fallback — only retraining. |
 | `ml.season_stats` and `ml.player_gw_features` are unused | Both have live schemas; no INSERT/UPDATE writer was found anywhere in application code for either. `feature_builder.py` computes its rolling features directly from `player_gw_stats` and explicitly does not read the precomputed `player_gw_features` table — these two look like fossils of a design that was scoped and abandoned (same pattern as `ml.players.fbref_name`, already noted in ARCHITECTURE.md). |
-| `tier_or_label`'s provenance comment is stale | `Worker/tasks.py` carries a comment claiming this column "was added via ALTER TABLE -- no source DDL file exists to keep in sync," but it is already present directly in the current `baseline_schema.sql`'s `CREATE TABLE`. No separate `ALTER TABLE ... ADD COLUMN tier_or_label` migration exists. Read as a leftover from before the baseline capture, not as a live inconsistency. |
-| Real prediction coverage is thin right now | As of this writing, `ml.ml_predictions` holds rows for exactly one `(season, gameweek)` — `2025-26`, gameweek 4 (841 rows). The in-progress `2026-27` season has `player_gw_stats` (364 rows, GW1) but no predictions yet. This document does not attempt to explain why the scheduler hasn't produced 2026-27 predictions — that would require tracing a live Beat run, which was out of scope here — it only reports the state observed in the database on 13 Sep 2026. |
+| `tier_or_label`'s provenance comment is stale | The commented-out `run_ml_pipeline` in `Worker/tasks.py` claims this column "was added via ALTER TABLE -- no source DDL file exists", but it is in `baseline_schema.sql`'s `CREATE TABLE`. A leftover from before the baseline capture, not a live inconsistency. |
+| Prediction coverage is a snapshot | When this was written (13 Sep 2026) `ml.ml_predictions` held one `(season, gameweek)`, `2025-26` GW4 (841 rows). Coverage now depends on the daily `fpl-backfill` timer; check the table rather than trusting that figure. |
 | The dev database also holds non-pipeline data | Seasons `SIM38OK`, `SIM38TST`, `SIMSMOKE` exist in `ml.player_gw_stats` (all `is_live = TRUE`, 22 rows per gameweek, 38 gameweeks each) — these come from a separate local simulation/testing harness (`simulation/`, outside this document's scope) and are not output of the ML pipeline described here. Anyone querying `ml.player_gw_stats` by season should filter them out explicitly rather than assume every row is real FPL data. |
 
 ---
 
 ## How this was assembled
 
-Read from the source and the live dev database on 13 September 2026 — table schemas, trigger bodies, row counts, and tier distributions were queried or grepped directly, not recalled. Row counts are dev data and will differ from any other environment, and will already be stale by the time this is read given the weekly prediction schedule. Nothing in the codebase or database was modified to produce this document.
+Read from the source and the live dev database on 13 September 2026; scheduling, polling and call-site claims re-checked against the source on 3 October 2026 — table schemas, trigger bodies, row counts, and tier distributions were queried or grepped directly, not recalled. Row counts are dev data and will differ from any other environment, and will already be stale by the time this is read given the weekly prediction schedule. Nothing in the codebase or database was modified to produce this document.

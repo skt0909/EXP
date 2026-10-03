@@ -6,7 +6,7 @@ Last verified against the live codebase: 27 September 2026 (migrations, polling 
 
 *Update, 4 September 2026: the "CORS is fully open" and "Nothing is supervised" rows in Known Gaps (08) were revised to reflect work completed since the snapshot above.*
 
-*Update, 22 September 2026: the classic FPL game was converted IN PLACE into a "tactical" mode — captain, vice-captain, chips (Wildcard/Free Hit/Bench Boost/Triple Captain), transfer hits and FPL bonus points are gone; the game is now GK+XI formation, a per-gameweek tactic (`attack`/`defence`/`balanced`), exactly 2 Bonus Players, 4 fixed bench roles, and up to 2 planned Tactical Subs. This is a full rewrite of every section that described the old rules, not an addendum — see `IMPLEMENTATION_PLAN.md` for the complete rulebook and migration history. Dream11 (section 06's right-hand column) is untouched throughout.*
+*Update, 22 September 2026: the classic FPL game was converted IN PLACE into a "tactical" mode — captain, vice-captain, chips (Wildcard/Free Hit/Bench Boost/Triple Captain), transfer hits and FPL bonus points are gone; the game is now GK+XI formation, a per-gameweek tactic (`attack`/`defence`/`balanced`), exactly 2 Bonus Players, 4 fixed bench roles, and up to 2 planned Tactical Subs. This is a full rewrite of every section that described the old rules, not an addendum — see `history/IMPLEMENTATION_PLAN.md` for the complete rulebook and migration history. Dream11 (section 06's right-hand column) is untouched throughout.*
 
 ---
 

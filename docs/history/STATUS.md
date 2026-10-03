@@ -1,3 +1,5 @@
+> **Historical, as of 22 Sep 2026.** This is a point-in-time record, not a description of the current system. For the current state see [ARCHITECTURE.md](../ARCHITECTURE.md).
+
 # Status, as of 2026-09-22
 
 Quick-read companion to `IMPLEMENTATION_PLAN.md` (the living plan and

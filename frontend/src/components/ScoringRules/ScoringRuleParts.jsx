@@ -43,7 +43,7 @@ export function DiffersBadge({ className = '' }) {
     <span
       className={`inline-flex items-center shrink-0 px-sm py-[2px] rounded-full bg-surface-container-highest text-on-surface-variant font-label-md text-[10px] uppercase tracking-wider ${className}`}
     >
-      Differs from Classic FPL
+      Differs from Tactic mode
     </span>
   )
 }

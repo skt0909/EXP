@@ -52,3 +52,6 @@ tools/tactical_sim_results.csv
 # its own so it stays ignored if it is ever recreated elsewhere.
 scratch/
 token.txt
+
+# One-off review/deploy patch files kept in the repo root
+*.patch

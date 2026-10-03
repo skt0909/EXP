@@ -1,9 +1,13 @@
-# Dream11 contests
+Last verified against the live codebase: 3 October 2026. Re-verify significant claims before trusting this for anything beyond orientation.
 
-A single-fixture contest mode, separate from the season-long FPL game that the
+---
+
+# Quick 11 contests (code name: Dream11)
+
+In the app this mode is called **Quick 11**; "Dream11" is the code name still used for the schema, modules and routes. It is a single-fixture contest mode, separate from the season-long Tactic mode that the
 rest of this repo implements. You pick 11 players from the two clubs in **one
 match**, spend a budget of **credits** (not £m), and score under **Dream11's own
-point weightings** rather than FPL's.
+point weightings** rather than Tactic mode's.
 
 Everything lives in its own Postgres schema (`dream11`), has its own scoring
 module, and — on the frontend — its own navigation mode.
@@ -22,20 +26,24 @@ stale.
 stateDiagram-v2
     [*] --> Open: create_contest<br/>(prices frozen, creator auto-joined)
     Open --> Open: join by 7-char code
-    Open --> Open: submit an XI
-    Open --> Locked: lock_dream11_contests<br/>(Beat, kickoff passed)
-    Locked --> Scored: poll_and_score_dream11<br/>(kickoff +50min, halftime)
-    Scored --> Scored: poll_and_score_dream11<br/>(kickoff +115min, fulltime)
-    Scored --> [*]
+    Open --> Open: submit or replace an XI
+    Open --> Locked: kickoff passes
+    Locked --> Scored: poll_due_fixtures<br/>(fulltime checkpoint)
+    Scored --> Scored: poll_due_fixtures<br/>(rescored)
+    Scored --> Finalized: final checkpoint<br/>(fixture finished)
+    Locked --> Voided: postponed, or unfinished<br/>7 days after kickoff
+    Finalized --> [*]
+    Voided --> [*]
 ```
 
 | Stage | What happens | Owner |
 |---|---|---|
-| Create | Player pool resolved, prices computed **once** and frozen, creator auto-joined, two scoring tasks scheduled | `dream11.py: create_contest` |
+| Create | Player pool resolved, prices computed **once** and frozen, creator auto-joined. Nothing is booked in Celery | `dream11.py: create_contest` |
 | Join | By 7-char invite code; blocked once locked or at capacity | `dream11.py: join_contest` |
-| Submit | One XI per user per contest, validated in full | `dream11.py: submit_team` |
-| Lock | `is_locked` flips at kickoff — gates joining *and* submitting | `dream11_locking.py: lock_started_contests` |
-| Score | Points and ranks written to `contest_members` | `dream11_scoring.py` |
+| Submit / replace | One XI per user per contest, validated in full; `PATCH` replaces it until kickoff. A saved team can seed it | `dream11.py` |
+| Lock | At kickoff, enforced in the database by the `enforce_contest_lock` trigger (edits included); `is_locked` is also flipped by the `lock_dream11_contests` Beat task | `dream11_locking.py: lock_started_contests` |
+| Score | Points and ranks written to `contest_members` at the fulltime checkpoint; the `final` checkpoint finalizes once the fixture reports finished | `dream11_scoring.py`, `Data/live_poll.py` |
+| Void | A contest whose fixture is postponed, or still unfinished 7 days after kickoff, is locked, finalized with `void_reason` set and no result (`finalize_dream11_contests`) | `Worker/tasks.py` |
 
 Locking is the hinge: before it, everyone picks blind; after it, picks are final
 and opponents' teams become visible.
@@ -45,7 +53,7 @@ and opponents' teams become visible.
 ## 2. Database
 
 Schema `dream11`, created in
-`backend/Migrations/versions/1acbf07cfb53_add_dream11_schema_and_fixture_poll_.py`.
+`backend/Migrations/versions/1acbf07cfb53_add_dream11_schema_and_fixture_poll_.py`; later revisions added saved teams, entry names, voiding (`void_reason`) and `final_breakdown`.
 
 | Table | Holds |
 |---|---|
@@ -53,7 +61,8 @@ Schema `dream11`, created in
 | `contest_members` | Membership, plus each member's `total_points` and `rank` |
 | `player_prices` | The frozen credit price of every pool player, per contest |
 | `teams` | One submitted XI per user per contest (`uq_d11_teams_contest_user`) |
-| `team_players` | The 11 rows of a team, with `is_captain` / `is_vice_captain` |
+| `team_players` | The 11 rows of a team, with `is_captain` / `is_vice_captain`, and `final_breakdown` (the frozen per-category scoring breakdown, written when scoring runs; NULL on older rows) |
+| `saved_teams` / `saved_team_players` | Reusable fixture-scoped lineups. Never scored or locked |
 
 It reads from the shared `ml` schema — `players`, `teams`, `fixtures` for the
 pool and fixture data, and `player_gw_stats` for both pricing inputs and match
@@ -64,9 +73,9 @@ results.
 - **`enforce_price_immutability`** (BEFORE UPDATE on `player_prices`) — prices
   are set once at creation and can never change, enforced at the database level
   rather than trusted to application code.
-- **`enforce_contest_lock`** (BEFORE INSERT on **`teams`**, not `team_players`) —
-  because the trigger fires on the parent row, inserting it first gates the whole
-  submission before any player rows are attempted.
+- **`enforce_contest_lock`** (on **`teams`** and `team_players`) — a team can
+  neither be inserted nor edited from the contest fixture's kickoff, enforced in
+  the database against the database clock.
 
 ### The id convention trap
 
@@ -121,11 +130,10 @@ constants live at module top so the weighting table is easy to find and adjust.
 
 > Assists being worth more than any goal is real Dream11, not a typo — and it
 > is the one weighting here that differs from FPL by more than a rounding
-> (`Results/scoring.py` scores an assist at 3, which is the separate classic
-> rule and must stay 3).
+> (Tactic mode's scorer, `Results/tactical_scoring.py`, uses its own, separate rules).
 
 Two places it deliberately diverges from FPL — the reason this module exists
-separately from `scoring.py`:
+separately from the Tactic-mode scorer:
 
 1. **Clean sheets use a 54-minute threshold**, recomputed from `goals_conceded`
    and `minutes`. The precomputed `clean_sheets` column is *never* read, because
@@ -133,7 +141,7 @@ separately from `scoring.py`:
    definitions can never get crossed.
 2. **Captain 2× and vice 1.5× are both unconditional and simultaneous**, applied
    as an additive bonus on top of a raw total that already counts everyone once:
-   `final = raw + captain_pts × 1.0 + vice_pts × 0.5`. In FPL the vice is a
+   `final = raw + captain_pts × 1.0 + vice_pts × 0.5`. In Tactic mode's older classic rules the vice was a
    *fallback* that only fires if the captain didn't play. Here both always apply,
    to two different players, and a captain who scored 0 simply contributes a 0
    bonus without affecting the vice.
@@ -146,16 +154,18 @@ gameweeks to accumulate.
 
 ## 4. API
 
-Ten routes, all mounted in `backend/Context_assembler/main.py`.
+The contest routes are all mounted in `backend/Context_assembler/main.py`; see the Quick 11 rows in the route table in [ARCHITECTURE.md](ARCHITECTURE.md) section 03 for the full, current list rather than a copy of it here.
 
 **Reads** — `GET /fixtures` (match list with scores, contest counts and the
 caller's per-fixture rank/points), plus `/dream11/contests`,
 `/dream11/contests/{id}`, `/dream11/fixtures/{id}/contests`,
-`/dream11/contests/{id}/players` (the priced pool),
-`/dream11/contests/{id}/leaderboard`, and `/dream11/contests/{id}/team`.
+`/dream11/fixtures/{id}/players`, `/dream11/contests/{id}/players` (the priced
+pool), `/dream11/contests/{id}/leaderboard`, and `/dream11/contests/{id}/team`.
 
 **Writes** — `POST /dream11/contests`, `/dream11/contests/join`,
-`/dream11/contests/{id}/team`.
+`POST` and `PATCH /dream11/contests/{id}/team` (submit, then replace until
+kickoff), `DELETE /dream11/contests/{id}` (creator only, before lock), and the
+saved-team routes under `/dream11/saved-teams`.
 
 ### Conventions that matter more than the shapes
 
@@ -174,11 +184,11 @@ caller's per-fixture rank/points), plus `/dream11/contests`,
   between the two modules, and exists so the weightings have exactly one
   definition.
 
-### The one authenticated endpoint
+### Authentication and the one `user_id` parameter
 
-`GET /dream11/contests/{id}/team` is the **only endpoint in the project** that
-requires a bearer token. Everywhere else `user_id` selects the caller's *own*
-data, where spoofing it gains nothing. Here it selects *someone else's*, so:
+Every user-scoped endpoint takes the caller from the bearer token. One endpoint
+still takes a `user_id` parameter: `GET /dream11/contests/{id}/team`, because
+there it names **whose** team to fetch, not who is asking.
 
 - `user_id` names **whose** team to fetch;
 - `current_user` (from the token) is **who is asking**, and cannot be spoofed.
@@ -197,7 +207,10 @@ decoration — a snooper would simply pass the victim's id as their own.
 | `/matches/:fixtureId` | Match detail — your contests, join by code, create |
 | `/dream11` | Your contests |
 | `/dream11/contests/:contestId` | Leaderboard, and entry point to any member's XI |
+| `/matches/:fixtureId/build` | Team builder before any contest exists (build, then save) |
 | `/dream11/contests/:contestId/pick` | The team builder |
+| `/dream11/contests/:contestId/edit` | Replace your team until kickoff |
+| `/dream11/scoring` | The Quick 11 scoring rules |
 
 API wrappers live in `frontend/src/api/dream11.js` and `api/fixtures.js`.
 
@@ -210,10 +223,10 @@ is for feedback, not trust, and has to track `_validate_team`.
 
 ### Mode, not just routes — `frontend/src/config/appMode.jsx`
 
-The app runs in **FPL** or **Contests** mode. Mode swaps the `BottomNav` tab set
-(five FPL destinations vs `Matches · My Contests · Chats`), is persisted to
+The app runs in **Tactic** or **Contests** (Quick 11) mode; the code identifiers still say `MODE_FPL` / `MODE_CONTESTS`. Mode swaps the `BottomNav` tab set
+(five Tactic-mode destinations vs `Matches · My Contests · Chats`), is persisted to
 `localStorage`, and is **derived from the path** so deep links self-correct — the
-header can never claim FPL while a contest screen is on-screen. `AppModeProvider`
+header can never claim Tactic mode while a contest screen is on-screen. `AppModeProvider`
 wraps the whole authenticated area rather than `Layout`, because Dashboard and
 Squad Selection draw their own chrome outside it.
 
@@ -240,33 +253,36 @@ celery -A Worker.celery_app worker --loglevel=info --pool=solo   # --pool=solo i
 celery -A Worker.celery_app beat   --loglevel=info
 ```
 
-- **`lock_dream11_contests`** — Beat, every 300s. The **only** thing anywhere
-  that sets `contests.is_locked = TRUE`.
-- **`poll_and_score_dream11`** — two one-off tasks per contest, scheduled at
-  creation for kickoff **+50min** (halftime) and **+115min** (fulltime).
+- **`lock_dream11_contests`** — Beat, every 300s. Flips `contests.is_locked`; the
+  `enforce_contest_lock` trigger already refuses team writes from kickoff, so
+  this flag is the visible state rather than the only guard.
+- **`poll_due_fixtures`** — Beat, every minute. Scores contests at the fulltime
+  checkpoint and finalizes them at `final`; see
+  [ARCHITECTURE.md](ARCHITECTURE.md) section 04. Nothing is booked per contest.
+- **`finalize_dream11_contests`** — Beat sweep that voids contests whose fixture
+  was postponed or is still unfinished 7 days after kickoff.
 
-**Without a worker and beat running, contests never lock** — so opponents' teams
-stay hidden indefinitely and scoring never fires. Everything else in the app
-still works.
+**Without a worker and beat running, scoring never fires** and `is_locked` never
+flips (though the database trigger still refuses late team writes). Everything
+else in the app still works.
 
-### Scheduling is off the request path, deliberately
+### Redis outages and contest creation
 
-`create_contest` queues those tasks in a FastAPI `BackgroundTask`. Inline, with
-Redis unreachable, the POST hung **~100 seconds** and then left the Celery app
-poisoned for the entire process ("Retry limit exceeded … must be restarted").
-The bounded retry policy in `Worker/celery_app.py` cut that to ~16s; moving it
-off the request path made it 0s to the client. Both halves are load-bearing —
-the retry policy now only bounds how long a background thread spends failing.
+`create_contest` no longer books anything in Celery, so creating a contest does
+not depend on Redis being reachable. (An earlier design queued two one-off
+tasks per contest; with Redis down the POST hung ~100 seconds and poisoned the
+Celery app for the process. Moving polling to the database-driven
+`poll_due_fixtures` removed that failure mode.)
 
 ---
 
 ## 7. Known gaps
 
-- **No team editing.** Submission is INSERT-only, one team per user per contest;
-  resubmitting returns a 422.
-- **No live match minute.** `ml.fixtures` stores no clock, so the match list
-  shows a LIVE pill rather than a fabricated `68'`. FPL's fixtures endpoint does
-  expose `minutes`, but surfacing it needs a column plus a frequent in-play poll.
+- **Team editing is allowed only until kickoff.** `PATCH` replaces the whole
+  XI; there is no partial edit.
+- **Live match minute is stored but unused.** `ml.fixtures.minutes` now exists
+  (from FPL's fixtures feed) but its live behaviour is unverified, so the match
+  list still shows a LIVE pill rather than a clock.
 - **Gameweek 1 prices are flat.** With no prior gameweek to roll over, every
   player floors to 6.0 and the credit budget cannot bind in the season's first
   round.

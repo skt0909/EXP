@@ -36,8 +36,8 @@ FastAPI · PostgreSQL · Celery + Redis · React + Vite · XGBoost · Groq · ng
 | [docs/DREAM11.md](docs/DREAM11.md) | Quick 11 contests (code name: Dream11): schema, pricing, scoring |
 | [docs/DEPLOY_PLAN.md](docs/DEPLOY_PLAN.md) | Server setup and deployment |
 | [deploy/STAGING.md](deploy/STAGING.md) · [deploy/PRODUCTION.md](deploy/PRODUCTION.md) | Staging setup and manual production frontend releases |
-| [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md) | Tactic mode rulebook and conversion plan (historical) |
-| [docs/STATUS.md](docs/STATUS.md) | Status snapshot from 22 Sep 2026 (historical) |
+| [docs/history/IMPLEMENTATION_PLAN.md](docs/history/IMPLEMENTATION_PLAN.md) | Tactic mode rulebook and conversion plan (historical) |
+| [docs/history/STATUS.md](docs/history/STATUS.md) | Status snapshot from 22 Sep 2026 (historical) |
 | [docs/history/](docs/history/) | Phase reports (point-in-time records) |
 | [docs/stitch_mockups/](docs/stitch_mockups/) | UI mockups |
 | [frontend/README.md](frontend/README.md) | Frontend setup and commands |

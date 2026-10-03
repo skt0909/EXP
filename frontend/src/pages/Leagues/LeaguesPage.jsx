@@ -157,7 +157,7 @@ function LeaguesPage() {
             {season}
           </p>
           <p className="font-body-md text-body-md text-on-surface-variant mt-sm">
-            {leagues.length} joined · manage your private and public FPL leagues.
+            {leagues.length} joined · manage your private and public leagues.
           </p>
         </div>
 

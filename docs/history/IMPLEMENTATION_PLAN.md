@@ -1,3 +1,5 @@
+> **Historical, as of 22 Sep 2026.** This is a point-in-time record, not a description of the current system. For the current state see [ARCHITECTURE.md](../ARCHITECTURE.md).
+
 # Tactical Fantasy Football: Implementation Plan v1
 
 Status: planning, agreed with the product owner on 2026-09-20.

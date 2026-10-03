@@ -296,7 +296,7 @@ export function buildDream11Rules(api) {
   const c = api.classic
 
   return {
-    eyebrow: 'Dream11 Rules',
+    eyebrow: 'Quick 11 Rules',
     title: 'Scoring Breakdown',
     statusLabel: 'Live Formula',
     intro:
