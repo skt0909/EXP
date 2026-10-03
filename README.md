@@ -4,7 +4,7 @@ A fantasy football app with a tactical twist: pick a tactic, choose two Bonus Pl
 
 **Status:** MVP, deployed and tested with a small private group of users. Non-commercial portfolio project.
 
-**Live:** <YOUR-URL> · **Demo video:** <VIDEO-LINK> · **User guide:** [User Guide.pdf](frontend/public/docs/User%20Guide.pdf)
+**Live:** <YOUR-URL> · **User guide:** [User Guide.pdf](frontend/public/docs/User%20Guide.pdf)
 
 <!-- Add a screenshot here: ![Pitchside screenshot](docs/screenshot.png) -->
 
@@ -59,7 +59,7 @@ Deliberately left for later:
 
 Not affiliated with, endorsed by or connected to the Premier League or Fantasy Premier League. Personal, non-commercial use only; no official logos or crests are used. The app stores account details, picks and scores for its small test group, and accounts can be deleted from within the app.
 
-**Licence:** <CHOOSE ONE, e.g. MIT>
+**Licence:** MIT, see [LICENSE](LICENSE)
 
 ## Running locally
 
