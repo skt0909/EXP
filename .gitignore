@@ -55,3 +55,7 @@ token.txt
 
 # One-off review/deploy patch files kept in the repo root
 *.patch
+
+# Local editor/tool settings
+.claude/
+.vscode/

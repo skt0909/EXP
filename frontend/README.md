@@ -32,4 +32,4 @@ npm test           # vitest (run once)
 - `src/pages/`, `src/components/`, `src/layout/`: screens and UI pieces
 - `src/hooks/`, `src/auth/`, `src/config/`, `src/data/`: shared logic and helpers
 
-UI mockups live in [`../docs/stitch_mockups/`](../docs/stitch_mockups/).
+UI mockups live in [`../docs/archive/stitch_mockups/`](../docs/archive/stitch_mockups/).

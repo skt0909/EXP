@@ -4,7 +4,7 @@ A fantasy football app with a tactical twist: pick a tactic, choose two Bonus Pl
 
 **Status:** MVP, deployed and tested with a small private group of users. Non-commercial portfolio project.
 
-**Live:** <YOUR-URL> · **User guide:** [User Guide.pdf](frontend/public/docs/User%20Guide.pdf)
+**Live:** [https://ps-app09.duckdns.org](https://ps-app09.duckdns.org) · **User guide:** [User Guide.pdf](frontend/public/docs/User%20Guide.pdf)
 
 <!-- Add a screenshot here: ![Pitchside screenshot](docs/screenshot.png) -->
 
@@ -39,7 +39,7 @@ FastAPI · PostgreSQL · Celery + Redis · React + Vite · XGBoost · Groq · ng
 | [docs/history/IMPLEMENTATION_PLAN.md](docs/history/IMPLEMENTATION_PLAN.md) | Tactic mode rulebook and conversion plan (historical) |
 | [docs/history/STATUS.md](docs/history/STATUS.md) | Status snapshot from 22 Sep 2026 (historical) |
 | [docs/history/](docs/history/) | Phase reports (point-in-time records) |
-| [docs/stitch_mockups/](docs/stitch_mockups/) | UI mockups |
+| [docs/archive/stitch_mockups/](docs/archive/stitch_mockups/) | UI mockups |
 | [frontend/README.md](frontend/README.md) | Frontend setup and commands |
 
 Some docs predate recent changes. Each file's header carries its last-verified date, and ARCHITECTURE.md is the most current.
@@ -65,7 +65,8 @@ Not affiliated with, endorsed by or connected to the Premier League or Fantasy P
 
 ```
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate   # Windows
+# macOS/Linux:  source venv/bin/activate
 pip install -r requirements.txt
 ```
 
