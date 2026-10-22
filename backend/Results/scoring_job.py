@@ -23,7 +23,7 @@ WHAT IS NEW
     MANAGER. This loads managers in batches of SCORING_BATCH_SIZE and runs ONE
     stats query for every player in the batch, so memory and round trips are
     bounded by the batch rather than by the league. The server is a 1 GB
-    e2-micro with a single-task worker (IMPLEMENTATION_PLAN.md section 10).
+    e2-micro with a single-task worker (docs/history/IMPLEMENTATION_PLAN.md section 10).
   * The tactical engine. raw_points is General Points, plus tactical_points and
     sub_bonus; there are no hits, so total_points == final_points.
   * A SEASON FILTER. Only real seasons are scored. SIM38OK / SIM38TST /

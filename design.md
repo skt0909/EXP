@@ -47,8 +47,8 @@ Player jerseys on the Quick 11 leaderboard pitch and Tactic dashboard pitch are 
 
 Use the downloaded HTML as the implementation reference and the screenshot as the visual reference:
 
-- Visual reference: `docs/stitch_mockups/dashboard-icon-system/dashboard-icon-system.jpg`
-- Generated code: `docs/stitch_mockups/dashboard-icon-system/dashboard-icon-system.html`
+- Visual reference: `docs/archive/stitch_mockups/dashboard-icon-system/dashboard-icon-system.jpg`
+- Generated code: `docs/archive/stitch_mockups/dashboard-icon-system/dashboard-icon-system.html`
 
 ## PitchSide Assets and Specification
 
@@ -56,26 +56,26 @@ Use the PitchSide asset bundle for production icon and vector implementation. Re
 
 Use the master asset and design specification as the implementation reference for brand artwork, color tokens, typography, spacing, iconography, telemetry tokens, and screen-flow conventions. When it conflicts with generic library defaults, follow the PitchSide specification while remaining consistent with established application behavior and accessibility requirements.
 
-- SVG asset bundle and code export: `docs/stitch_mockups/pitchside-asset-bundle/pitchside-asset-bundle.md`
-- Master asset and design specification: `docs/stitch_mockups/pitchside-master-specification/pitchside-master-design-specification.md`
+- SVG asset bundle and code export: `docs/archive/stitch_mockups/pitchside-asset-bundle/pitchside-asset-bundle.md`
+- Master asset and design specification: `docs/archive/stitch_mockups/pitchside-master-specification/pitchside-master-design-specification.md`
 - Stitch did not provide screenshot URLs for these two export/specification screens; their downloadable code artifacts are the canonical sources.
 
 ## Screen References
 
 Use each screenshot as the visual reference and its paired HTML file as the structural/code reference:
 
-- Login: `docs/stitch_mockups/login-tactical-minimalist/login-tactical-minimalist.jpg` and `docs/stitch_mockups/login-tactical-minimalist/login-tactical-minimalist.html`
-- FPL Dashboard: `docs/stitch_mockups/fpl-dashboard-tennis-style/fpl-dashboard-tennis-style.jpg` and `docs/stitch_mockups/fpl-dashboard-tennis-style/fpl-dashboard-tennis-style.html`
-- Starting XI: `docs/stitch_mockups/starting-xi-tactical-minimalist/starting-xi-tactical-minimalist.jpg` and `docs/stitch_mockups/starting-xi-tactical-minimalist/starting-xi-tactical-minimalist.html`
-- Transfers: `docs/stitch_mockups/transfers-tactical-minimalist/transfers-tactical-minimalist.jpg` and `docs/stitch_mockups/transfers-tactical-minimalist/transfers-tactical-minimalist.html`
-- Leagues Hub: `docs/stitch_mockups/leagues-hub-tactical-minimalist/leagues-hub-tactical-minimalist.jpg` and `docs/stitch_mockups/leagues-hub-tactical-minimalist/leagues-hub-tactical-minimalist.html`
-- Chats / Assist: `docs/stitch_mockups/chats-assist-tactical-minimalist/chats-assist-tactical-minimalist.jpg` and `docs/stitch_mockups/chats-assist-tactical-minimalist/chats-assist-tactical-minimalist.html`
-- Matches: `docs/stitch_mockups/matches-tactical-minimalist/matches-tactical-minimalist.jpg` and `docs/stitch_mockups/matches-tactical-minimalist/matches-tactical-minimalist.html`
-- Match Detail: `docs/stitch_mockups/match-detail-tactical-minimalist/match-detail-tactical-minimalist.jpg` and `docs/stitch_mockups/match-detail-tactical-minimalist/match-detail-tactical-minimalist.html`
-- Edit Team: `docs/stitch_mockups/edit-team-tactical-minimalist/edit-team-tactical-minimalist.jpg` and `docs/stitch_mockups/edit-team-tactical-minimalist/edit-team-tactical-minimalist.html`
-- Quick 11 Leagues: `docs/stitch_mockups/leagues-quick11-tactical-minimalist/leagues-quick11-tactical-minimalist.jpg` and `docs/stitch_mockups/leagues-quick11-tactical-minimalist/leagues-quick11-tactical-minimalist.html`
-- Leaderboard player card: `docs/stitch_mockups/leaderboard-player-view-card/leaderboard-player-view-card.jpg` and `docs/stitch_mockups/leaderboard-player-view-card/leaderboard-player-view-card.html`
+- Login: `docs/archive/stitch_mockups/login-tactical-minimalist/login-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/login-tactical-minimalist/login-tactical-minimalist.html`
+- FPL Dashboard: `docs/archive/stitch_mockups/fpl-dashboard-tennis-style/fpl-dashboard-tennis-style.jpg` and `docs/archive/stitch_mockups/fpl-dashboard-tennis-style/fpl-dashboard-tennis-style.html`
+- Starting XI: `docs/archive/stitch_mockups/starting-xi-tactical-minimalist/starting-xi-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/starting-xi-tactical-minimalist/starting-xi-tactical-minimalist.html`
+- Transfers: `docs/archive/stitch_mockups/transfers-tactical-minimalist/transfers-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/transfers-tactical-minimalist/transfers-tactical-minimalist.html`
+- Leagues Hub: `docs/archive/stitch_mockups/leagues-hub-tactical-minimalist/leagues-hub-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/leagues-hub-tactical-minimalist/leagues-hub-tactical-minimalist.html`
+- Chats / Assist: `docs/archive/stitch_mockups/chats-assist-tactical-minimalist/chats-assist-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/chats-assist-tactical-minimalist/chats-assist-tactical-minimalist.html`
+- Matches: `docs/archive/stitch_mockups/matches-tactical-minimalist/matches-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/matches-tactical-minimalist/matches-tactical-minimalist.html`
+- Match Detail: `docs/archive/stitch_mockups/match-detail-tactical-minimalist/match-detail-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/match-detail-tactical-minimalist/match-detail-tactical-minimalist.html`
+- Edit Team: `docs/archive/stitch_mockups/edit-team-tactical-minimalist/edit-team-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/edit-team-tactical-minimalist/edit-team-tactical-minimalist.html`
+- Quick 11 Leagues: `docs/archive/stitch_mockups/leagues-quick11-tactical-minimalist/leagues-quick11-tactical-minimalist.jpg` and `docs/archive/stitch_mockups/leagues-quick11-tactical-minimalist/leagues-quick11-tactical-minimalist.html`
+- Leaderboard player card: `docs/archive/stitch_mockups/leaderboard-player-view-card/leaderboard-player-view-card.jpg` and `docs/archive/stitch_mockups/leaderboard-player-view-card/leaderboard-player-view-card.html`
 
 ## Asset Status
 
-The Dashboard Icon System, application and Quick 11 screen references, generated HTML, PitchSide SVG asset bundle, and master design specification were downloaded from the hosted URLs returned by Stitch and are stored under `docs/stitch_mockups/`.
+The Dashboard Icon System, application and Quick 11 screen references, generated HTML, PitchSide SVG asset bundle, and master design specification were downloaded from the hosted URLs returned by Stitch and are stored under `docs/archive/stitch_mockups/`.

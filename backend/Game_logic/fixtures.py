@@ -290,7 +290,7 @@ CURRENT_GAMEWEEK_QUERY = text(
         SELECT max(season) AS season FROM gw_deadlines
     ),
     -- A gameweek before the current ruleset's first_gameweek is never scored
-    -- under these rules by design (IMPLEMENTATION_PLAN.md D5: "earlier
+    -- under these rules by design (docs/history/IMPLEMENTATION_PLAN.md D5: "earlier
     -- Gameweeks stay blank -- they are not back-scored"), so it can NEVER
     -- pick up a `gameweeks` row and would otherwise pin "earliest unscored"
     -- to gameweek 1 forever, however far the season has actually progressed.

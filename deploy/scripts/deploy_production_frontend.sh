@@ -44,7 +44,7 @@ git merge-base --is-ancestor "$old_sha" "$sha" || {
 # systemd/nginx changes. Such releases need a separately reviewed procedure.
 while IFS= read -r path; do
     case "$path" in
-        frontend/*|docs/*|README.md|.gitattributes|.github/*|backend/Tests/*|deploy/STAGING.md|deploy/PRODUCTION.md|deploy/scripts/*) ;;
+        frontend/*|docs/*|README.md|.gitattributes|.github/*|.gitignore|.claude/*|.vscode/*|design.md|backend/Tests/*|deploy/STAGING.md|deploy/PRODUCTION.md|deploy/scripts/*) ;;
         *) echo "Not a frontend-only release: $path" >&2; exit 2 ;;
     esac
 done < <(git diff --name-only "$old_sha" "$sha")

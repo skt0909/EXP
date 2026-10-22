@@ -8,7 +8,7 @@ Free Hit chip's end-to-end revert chain. Both are gone: the classic scorer
 (Results/scoring.py) was deleted in Phase 4c and the Free Hit chip
 (GameEngine/free_hit_revert.py, the free_hit_squads table) was removed
 with it. Their tests are deleted, not skipped, per the MERGE GATE in
-IMPLEMENTATION_PLAN.md -- there is nothing left for them to cover. The
+docs/history/IMPLEMENTATION_PLAN.md -- there is nothing left for them to cover. The
 tactical selection/scoring lifecycle is exercised end-to-end by
 test_gw_selection_tactical.py, test_transfers_tactical.py and
 test_scoring_job_tactical.py instead.
