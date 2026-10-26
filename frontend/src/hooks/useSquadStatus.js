@@ -2,8 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchCurrentSquad } from '../api/squad'
 import { useAuth } from '../auth/AuthContext'
 import { useGameweek } from '../config/gameweek'
-
-const SQUAD_SIZE = 15
+import { SQUAD_SIZE } from '../data/squadRules'
 
 /**
  * Whether this user has actually submitted a full 15-player squad.

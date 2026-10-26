@@ -1,5 +1,6 @@
 import PlayerJersey from '../PlayerJersey/PlayerJersey'
 import PitchRowLabel from '../PitchRowLabel/PitchRowLabel'
+import { POSITION_REQUIREMENTS } from '../../data/squadRules'
 
 /**
  * Squad-building pitch: one dashed "add" slot per unfilled place, matching the
@@ -10,10 +11,10 @@ import PitchRowLabel from '../PitchRowLabel/PitchRowLabel'
  * the fastest way to say "I need another defender".
  */
 const ROWS = [
-  { position: 'FWD', size: 3, big: true },
-  { position: 'MID', size: 5, big: false },
-  { position: 'DEF', size: 5, big: false },
-  { position: 'GK', size: 2, big: true },
+  { position: 'FWD', size: POSITION_REQUIREMENTS.FWD, big: true },
+  { position: 'MID', size: POSITION_REQUIREMENTS.MID, big: false },
+  { position: 'DEF', size: POSITION_REQUIREMENTS.DEF, big: false },
+  { position: 'GK', size: POSITION_REQUIREMENTS.GK, big: true },
 ]
 
 function PitchView({ selectedPlayers, onEmptySlotClick }) {

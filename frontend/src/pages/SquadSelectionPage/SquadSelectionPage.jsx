@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useBlocker } from 'react-router-dom'
 import BottomNav from '../../components/BottomNav/BottomNav'
 import FplHeader from '../../components/FplHeader/FplHeader'
 import PitchView from '../../components/PitchView/PitchView'
 import PositionTabs from '../../components/PositionTabs/PositionTabs'
 import PlayerCard from '../../components/PlayerCard/PlayerCard'
 import ValidationBar from '../../components/ValidationBar/ValidationBar'
+import UnsavedChangesModal from '../../components/UnsavedChangesModal/UnsavedChangesModal'
 import { fetchPlayers } from '../../api/players'
 import { fetchCurrentSquad, submitSquad } from '../../api/squad'
 import { LockedError } from '../../api/client'
@@ -12,9 +14,15 @@ import { useAuth } from '../../auth/AuthContext'
 import { useGameweek } from '../../config/gameweek'
 import { normalizePremierLeaguePlayer } from '../../data/premierLeague2026'
 
-const SQUAD_SIZE = 15
+import {
+  POSITION_REQUIREMENTS,
+  SQUAD_SIZE,
+  countByPosition,
+  isPositionFull,
+  positionFullHint,
+} from '../../data/squadRules'
+
 const BUDGET_CAP = 100.0
-const POSITION_REQUIREMENTS = { GK: 2, DEF: 5, MID: 5, FWD: 3 }
 const MAX_PER_CLUB = 3
 
 // Prices arrive from the API already converted from ml.players.cost_start's
@@ -37,6 +45,8 @@ function SquadSelectionPage() {
   const [loadError, setLoadError] = useState(null)
 
   const [selectedIds, setSelectedIds] = useState([])
+  // Last server-confirmed squad (loaded or saved); unsaved = selection differs.
+  const [savedIds, setSavedIds] = useState([])
   const [activePosition, setActivePosition] = useState('ALL')
   const [search, setSearch] = useState('')
   const [sortByPrice, setSortByPrice] = useState(null) // null | 'asc' | 'desc'
@@ -69,7 +79,9 @@ function SquadSelectionPage() {
         setPlayers(
           playersData.map((p) => normalizePremierLeaguePlayer({ ...p, points: p.season_points }))
         )
-        setSelectedIds((squadData.players ?? []).map((p) => p.player_id))
+        const loadedIds = (squadData.players ?? []).map((p) => p.player_id)
+        setSelectedIds(loadedIds)
+        setSavedIds(loadedIds)
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err.message)
@@ -97,11 +109,7 @@ function SquadSelectionPage() {
   const budgetRemaining = (BUDGET_CAP * 10 - totalCostTenths) / 10
   const budgetValid = totalCostTenths <= BUDGET_CAP * 10
 
-  const positionCounts = useMemo(() => {
-    const counts = { GK: 0, DEF: 0, MID: 0, FWD: 0 }
-    for (const p of selectedPlayers) counts[p.position] = (counts[p.position] || 0) + 1
-    return counts
-  }, [selectedPlayers])
+  const positionCounts = useMemo(() => countByPosition(selectedPlayers), [selectedPlayers])
   const formationValid = Object.entries(POSITION_REQUIREMENTS).every(
     ([pos, required]) => positionCounts[pos] === required
   )
@@ -112,6 +120,26 @@ function SquadSelectionPage() {
     return counts
   }, [selectedPlayers])
   const clubValid = Object.values(clubCounts).every((n) => n <= MAX_PER_CLUB)
+
+  const hasUnsavedChanges = useMemo(() => {
+    if (selectedIds.length !== savedIds.length) return true
+    const saved = new Set(savedIds)
+    return selectedIds.some((id) => !saved.has(id))
+  }, [selectedIds, savedIds])
+
+  // In-app navigation (bottom nav, header links, back) is held by the router
+  // blocker; tab close / refresh can't be styled, so the browser's generic
+  // dialog covers that case.
+  const blocker = useBlocker(hasUnsavedChanges)
+  useEffect(() => {
+    if (!hasUnsavedChanges) return undefined
+    const onBeforeUnload = (e) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [hasUnsavedChanges])
 
   const countValid = selectedPlayers.length === SQUAD_SIZE
   const isValid = countValid && formationValid && budgetValid && clubValid
@@ -137,6 +165,9 @@ function SquadSelectionPage() {
     setSelectedIds((prev) => {
       if (prev.includes(id)) return prev.filter((pid) => pid !== id)
       if (prev.length >= SQUAD_SIZE) return prev
+      const position = playersById.get(id)?.position
+      const counts = countByPosition(prev.map((pid) => playersById.get(pid)).filter(Boolean))
+      if (isPositionFull(counts, position)) return prev
       return [...prev, id]
     })
   }
@@ -153,6 +184,7 @@ function SquadSelectionPage() {
 
     try {
       await submitSquad({ season, player_ids: selectedIds })
+      setSavedIds(selectedIds)
       setSubmitSuccess(true)
     } catch (err) {
       // Client-side checks above are for instant feedback only -- the backend's
@@ -202,6 +234,16 @@ function SquadSelectionPage() {
 
           <section className="sticky top-[132px] z-30 bg-surface/95 backdrop-blur-md pt-sm pb-md border-b border-outline-variant shadow-sm">
             <PositionTabs active={activePosition} onChange={setActivePosition} />
+            <div className="px-md pb-sm flex justify-between font-label-md text-label-md" data-testid="position-counters">
+              {Object.entries(POSITION_REQUIREMENTS).map(([pos, required]) => (
+                <span
+                  className={positionCounts[pos] === required ? 'text-primary font-bold' : 'text-on-surface-variant'}
+                  key={pos}
+                >
+                  {pos} {positionCounts[pos]}/{required}
+                </span>
+              ))}
+            </div>
             <div className="px-md flex gap-sm">
               <div className="relative flex-grow">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">
@@ -255,7 +297,14 @@ function SquadSelectionPage() {
               !loadError &&
               filteredPlayers.map((player) => (
                 <PlayerCard
-                  addDisabled={selectedPlayers.length >= SQUAD_SIZE}
+                  addDisabled={
+                    selectedPlayers.length >= SQUAD_SIZE || isPositionFull(positionCounts, player.position)
+                  }
+                  addDisabledHint={
+                    isPositionFull(positionCounts, player.position)
+                      ? positionFullHint(positionCounts, player.position)
+                      : undefined
+                  }
                   key={player.id}
                   onToggle={toggleSelect}
                   player={player}
@@ -290,6 +339,9 @@ function SquadSelectionPage() {
           submitting={submitting}
         />
         <BottomNav />
+        {blocker.state === 'blocked' && (
+          <UnsavedChangesModal onLeave={() => blocker.proceed()} onStay={() => blocker.reset()} />
+        )}
       </div>
     </div>
   )
