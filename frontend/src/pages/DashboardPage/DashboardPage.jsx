@@ -196,12 +196,13 @@ function normalizeDashboardPlayers(body) {
   }
 }
 
-function StatTile({ label, value, icon, iconClass = 'text-on-surface-variant' }) {
+function StatTile({ label, value, hint, icon, iconClass = 'text-on-surface-variant' }) {
   return (
     <div className="bg-white rounded-[20px] px-md py-sm shadow-sm border border-[#E5E6E1] flex justify-between items-center h-full gap-sm">
       <div className="flex flex-col min-w-0">
         <span className="font-label-md text-label-md text-on-surface-variant uppercase">{label}</span>
         <span className="font-headline-sm text-headline-sm text-on-surface truncate">{value}</span>
+        {hint && <span className="font-label-md text-[10px] text-on-surface-variant">{hint}</span>}
       </div>
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#E9E9D8]">
         <DashboardIcon className={iconClass} name={icon} size={19} />
@@ -275,6 +276,7 @@ function DashboardPage() {
   // meaningful once the gameweek is locked and in progress (state 3).
   const isLive = data ? phase.key === 'in_process' && data.provisional : false
   const noSquadKnown = !squadStatusLoading && !hasSquad
+  const rankAvailable = Boolean(data) && hasSquad && data.has_lineup && data.overall_rank != null
 
   return (
     <div className="bg-[#FBF9F5] text-on-background font-body-md min-h-screen pb-24">
@@ -406,11 +408,10 @@ function DashboardPage() {
                 <StatTile
                   icon="chart"
                   label="Overall Rank"
-                  value={
-                    data.overall_rank != null
-                      ? `${data.overall_rank} / ${data.overall_rank_total}`
-                      : '--'
-                  }
+                  // The API ranks any user with a gw_scores row, even one with no
+                  // team, so gate on the user actually having a squad and lineup.
+                  hint={rankAvailable ? undefined : 'No rank yet. Pick your team to get ranked'}
+                  value={rankAvailable ? `${data.overall_rank} / ${data.overall_rank_total}` : '—'}
                 />
               </div>
             </section>

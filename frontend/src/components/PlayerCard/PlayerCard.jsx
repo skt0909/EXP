@@ -18,6 +18,7 @@ function PlayerCard({
   player,
   selected,
   addDisabled,
+  addDisabledHint,
   onToggle,
   formatPrice = asMillions,
   showPoints = false,
@@ -52,6 +53,11 @@ function PlayerCard({
               <span className="font-label-md text-label-md text-error">{statusLabel}</span>
             )}
           </div>
+          {!selected && addDisabled && addDisabledHint && (
+            <span className="font-label-md text-[10px] text-on-surface-variant mt-0.5">
+              {addDisabledHint}
+            </span>
+          )}
         </div>
       </div>
 
@@ -74,6 +80,7 @@ function PlayerCard({
               : 'bg-[#F5F3F0] border border-[#E5E6E1] text-on-surface hover:bg-[#EDF2DF] hover:text-[#4D631B] hover:border-[#CBD8A8]'
           }`}
           disabled={!selected && addDisabled}
+          title={!selected && addDisabled ? addDisabledHint : undefined}
           onClick={() => onToggle(player.id)}
           type="button"
         >

@@ -1,4 +1,11 @@
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import {
+  Navigate,
+  Outlet,
+  Route,
+  RouterProvider,
+  createBrowserRouter,
+  createRoutesFromElements,
+} from 'react-router-dom'
 import Layout from './layout/Layout'
 import { AppModeProvider } from './config/appMode'
 import { GameweekProvider } from './config/gameweek'
@@ -37,11 +44,22 @@ function ModeShell() {
   )
 }
 
-function App() {
+/**
+ * Root route element: AuthProvider sits inside the router so every route,
+ * public or not, still sees it. A data router (RouterProvider) is required
+ * for useBlocker, used by Squad Selection's unsaved-changes guard.
+ */
+function Root() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
+    <AuthProvider>
+      <Outlet />
+    </AuthProvider>
+  )
+}
+
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <Route element={<Root />}>
           {/* Public: reachable without a token. */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -94,10 +112,12 @@ function App() {
           {/* Dashboard is the hub, so it -- not chat -- is the landing route. */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    </Route>
   )
+)
+
+function App() {
+  return <RouterProvider router={router} />
 }
 
 export default App
